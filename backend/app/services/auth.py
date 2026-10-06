@@ -38,6 +38,14 @@ from app.services.privileged_access import (
 )
 
 
+def _valid_account_scope(
+    designation: str, branch_id: UUID | None, department_id: UUID | None
+) -> bool:
+    if designation == "Owner":
+        return branch_id is None and department_id is None
+    return branch_id is not None and department_id is not None
+
+
 async def login(session: AsyncSession, email: str, password: str) -> tuple[str, str, dict]:
     now = utcnow()
     email = login_email.normalize(email)
@@ -55,6 +63,7 @@ async def login(session: AsyncSession, email: str, password: str) -> tuple[str, 
         and row["employee_status"] == "Active"
         and not row["locked_at"]
         and row["password_hash"]
+        and _valid_account_scope(row["designation"], row["branch_id"], row["department_id"])
     )
     encoded = row["password_hash"] if eligible and row is not None else DUMMY_PASSWORD_HASH
     password_matches = verify_password(encoded, password)
@@ -65,6 +74,7 @@ async def login(session: AsyncSession, email: str, password: str) -> tuple[str, 
             and row["access_status"] == "Active"
             and row["employee_status"] == "Active"
             and not row["locked_at"]
+            and _valid_account_scope(row["designation"], row["branch_id"], row["department_id"])
         ):
             failures = row["failed_attempts"] + 1
             await session.execute(
@@ -149,8 +159,7 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
         or row["access_status"] != "Active"
         or row["employee_status"] != "Active"
         or row["locked_at"]
-        or not row["branch_id"]
-        or not row["department_id"]
+        or not _valid_account_scope(row["designation"], row["branch_id"], row["department_id"])
     ):
         await session.execute(
             update(sessions).where(sessions.c.id == session_row["id"]).values(invalidated_at=now)
@@ -226,8 +235,9 @@ async def generate_link(session: AsyncSession, actor: Actor, employee_id: UUID, 
     if (
         not account
         or account["status"] == "Offboarded"
-        or not account["branch_id"]
-        or not account["department_id"]
+        or not _valid_account_scope(
+            account["target_designation"], account["branch_id"], account["department_id"]
+        )
     ):
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
     require_owner_for_privileged_account(actor, account["target_designation"])
@@ -284,7 +294,13 @@ async def complete_link(session: AsyncSession, raw_token: str, password: str, ki
         raise ApiError(400, "INVALID_LINK", "Link invalid or expired")
     await lock_account_employee(session, token_account_id)
     result = await session.execute(
-        select(user_accounts, employees.c.status, designations.c.name.label("target_designation"))
+        select(
+            user_accounts,
+            employees.c.status,
+            employees.c.branch_id,
+            employees.c.department_id,
+            designations.c.name.label("target_designation"),
+        )
         .join(employees, user_accounts.c.employee_id == employees.c.id)
         .join(designations, employees.c.designation_id == designations.c.id)
         .where(user_accounts.c.id == token_account_id)
@@ -300,7 +316,14 @@ async def complete_link(session: AsyncSession, raw_token: str, password: str, ki
     now = utcnow()
     if not token or token["used_at"] or token["invalidated_at"] or token["expires_at"] <= now:
         raise ApiError(400, "INVALID_LINK", "Link invalid or expired")
-    if not account or account["status"] == "Offboarded" or account["access_status"] == "Disabled":
+    if (
+        not account
+        or account["status"] == "Offboarded"
+        or account["access_status"] == "Disabled"
+        or not _valid_account_scope(
+            account["target_designation"], account["branch_id"], account["department_id"]
+        )
+    ):
         raise ApiError(400, "INVALID_LINK", "Link invalid or expired")
     if account["target_designation"] in PRIVILEGED_ACCOUNT_ROLES:
         generator_role = await session.scalar(

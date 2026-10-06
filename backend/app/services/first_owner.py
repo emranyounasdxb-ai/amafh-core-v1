@@ -10,7 +10,6 @@ from app import audit
 from app.config import settings
 from app.db.base import utcnow
 from app.db.organization import (
-    assignment_history,
     designations,
     employees,
     password_tokens,
@@ -21,13 +20,16 @@ from app.identifiers import new_system_employee_code
 from app.schemas.organization import EmployeeCreate
 from app.security import new_token, token_digest
 from app.services import login_email
-from app.services.organization import _department_in_branch
 
 
 async def enroll(session: AsyncSession, item: EmployeeCreate) -> tuple[UUID, str, str]:
     """Create the first Owner and its setup link in one guarded transaction."""
-    if item.branchId is None or item.departmentId is None or item.reportingManagerId is not None:
-        raise ApiError(422, "INVALID_OWNER", "Owner needs Branch and Department, without a manager")
+    if (
+        item.branchId is not None
+        or item.departmentId is not None
+        or item.reportingManagerId is not None
+    ):
+        raise ApiError(422, "INVALID_OWNER", "The global Owner cannot have an assignment")
     try:
         # Serialize competing local bootstrap commands, including the empty-database case.
         await session.execute(text("SELECT pg_advisory_xact_lock(460973423019)"))
@@ -50,7 +52,6 @@ async def enroll(session: AsyncSession, item: EmployeeCreate) -> tuple[UUID, str
         )
         if existing or owner_accounts:
             raise ApiError(409, "OWNER_EXISTS", "Owner enrollment is already complete")
-        await _department_in_branch(session, item.branchId, item.departmentId)
         employee_id, account_id = uuid4(), uuid4()
         await login_email.guard_unique(session, str(item.personalEmail), employee_id)
         code, raw_token, now = await new_system_employee_code(session), new_token(), utcnow()
@@ -69,18 +70,9 @@ async def enroll(session: AsyncSession, item: EmployeeCreate) -> tuple[UUID, str
                 passport_number=item.passportNumber,
                 emirates_id_number=item.emiratesIdNumber,
                 designation_id=owner_role_id,
-                branch_id=item.branchId,
-                department_id=item.departmentId,
+                branch_id=None,
+                department_id=None,
                 status="Active",
-            )
-        )
-        await session.execute(
-            assignment_history.insert().values(
-                employee_id=employee_id,
-                branch_id=item.branchId,
-                department_id=item.departmentId,
-                designation_id=owner_role_id,
-                assignment_start_date=item.dateOfJoining,
             )
         )
         await session.execute(

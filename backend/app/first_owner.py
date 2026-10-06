@@ -4,12 +4,11 @@ import argparse
 import asyncio
 import sys
 from datetime import date
-from uuid import UUID
 
 from sqlalchemy import func, select
 
 from app.bootstrap import seed
-from app.db.organization import branches, departments, designations, employees, user_accounts
+from app.db.organization import designations, employees, user_accounts
 from app.db.session import session_factory
 from app.schemas.organization import EmployeeCreate
 from app.services.first_owner import enroll
@@ -35,14 +34,6 @@ async def run() -> None:
         )
         if existing or accounts:
             raise RuntimeError("Owner enrollment refused: an Owner already exists")
-        rows = await session.execute(
-            select(branches.c.name, branches.c.id, departments.c.name, departments.c.id)
-            .join(departments, departments.c.branch_id == branches.c.id)
-            .where(branches.c.active.is_(True), departments.c.active.is_(True))
-            .order_by(branches.c.name, departments.c.name)
-        )
-        for branch, branch_id, department, department_id in rows:
-            print(f"{branch} / {department}: Branch {branch_id}, Department {department_id}")
         item = EmployeeCreate(
             companyEmployeeCode=input("Company Employee Code: "),
             fullName=input("Full Name: "),
@@ -55,8 +46,6 @@ async def run() -> None:
             passportNumber=input("Passport Number: "),
             emiratesIdNumber=input("Emirates ID Number (blank if absent): ") or None,
             designationId=owner_id,
-            branchId=UUID(input("Branch UUID: ")),
-            departmentId=UUID(input("Department UUID: ")),
         )
         _, code, link = await enroll(session, item)
     print(f"System Employee Code: {code}")

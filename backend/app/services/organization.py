@@ -213,6 +213,8 @@ async def change_assignment(
         raise ApiError(403, "FORBIDDEN", "Owner enrollment requires the local command")
     if old_role == "Owner" and new_role != "Owner":
         raise ApiError(403, "FORBIDDEN", "Owner designation cannot be reassigned")
+    if old_role == "Owner":
+        raise ApiError(403, "OWNER_PROTECTED", "The global Owner cannot have an assignment")
     require_owner_for_privileged_account(actor, old_role)
     require_owner_for_privileged_account(actor, new_role)
     if old_role == "HR" and new_role != "HR" and actor.designation != "Owner":

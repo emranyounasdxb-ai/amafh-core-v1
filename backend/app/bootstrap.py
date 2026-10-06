@@ -6,10 +6,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from app.db.cases import product_types
 from app.db.organization import (
-    branches,
-    departments,
     designations,
     permissions,
     record_scope_config,
@@ -29,16 +26,10 @@ LOCKED_DESIGNATIONS = (
     "HR",
     "Finance",
 )
-OPERATING_CITIES = ("Dubai", "Abu Dhabi")
 
 
-async def seed(*, departments_seeded: bool = True) -> None:
-    """Seed reference data for the head schema.
-
-    ``departments_seeded=False`` skips Departments and the Branch operating city,
-    whose classification columns only exist from revisions 20261004p12a and
-    20261004p12aot; upgrade rehearsals use it for older schemas.
-    """
+async def seed() -> None:
+    """Seed only locked identity, permission, and record-scope definitions."""
     async with session_factory()() as session:
         async with session.begin():
             for name in LOCKED_DESIGNATIONS:
@@ -94,59 +85,6 @@ async def seed(*, departments_seeded: bool = True) -> None:
                         constraint="record_scope_config_designation_id_resource_key"
                     )
                 )
-            for name in OPERATING_CITIES:
-                if departments_seeded and await session.scalar(
-                    select(branches.c.id).where(branches.c.operating_city == name)
-                ):
-                    continue
-                await session.execute(
-                    insert(branches)
-                    .values(
-                        id=uuid4(),
-                        name=name,
-                        **({"operating_city": name} if departments_seeded else {}),
-                    )
-                    .on_conflict_do_nothing(index_elements=[branches.c.name])
-                )
-            for name, code in (("Credit Card", "CC"), ("Personal Finance", "PF")):
-                await session.execute(
-                    insert(product_types)
-                    .values(id=uuid4(), name=name, code=code)
-                    .on_conflict_do_nothing(index_elements=[product_types.c.code])
-                )
-            if not departments_seeded:
-                return
-            product_ids: dict[str, UUID] = {
-                row["code"]: row["id"]
-                for row in (
-                    await session.execute(select(product_types.c.code, product_types.c.id))
-                ).mappings()
-            }
-            branch_ids = (
-                await session.scalars(
-                    select(branches.c.id).where(branches.c.operating_city.is_not(None))
-                )
-            ).all()
-            for branch_id in branch_ids:
-                for name, code in (("Credit Card Sales", "CC"), ("Personal Finance Sales", "PF")):
-                    classified = await session.scalar(
-                        select(departments.c.id).where(
-                            departments.c.branch_id == branch_id,
-                            departments.c.product_type_id == product_ids[code],
-                        )
-                    )
-                    if classified:
-                        continue
-                    await session.execute(
-                        insert(departments)
-                        .values(
-                            id=uuid4(),
-                            branch_id=branch_id,
-                            name=name,
-                            product_type_id=product_ids[code],
-                        )
-                        .on_conflict_do_nothing(constraint="departments_branch_id_name_key")
-                    )
 
 
 if __name__ == "__main__":
