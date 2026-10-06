@@ -1,0 +1,35 @@
+.page {
+  display: grid;
+  gap: var(--ds-space-20);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.stack {
+  display: grid;
+  gap: var(--ds-space-20);
+  min-width: 0;
+}
+
+.notice {
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.fieldValue {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dialogBody {
+  display: grid;
+  gap: var(--ds-space-16);
+  min-width: 0;
+}

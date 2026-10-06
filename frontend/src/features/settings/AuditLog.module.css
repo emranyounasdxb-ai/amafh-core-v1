@@ -1,0 +1,75 @@
+.panel {
+  display: grid;
+  gap: var(--ds-section-gap);
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+}
+
+.toolbar :global(.ds-filter-toolbar__item--quick) {
+  flex: 0 1 220px;
+  max-width: 260px;
+}
+
+.filterPanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 240px));
+  gap: var(--ds-space-8);
+  min-width: 0;
+  align-items: start;
+}
+
+.filterPanel :global(.ds-field--span) {
+  grid-column: 1 / -1;
+}
+
+.drawerBody {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+.change {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.changeLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.changeLabel {
+  flex: none;
+  width: 40px;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-support-size);
+  font-weight: var(--ds-support-weight);
+  line-height: var(--ds-support-line);
+}
+
+.noticeBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+@container (max-width: 639px) {
+  .toolbar :global(.ds-filter-toolbar__item) {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .toolbar :global(.ds-filter-toolbar__item--page-actions) {
+    margin-inline-start: 0;
+  }
+
+  .filterPanel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

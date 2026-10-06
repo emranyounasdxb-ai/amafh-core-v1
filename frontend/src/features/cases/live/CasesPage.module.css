@@ -1,0 +1,263 @@
+.page {
+  display: grid;
+  gap: var(--ds-section-gap);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.toolbarActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.toolbar :global(.ds-filter-toolbar__item--search) {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.filterGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--ds-space-8);
+  min-width: 0;
+  align-items: start;
+}
+
+.createdField :global(.ds-anchor),
+.createdField :global(.ds-date-control) {
+  min-width: 0;
+  width: 100%;
+}
+
+.createdField :global(.ds-date-control) {
+  min-width: min(100%, 220px);
+}
+
+.createdField :global(.ds-date-control__button) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.createdField :global(.ds-date-control__button > svg) {
+  flex: 0 0 16px;
+}
+
+.createdField :global(.ds-date-control__button span) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.createdField :global(.ds-combo__clear) {
+  flex: 0 0 28px;
+}
+
+@container (max-width: 1199px) {
+  .filterGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 899px) {
+  .filterGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 639px) {
+  .filterGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-8);
+  min-width: 0;
+  padding: var(--ds-space-8);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-subtle);
+}
+
+.table {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.datePopover:global(.ds-popover.ds-date-popover--compact) {
+  box-sizing: border-box;
+  width: 312px !important;
+  min-width: 304px;
+  max-width: min(320px, calc(100vw - 16px)) !important;
+  padding: 12px;
+  overflow: visible;
+}
+
+.datePopover :global(.ds-date-range--compact) {
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+}
+
+.datePopover :global(.ds-date-range__presets) {
+  display: none;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-date-range__calendars),
+.datePopover
+  :global(.ds-date-range--compact .ds-date-range__calendars--single) {
+  gap: 0;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar) {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__toolbar) {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: center;
+  justify-content: stretch;
+  gap: 0;
+  width: 100%;
+  min-height: 32px;
+  margin: 0;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__heading) {
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  font-size: var(--ds-toolbar-size);
+  font-weight: 700;
+  line-height: var(--ds-toolbar-line);
+}
+
+.datePopover
+  :global(.ds-date-range--compact .ds-calendar__toolbar .ds-icon-button) {
+  width: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  height: 32px;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__weekdays),
+.datePopover :global(.ds-date-range--compact .ds-calendar__grid) {
+  width: 100%;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  justify-content: stretch;
+  gap: 0;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__weekdays span),
+.datePopover :global(.ds-date-range--compact .ds-calendar__day) {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  height: 32px;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__weekdays span) {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-label-size);
+  font-weight: 600;
+  line-height: var(--ds-label-line);
+}
+
+.datePopover
+  :global(
+    .ds-date-range--compact
+      .ds-calendar__day--outside:not(.ds-calendar__day--selected):not(
+        .ds-calendar__day--range-start
+      ):not(.ds-calendar__day--range-end):not(.ds-calendar__day--range)
+  ) {
+  color: color-mix(in srgb, var(--ds-text-muted) 55%, var(--ds-surface));
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__day--today) {
+  box-shadow: none;
+}
+
+.datePopover
+  :global(
+    .ds-date-range--compact
+      .ds-calendar__day--today:not(.ds-calendar__day--selected):not(
+        .ds-calendar__day--range-start
+      ):not(.ds-calendar__day--range-end):not(.ds-calendar__day--range)
+  )::after {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ds-brand);
+  transform: translateX(-50%);
+  content: "";
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__day--range) {
+  background: color-mix(in srgb, var(--ds-brand) 28%, var(--ds-surface));
+  color: var(--ds-text);
+  border-radius: 0;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__day--range-start),
+.datePopover :global(.ds-date-range--compact .ds-calendar__day--range-end),
+.datePopover :global(.ds-date-range--compact .ds-calendar__day--selected) {
+  background: var(--ds-brand);
+  color: var(--ds-text-inverse);
+  border-radius: 0;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__day--range-start) {
+  border-radius: 4px 0 0 4px;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-calendar__day--range-end) {
+  border-radius: 0 4px 4px 0;
+}
+
+.datePopover
+  :global(
+    .ds-date-range--compact
+      .ds-calendar__day--range-start.ds-calendar__day--range-end
+  ),
+.datePopover
+  :global(
+    .ds-date-range--compact
+      .ds-calendar__day--selected:not(.ds-calendar__day--range-start):not(
+        .ds-calendar__day--range-end
+      )
+  ) {
+  border-radius: 4px;
+}
+
+.datePopover :global(.ds-date-range--compact .ds-date-range__footer) {
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: 0;
+  gap: var(--ds-space-8);
+}

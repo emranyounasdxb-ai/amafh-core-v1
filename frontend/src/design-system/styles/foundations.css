@@ -1,0 +1,110 @@
+.ds-root {
+  background: var(--ds-canvas);
+  min-width: 0;
+}
+
+.ds-root
+  :where(h1, h2, h3, p, a, button, input, select, textarea, label, span) {
+  letter-spacing: normal;
+}
+
+.ds-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ds-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: 0;
+}
+
+.ds-dirham {
+  font-weight: 600;
+}
+
+.ds-money {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.ds-money--end {
+  justify-content: flex-end;
+}
+
+.ds-date {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ds-table [data-align="end"] .ds-money {
+  width: 100%;
+}
+
+.ds-numeric--lg {
+  font-size: var(--ds-numeric-lg);
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.ds-numeric--md {
+  font-size: var(--ds-numeric-md);
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.ds-page {
+  display: grid;
+  gap: var(--ds-section-gap);
+  padding: var(--ds-page-pad);
+  min-width: 0;
+}
+
+.ds-stack-8 {
+  display: grid;
+  gap: var(--ds-space-8);
+}
+
+.ds-stack-12 {
+  display: grid;
+  gap: var(--ds-space-12);
+}
+
+.ds-stack-16 {
+  display: grid;
+  gap: var(--ds-space-16);
+}
+
+.ds-stack-20 {
+  display: grid;
+  gap: var(--ds-space-20);
+}
+
+.ds-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-control-gap-compact);
+}
+
+.ds-focusable:focus-visible,
+.ds-root :is(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}

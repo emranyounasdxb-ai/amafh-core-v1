@@ -1,0 +1,110 @@
+.ds-related-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface);
+}
+
+.ds-related-list__item,
+.ds-related-list__button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ds-space-12);
+  align-items: center;
+  width: 100%;
+  min-height: var(--ds-row-h);
+  padding: var(--ds-space-12) var(--ds-space-16);
+  border: 0;
+  border-bottom: 1px solid var(--ds-border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.ds-related-list li:last-child .ds-related-list__item,
+.ds-related-list li:last-child .ds-related-list__button {
+  border-bottom: 0;
+}
+
+.ds-related-list__button {
+  cursor: pointer;
+}
+
+.ds-related-list__button:hover {
+  background: var(--ds-subtle);
+}
+
+.ds-related-list__title {
+  margin: 0;
+  font-size: var(--ds-body-size);
+  font-weight: 700;
+  line-height: var(--ds-body-line);
+}
+
+.ds-related-list__meta {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+}
+
+.ds-kpi-summary-wrap {
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+}
+
+.ds-kpi-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--ds-space-16);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ds-status-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-8);
+}
+
+.ds-form-section {
+  display: grid;
+  gap: var(--ds-space-12);
+}
+
+.ds-form-section__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ds-space-16);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ds-form-section {
+  container-type: inline-size;
+}
+
+.ds-form-section__grid > .ds-file-upload {
+  grid-column: 1 / -1;
+}
+
+@container (max-width: 900px) {
+  .ds-kpi-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 560px) {
+  .ds-kpi-summary,
+  .ds-form-section__grid,
+  .ds-file-upload {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

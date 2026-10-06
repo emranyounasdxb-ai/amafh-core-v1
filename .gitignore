@@ -1,0 +1,66 @@
+# Local project material and generated knowledge
+/.codex/
+/.cursor/
+/.design-backups/
+/.local-development/
+/graphify-out/
+/docs/
+/scripts/
+/AGENTS.md
+/.graphifyignore
+
+# Tests, fixtures, runners, and generated results
+**/tests/
+**/__tests__/
+**/fixtures/
+**/test-results/
+**/playwright-report/
+**/testsprite_tests/
+**/*.test.*
+**/*.spec.*
+/frontend/playwright*.config.ts
+/frontend/scripts/
+
+# Local environments, uploads, databases, and secrets
+**/.env
+**/.env.*
+!**/.env.example
+**/.venv/
+**/node_modules/
+/backend/private_media/
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.pgdump
+*.backup
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Build products, caches, logs, and temporary files
+**/dist/
+**/build/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.cache/
+*.pyc
+*.pyo
+*.log
+*.tmp
+*.bak
+*.tsbuildinfo
+*.local
+
+# Non-runtime source material retained locally
+/assets/branding/source/
+/frontend/src/design-system/*.md
+/backend/README.md
+/frontend/README.md
+/backend/.gitignore
+/frontend/.gitignore
+/frontend/.oxlintrc.json

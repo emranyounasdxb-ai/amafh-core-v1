@@ -1,0 +1,107 @@
+.page {
+  display: grid;
+  gap: var(--ds-section-gap);
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+}
+
+.panel {
+  display: grid;
+  gap: var(--ds-section-gap);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+  gap: var(--ds-section-gap);
+  min-width: 0;
+}
+
+.drawerBody {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+.support {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.typeSelect {
+  flex: 0 1 220px;
+  width: 220px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.barStatus {
+  align-self: center;
+}
+
+.changeList {
+  display: grid;
+  gap: var(--ds-space-4);
+  margin: var(--ds-space-8) 0 0;
+  padding-left: var(--ds-space-16);
+  font-size: var(--ds-body-size);
+}
+
+.stages {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.stageRow {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.banner {
+  width: 100%;
+  aspect-ratio: 4 / 1;
+  border-radius: var(--ds-radius-control);
+  background-position: center;
+  background-size: cover;
+  background-color: var(--ds-subtle);
+}
+
+.image {
+  display: block;
+  max-width: 160px;
+  max-height: 96px;
+  object-fit: contain;
+}
+
+@container (max-width: 479px) {
+  .stageRow {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+.wording {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

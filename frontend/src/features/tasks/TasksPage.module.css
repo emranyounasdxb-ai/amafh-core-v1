@@ -1,0 +1,5 @@
+.dueDate {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+}

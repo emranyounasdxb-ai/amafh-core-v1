@@ -1,0 +1,55 @@
+.page {
+  display: grid;
+  gap: var(--ds-section-gap);
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+}
+
+.toolbar :global(.ds-filter-toolbar__item--quick) {
+  flex: 0 1 180px;
+  max-width: 220px;
+}
+
+.toolbar .reportControl {
+  flex: 0 1 280px;
+  max-width: 320px;
+}
+
+.toolbar .rangeControl {
+  flex: 0 1 260px;
+  max-width: 280px;
+}
+
+.filterPanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: var(--ds-space-8);
+  min-width: 0;
+  align-items: start;
+}
+
+.noticeBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+@container (max-width: 639px) {
+  .toolbar :global(.ds-filter-toolbar__item),
+  .toolbar .reportControl,
+  .toolbar .rangeControl {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .toolbar :global(.ds-filter-toolbar__item--page-actions) {
+    margin-inline-start: 0;
+  }
+
+  .filterPanel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

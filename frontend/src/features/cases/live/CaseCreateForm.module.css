@@ -1,0 +1,59 @@
+.body {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+.form {
+  display: grid;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.form :global(.ds-section-card) {
+  padding: var(--ds-space-12);
+}
+
+.form :global(.ds-form-section) {
+  gap: var(--ds-space-8);
+}
+
+.form :global(.ds-form-layout) {
+  gap: var(--ds-space-8);
+}
+
+.form :global(.ds-field) {
+  min-width: 0;
+  padding-bottom: 0;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-space-8);
+  width: 100%;
+}
+
+.support {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+}
+
+.body :global(.ds-stepper) {
+  gap: var(--ds-space-8);
+  padding: 0;
+}
+
+.body :global(.ds-stepper__item) {
+  min-height: 32px;
+}
+
+.body :global(.ds-stepper__index) {
+  width: 20px;
+  height: 20px;
+  font-size: var(--ds-label-size);
+}

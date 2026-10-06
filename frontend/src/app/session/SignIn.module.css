@@ -1,0 +1,56 @@
+:global(body):has(.root) {
+  min-width: 0;
+}
+
+.root {
+  min-height: 100svh;
+  background: var(--ds-canvas);
+}
+
+.page {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--ds-space-32) var(--ds-space-16);
+}
+
+.card {
+  width: min(100%, 440px);
+  margin: auto;
+  gap: var(--ds-space-20);
+}
+
+.logo {
+  display: block;
+  width: 178px;
+  max-width: 75%;
+  margin: var(--ds-space-8) auto 0;
+}
+
+.heading {
+  text-align: center;
+}
+
+.form {
+  display: grid;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.submit {
+  width: 100%;
+}
+
+.support {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+  text-align: center;
+}
+
+@media (max-height: 560px) {
+  .page {
+    padding-block: var(--ds-space-16);
+  }
+}

@@ -1,0 +1,89 @@
+.page {
+  display: grid;
+  gap: var(--ds-section-gap);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.upload {
+  display: grid;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.uploadActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.toolbar :global(.ds-filter-toolbar__item--search) {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.summary {
+  min-width: 0;
+}
+
+.table {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.confirmCopy {
+  margin: 0;
+  font-size: var(--ds-body-size);
+  line-height: var(--ds-body-line);
+}
+
+.metaLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0;
+  font-size: var(--ds-body-size);
+  line-height: var(--ds-body-line);
+}
+
+.dateValue {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  min-width: 0;
+  max-width: 100%;
+  line-height: inherit;
+}
+
+.dateValue :global(.ds-anchor),
+.dateValue :global(.ds-compact-value),
+.dateValue :global(.ds-date) {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  width: auto;
+  max-width: 100%;
+  line-height: inherit;
+}
+
+.page :global(.ds-page-title__subtitle) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-8);
+}
+
+.page :global(.ds-export-result) {
+  align-items: center;
+}
+
+.page :global(.ds-table) th,
+.page :global(.ds-table) td {
+  vertical-align: middle;
+}
+
+.page :global(.ds-table) :global(.ds-status-badge) {
+  vertical-align: middle;
+}

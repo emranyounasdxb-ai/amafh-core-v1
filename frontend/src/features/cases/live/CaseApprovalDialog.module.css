@@ -1,0 +1,12 @@
+.body {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+.summary {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+}

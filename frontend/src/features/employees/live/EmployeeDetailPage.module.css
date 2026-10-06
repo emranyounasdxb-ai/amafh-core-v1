@@ -1,0 +1,59 @@
+.page {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+  max-width: 100%;
+  container-type: inline-size;
+}
+
+.anchor {
+  min-width: 0;
+  scroll-margin-top: var(--ds-space-16);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+@container (max-width: 899px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+.personCopy {
+  display: grid;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.personName {
+  min-width: 0;
+  font-weight: 700;
+}
+
+.personCopy > span {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+}
+
+.period,
+.inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-4);
+  vertical-align: middle;
+}

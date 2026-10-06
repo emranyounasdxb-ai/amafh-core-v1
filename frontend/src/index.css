@@ -1,0 +1,35 @@
+@import "./styles/fonts.css";
+:root {
+  font-family: Manrope, "Segoe UI", sans-serif;
+  color: #1a171d;
+  background: #f8f7fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  min-width: 1024px;
+  min-height: 100vh;
+  margin: 0;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  #root *,
+  #root *::before,
+  #root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}

@@ -1,0 +1,16 @@
+.page {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.page :global(.ds-section-card) {
+  padding: var(--ds-space-12);
+}
+
+.correct {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}

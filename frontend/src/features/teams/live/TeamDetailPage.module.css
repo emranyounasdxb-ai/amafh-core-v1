@@ -1,0 +1,36 @@
+.page {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+.personCopy {
+  display: grid;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.personName {
+  min-width: 0;
+  font-weight: 700;
+}
+
+.personCopy > span {
+  color: var(--ds-text-muted);
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+}
+
+.table {
+  min-width: 0;
+  max-width: 100%;
+}

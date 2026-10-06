@@ -1,0 +1,22 @@
+.inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-4);
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.stack {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}

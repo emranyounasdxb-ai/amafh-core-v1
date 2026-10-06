@@ -1,0 +1,78 @@
+.page {
+  display: grid;
+  gap: var(--ds-section-gap);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.filters {
+  min-width: 0;
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-8);
+}
+
+.person {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.support {
+  margin: var(--ds-space-8) 0 0;
+  color: var(--ds-text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--ds-section-gap);
+  min-width: 0;
+  align-items: start;
+}
+
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-8);
+  min-width: 0;
+}
+
+.facts {
+  display: grid;
+  gap: var(--ds-space-8);
+  margin: var(--ds-space-8) 0 0;
+  min-width: 0;
+}
+
+.facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ds-space-8);
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.facts dt {
+  font-weight: 600;
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.factGroup dd {
+  display: grid;
+  gap: 2px;
+}
