@@ -165,11 +165,14 @@ export function ApplicationShell() {
         <div className={`ds-app-shell ${styles.shell}`}>
           <header className={styles.topbar}>
             <div className={styles.topbarLead}>
-              <img
-                className={styles.logo}
-                src="/production/amafh-core-full-logo-exact.svg"
-                alt="AMAFH Core"
-              />
+              <span className={styles.brand}>
+                <img
+                  className={styles.logo}
+                  src="/production/amafh-core-full-logo-exact.svg"
+                  alt="AMAFH Core"
+                />
+                <small className={styles.version}>v1.0.0</small>
+              </span>
               <span className={styles.mobileTrigger}>
                 <SidebarMobileTrigger onClick={() => setMobileOpen(true)} />
               </span>
