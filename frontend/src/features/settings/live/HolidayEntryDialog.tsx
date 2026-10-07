@@ -120,7 +120,7 @@ export function HolidayEntryDialog({
     >
       <form
         id="holiday-entry"
-        className={styles.form}
+        className={`${styles.form} ${styles.controls}`}
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -199,7 +199,7 @@ export function HolidayEntryDialog({
                 );
               })}
               {bulk ? (
-                <div role="cell">
+                <div role="cell" className={styles.rowActions}>
                   <Button
                     size="compact"
                     variant="ghost"
@@ -253,17 +253,40 @@ export function HolidayEntryDialog({
               All dates below will be saved together. Editing any row requires a
               new review.
             </p>
-            <ul>
-              {review.map((day) => (
-                <li key={`${day.row}-${day.holidayDate}`}>
-                  <span>
-                    Row {day.row} · <CompactDate value={day.holidayDate} />
+            <div role="table" aria-label="Expanded holiday dates review">
+              <div role="row" className={styles.reviewHead}>
+                {[
+                  "Source row",
+                  "Date",
+                  "Holiday name",
+                  "Official reference",
+                ].map((label) => (
+                  <span role="columnheader" key={label}>
+                    {label}
                   </span>
-                  <span>{day.name}</span>
-                  <span>{day.sourceReference}</span>
-                </li>
+                ))}
+              </div>
+              {review.map((day) => (
+                <div
+                  role="row"
+                  className={styles.reviewRow}
+                  key={`${day.row}-${day.holidayDate}`}
+                >
+                  <span role="cell" data-label="Source row">
+                    {day.row}
+                  </span>
+                  <span role="cell" data-label="Date">
+                    <CompactDate value={day.holidayDate} />
+                  </span>
+                  <span role="cell" data-label="Holiday name">
+                    {day.name}
+                  </span>
+                  <span role="cell" data-label="Official reference">
+                    {day.sourceReference}
+                  </span>
+                </div>
               ))}
-            </ul>
+            </div>
           </section>
         ) : null}
       </form>

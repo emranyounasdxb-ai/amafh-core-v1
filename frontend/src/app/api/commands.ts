@@ -12,6 +12,9 @@ export type ChoiceSource = {
   queryFrom?: Record<string, string>;
   matchFrom?: Record<string, string>;
   exclude?: string[];
+  /** A required parent choice; do not request options until it is present. */
+  requires?: { key: string; placeholder: string };
+  emptyLabel?: string;
 };
 export type Field = {
   key: string;
@@ -42,6 +45,7 @@ export type Field = {
   clearOnChange?: string[];
   section?: string;
   control?: "nationality";
+  hint?: string;
 };
 export type CommandConfirmation = {
   description: string;
@@ -58,6 +62,7 @@ export type Command = {
   confirmation?: CommandConfirmation;
   submitLabel?: string;
   imageUpload?: ImageUpload;
+  formClassName?: string;
 };
 export const employeeSource: ChoiceSource = {
   path: "/employees?status=Active",

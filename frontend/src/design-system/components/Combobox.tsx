@@ -13,6 +13,7 @@ export function Combobox({
   readOnly,
   invalid,
   loading,
+  unavailable,
   emptyLabel,
   query,
   onQueryChange,
@@ -31,6 +32,7 @@ export function Combobox({
   readOnly?: boolean;
   invalid?: boolean;
   loading?: boolean;
+  unavailable?: boolean;
   emptyLabel?: string;
   query?: string;
   onQueryChange?: (value: string) => void;
@@ -52,6 +54,7 @@ export function Combobox({
       invalid={invalid}
       searchable
       loading={loading}
+      unavailable={unavailable}
       emptyLabel={emptyLabel}
       query={query}
       onQueryChange={onQueryChange}

@@ -7,7 +7,7 @@
 .head,
 .row {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) 145px 145px minmax(
+  grid-template-columns: minmax(140px, 1fr) 166px 166px minmax(
       180px,
       1.2fr
     ) 72px;
@@ -27,6 +27,7 @@
 }
 .row :global(.ds-field) {
   gap: var(--ds-space-4);
+  grid-template-rows: auto;
 }
 .row :global(.ds-field__support:empty) {
   display: none;
@@ -49,6 +50,42 @@
   margin: 0;
   font-size: var(--ds-support-size);
 }
+.controls :global(.ds-field__control) {
+  min-width: 0;
+}
+.controls :global(.ds-input),
+.controls :global(.ds-date-control) {
+  height: var(--ds-control-h-compact);
+  min-height: var(--ds-control-h-compact);
+  font-size: var(--ds-toolbar-size);
+  line-height: var(--ds-toolbar-line);
+  font-weight: var(--ds-toolbar-weight);
+}
+.controls :global(.ds-input) {
+  padding-block: 0;
+}
+.controls :global(.ds-date-control__button) {
+  height: calc(var(--ds-control-h-compact) - 2px);
+  min-height: calc(var(--ds-control-h-compact) - 2px);
+  gap: 6px;
+  padding-inline: 10px;
+}
+.controls :global(.ds-date-control__button > span) {
+  white-space: nowrap;
+  text-align: left;
+}
+.controls :global(.ds-date-control__button > svg),
+.controls :global(.ds-date-control .ds-combo__clear) {
+  flex-shrink: 0;
+}
+.controls :global(.ds-date-control .ds-combo__clear) {
+  margin-right: 6px;
+}
+.rowActions :global(.ds-button) {
+  height: var(--ds-control-h-compact);
+  min-height: var(--ds-control-h-compact);
+  padding-block: 0;
+}
 .rowError {
   grid-column: 1 / -1;
 }
@@ -63,18 +100,21 @@
 .review p {
   color: var(--ds-text-muted);
 }
-.review ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.reviewHead,
+.reviewRow {
   display: grid;
-  gap: var(--ds-space-4);
-}
-.review li {
-  display: grid;
-  grid-template-columns: 160px minmax(100px, 1fr) minmax(160px, 1.2fr);
+  grid-template-columns: 80px 110px minmax(100px, 1fr) minmax(160px, 1.2fr);
   gap: var(--ds-space-8);
   padding-block: var(--ds-space-4);
+}
+.reviewHead {
+  font-weight: var(--ds-label-weight);
+}
+.reviewRow {
+  border-top: 1px solid var(--ds-border);
+}
+.reviewRow > span {
+  min-width: 0;
 }
 @media (max-width: 800px) {
   .head {
@@ -94,13 +134,26 @@
   .row > div:nth-child(4) {
     grid-column: 1 / -1;
   }
-  .review li {
-    grid-template-columns: 1fr;
+  .reviewHead {
+    display: none;
+  }
+  .reviewRow {
+    grid-template-columns: 1fr 1fr;
     gap: var(--ds-space-4);
   }
+  .reviewRow > span:nth-child(n + 3) {
+    grid-column: 1 / -1;
+  }
+  .reviewRow > span::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--ds-text-muted);
+    margin-bottom: var(--ds-space-4);
+  }
 }
-@media (max-width: 440px) {
-  .single {
+@media (max-width: 480px) {
+  .single,
+  .row {
     grid-template-columns: 1fr;
   }
 }

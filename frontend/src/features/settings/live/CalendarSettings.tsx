@@ -26,6 +26,7 @@ import { useNamedRecords } from "./useNamedRecords";
 import { canManageSettings } from "./settingsRegistry";
 import { SettingsTable } from "./SettingsTable";
 import { HolidayEntryDialog } from "./HolidayEntryDialog";
+import holidayStyles from "./HolidayEntryDialog.module.css";
 import styles from "./SettingsPage.module.css";
 
 type OfficeTimingRecord = {
@@ -189,6 +190,7 @@ const editHolidayCommand = (id: string): Command => ({
   title: "Edit Holiday",
   path: `/performance/uae-holidays/${id}`,
   method: "PATCH",
+  formClassName: holidayStyles.controls,
   fields: [
     { key: "holidayDate", label: "Holiday date", type: "date", required: true },
     { key: "name", label: "Holiday name", required: true, max: 200 },

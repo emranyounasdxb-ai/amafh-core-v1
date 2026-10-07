@@ -58,6 +58,15 @@ function choicePath(field: Field, values: DataRecord) {
   );
 }
 
+function blockedChoice(field: Field, values: DataRecord) {
+  const prerequisite = field.source?.requires;
+  return prerequisite && !values[prerequisite.key]
+    ? prerequisite.placeholder
+    : "";
+}
+
+type ChoiceStatus = "loading" | "ready" | "error";
+
 function toDateTimeValue(value: unknown): DateTimeValue {
   const raw = String(value ?? "");
   if (raw.includes("T")) {
@@ -84,6 +93,7 @@ function dependentKeys(fields: Field[], key: string): string[] {
           [
             ...Object.values(item.source?.queryFrom ?? {}),
             ...Object.values(item.source?.matchFrom ?? {}),
+            ...(item.source?.requires ? [item.source.requires.key] : []),
           ].includes(changed),
         )
         .map((item) => item.key),
@@ -131,7 +141,7 @@ function ChoiceControl({
   field: Field;
   values: DataRecord;
   change: (key: string, value: string) => void;
-  ready: (key: string, path: string) => void;
+  ready: (key: string, path: string, status?: ChoiceStatus) => void;
   invalid?: string;
 }) {
   const { api, session } = useSession();
@@ -141,7 +151,10 @@ function ChoiceControl({
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<SelectOption | null>(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const source = field.source!;
+  const blocked = blockedChoice(field, values);
   const debouncedQuery = useDebouncedValue(query, 250);
   const path = choicePath(field, values);
   const requestPath = source.search
@@ -152,7 +165,12 @@ function ChoiceControl({
     setError("");
   }, [path]);
   useEffect(() => {
+    if (blocked) return;
     const controller = new AbortController();
+    setRows([]);
+    setError("");
+    setLoading(true);
+    ready(field.key, path, "loading");
     const read = source.search
       ? api
           .request<Page<DataRecord>>(requestPath, { signal: controller.signal })
@@ -163,7 +181,15 @@ function ChoiceControl({
     read
       .then((items) => {
         if (controller.signal.aborted) return;
+        if (
+          !Array.isArray(items) ||
+          items.some((row) => !row || typeof row !== "object")
+        )
+          throw new Error(
+            "Choices response is invalid. Retry loading the records.",
+          );
         setRows(items);
+        setLoading(false);
         ready(field.key, path);
       })
       .catch((failure: unknown) => {
@@ -171,9 +197,21 @@ function ChoiceControl({
         setError(
           failure instanceof Error ? failure.message : "Choices unavailable",
         );
+        setLoading(false);
+        ready(field.key, path, "error");
       });
     return () => controller.abort();
-  }, [api, field.key, path, ready, requestPath, source.paged, source.search]);
+  }, [
+    api,
+    attempt,
+    blocked,
+    field.key,
+    path,
+    ready,
+    requestPath,
+    source.paged,
+    source.search,
+  ]);
   useEffect(() => {
     if (field.choiceLabel !== "departmentWithBranch") return;
     const controller = new AbortController();
@@ -327,7 +365,8 @@ function ChoiceControl({
       label={field.label}
       htmlFor={field.key}
       required={field.required}
-      error={invalid || error}
+      error={[invalid, error].filter(Boolean).join(" ") || undefined}
+      hint={blocked || field.hint}
     >
       <Combobox
         id={field.key}
@@ -339,12 +378,37 @@ function ChoiceControl({
           change(field.key, value);
         }}
         required={field.required}
+        disabled={Boolean(blocked || error)}
+        unavailable={Boolean(error)}
+        loading={loading}
         invalid={Boolean(invalid || error)}
         query={source.search ? query : undefined}
         onQueryChange={source.search ? setQuery : undefined}
-        placeholder={source.search ? "Search records" : "Select"}
-        emptyLabel="No matching records"
+        placeholder={
+          blocked ||
+          (error
+            ? `${field.label} unavailable`
+            : loading
+              ? `Loading ${field.label}…`
+              : source.search
+                ? "Search records"
+                : "Select")
+        }
+        emptyLabel={
+          options.length
+            ? "No matching records"
+            : source.emptyLabel || "No matching records"
+        }
       />
+      {error ? (
+        <Button
+          size="compact"
+          variant="ghost"
+          onClick={() => setAttempt((value) => value + 1)}
+        >
+          Retry {field.label}
+        </Button>
+      ) : null}
     </FormField>
   );
 }
@@ -370,7 +434,9 @@ export function CommandFormDialog({
       next[field.key] = initialField(field, record);
     return next;
   });
-  const [readyFields, setReadyFields] = useState<Record<string, string>>({});
+  const [readyFields, setReadyFields] = useState<
+    Record<string, { path: string; status: ChoiceStatus }>
+  >({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fields, setFields] = useState<Record<string, string[]>>({});
@@ -384,11 +450,16 @@ export function CommandFormDialog({
   const finishOrClose = () =>
     savedRecord ? onSaved(savedRecord.value) : onClose();
   const replay = useRef({ payload: "", key: "" });
-  const ready = useCallback((key: string, path: string) => {
-    setReadyFields((current) =>
-      current[key] === path ? current : { ...current, [key]: path },
-    );
-  }, []);
+  const ready = useCallback(
+    (key: string, path: string, status: ChoiceStatus = "ready") => {
+      setReadyFields((current) =>
+        current[key]?.path === path && current[key]?.status === status
+          ? current
+          : { ...current, [key]: { path, status } },
+      );
+    },
+    [],
+  );
   const latestValues = useRef(values);
   latestValues.current = values;
   const change = useCallback(
@@ -428,7 +499,17 @@ export function CommandFormDialog({
   );
   const waiting = visible.some(
     (field) =>
-      field.source && readyFields[field.key] !== choicePath(field, values),
+      field.source &&
+      !blockedChoice(field, values) &&
+      (readyFields[field.key]?.path !== choicePath(field, values) ||
+        readyFields[field.key]?.status !== "ready"),
+  );
+  const choicesFailed = visible.some(
+    (field) =>
+      field.source &&
+      !blockedChoice(field, values) &&
+      readyFields[field.key]?.path === choicePath(field, values) &&
+      readyFields[field.key]?.status === "error",
   );
   const submit = async () => {
     if (busy || waiting) return;
@@ -543,11 +624,13 @@ export function CommandFormDialog({
             disabled={waiting}
             onClick={() => void submit()}
           >
-            {waiting
-              ? "Loading choices…"
-              : savedRecord
-                ? "Retry image upload"
-                : command.submitLabel || "Save"}
+            {choicesFailed
+              ? "Choices unavailable"
+              : waiting
+                ? "Loading choices…"
+                : savedRecord
+                  ? "Retry image upload"
+                  : command.submitLabel || "Save"}
           </Button>
         </>
       }
@@ -603,7 +686,11 @@ export function CommandFormDialog({
 
   function renderFields() {
     return sections.length > 1 || sections[0]?.title ? (
-      <div className="ds-command-sections">
+      <div
+        className={["ds-command-sections", command.formClassName]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {sections.map((section) => (
           <FormSection key={section.title} title={section.title} columns={2}>
             {section.fields.map(renderField)}
@@ -611,7 +698,12 @@ export function CommandFormDialog({
         ))}
       </div>
     ) : (
-      <FormLayout columns={2} className="ds-command-fields">
+      <FormLayout
+        columns={2}
+        className={["ds-command-fields", command.formClassName]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {visible.map(renderField)}
       </FormLayout>
     );
