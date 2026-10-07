@@ -248,18 +248,6 @@
 :global(.ds-root .ds-app-signout-error) {
   margin: 0;
 }
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ds-space-4);
-  flex: none;
-}
-.version {
-  color: var(--ds-text-muted);
-  font-size: var(--ds-support-size);
-  line-height: var(--ds-support-line);
-  white-space: nowrap;
-}
 .logo {
   display: block;
   width: 120px;
@@ -450,16 +438,10 @@
   .topbar {
     padding: 8px 12px;
     padding-inline-start: var(--ds-space-16);
-    gap: var(--ds-space-4);
+    gap: 8px;
   }
   .topbarLead {
-    gap: var(--ds-space-4);
-  }
-  .brand {
-    gap: 0;
-  }
-  .version {
-    font-size: 11px;
+    gap: 8px;
   }
   .logo {
     width: 104px;
