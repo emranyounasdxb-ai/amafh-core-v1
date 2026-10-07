@@ -15,6 +15,7 @@ export type CustomerDetailRecord = {
   id: string;
   customerId: string;
   type: string;
+  salaryAed?: string | null;
   identity?: DataRecord;
   cases?: RelatedCaseRecord[];
 };

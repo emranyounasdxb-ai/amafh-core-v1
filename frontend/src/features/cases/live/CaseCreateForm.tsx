@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Checkbox,
@@ -43,6 +43,15 @@ import {
 import styles from "./CaseCreateForm.module.css";
 import { recordImageSrc, type ImageKind } from "../../../app/api/recordImages";
 import { RecordImage } from "../../../shared/media/RecordImage";
+import { ExistingCustomerChoice } from "./ExistingCustomerChoice";
+import type { CustomerDetailRecord } from "../../customers/live/customerDetailPresentation";
+
+type VariantChoices = {
+  items: NamedRecord[];
+  missingCriteriaCount: number;
+  configuredCount: number;
+  totalVariantsCount: number;
+};
 
 const nationalityChoices = nationalityOptions().filter(
   (option) => option.value !== "XK",
@@ -66,6 +75,15 @@ export function CaseCreateForm({
   const [products, setProducts] = useState<NamedRecord[]>([]);
   const [banks, setBanks] = useState<NamedRecord[]>([]);
   const [variants, setVariants] = useState<NamedRecord[]>([]);
+  const [eligibility, setEligibility] = useState<{
+    key: string;
+    status: "loading" | "ready" | "error";
+    data?: VariantChoices;
+    error?: string;
+  } | null>(null);
+  const [eligibilityAttempt, setEligibilityAttempt] = useState(0);
+  const [eligibilityRevision, setEligibilityRevision] = useState(0);
+  const [prefilling, setPrefilling] = useState(false);
   const [mappings, setMappings] = useState<NamedRecord[]>([]);
   const [branches, setBranches] = useState<NamedRecord[]>([]);
   const [departments, setDepartments] = useState<NamedRecord[]>([]);
@@ -103,11 +121,6 @@ export function CaseCreateForm({
       ),
       choices<NamedRecord>(
         api,
-        "/catalog/product-variants?active=true",
-        controller.signal,
-      ),
-      choices<NamedRecord>(
-        api,
         "/catalog/bank-product-mappings?active=true",
         controller.signal,
       ),
@@ -125,7 +138,6 @@ export function CaseCreateForm({
         ([
           nextProducts,
           nextBanks,
-          nextVariants,
           nextMappings,
           nextPeople,
           nextBranches,
@@ -133,7 +145,6 @@ export function CaseCreateForm({
         ]) => {
           setProducts(nextProducts);
           setBanks(nextBanks);
-          setVariants(nextVariants);
           setMappings(nextMappings);
           setPeople(nextPeople);
           setBranches(nextBranches);
@@ -154,8 +165,112 @@ export function CaseCreateForm({
     return () => controller.abort();
   }, [api]);
 
+  const salary = roundWholeText(form.salaryAed);
+  const salaryValid =
+    salary !== null &&
+    !form.salaryAed.trim().startsWith("-") &&
+    BigInt(salary) >= 0n &&
+    salary.length <= 18;
+  const eligibilityQuery =
+    creditCard && form.bankId && (form.type === "Company" || salaryValid)
+      ? new URLSearchParams({
+          bankId: form.bankId,
+          productTypeId: form.productTypeId,
+          customerType: form.type,
+          ...(form.type === "Individual" ? { salaryAed: salary! } : {}),
+        }).toString()
+      : "";
+  const eligibilityKey = `${eligibilityQuery}:${eligibilityRevision}:${eligibilityAttempt}`;
+  useEffect(() => {
+    if (!eligibilityQuery) return;
+    const controller = new AbortController();
+    api
+      .request<VariantChoices>(
+        `/catalog/product-variants/eligibility?${eligibilityQuery}`,
+        { signal: controller.signal },
+      )
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        if (
+          !Array.isArray(data.items) ||
+          data.items.some(
+            (row) =>
+              !row ||
+              typeof row.id !== "string" ||
+              typeof row.name !== "string",
+          )
+        )
+          throw new Error(
+            "Invalid Variant eligibility response. Retry loading eligibility.",
+          );
+        setEligibility({ key: eligibilityKey, status: "ready", data });
+        setVariants(data.items);
+        setForm((current) =>
+          data.items.some((row) => row.id === current.productVariantId)
+            ? current
+            : { ...current, productVariantId: "" },
+        );
+      })
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted)
+          setEligibility({
+            key: eligibilityKey,
+            status: "error",
+            error:
+              failure instanceof Error
+                ? failure.message
+                : "Variant eligibility could not be loaded.",
+          });
+      });
+    return () => controller.abort();
+  }, [api, eligibilityQuery, eligibilityKey]);
+  const eligibleReady = Boolean(
+    eligibilityQuery &&
+    eligibility?.key === eligibilityKey &&
+    eligibility.status === "ready",
+  );
+  const prefill = useCallback((customer: CustomerDetailRecord) => {
+    setEligibilityRevision((value) => value + 1);
+    const identity = customer.identity ?? {};
+    const value = (key: string) => String(identity[key] ?? "");
+    setForm((current) => ({
+      ...current,
+      type: customer.type === "Company" ? "Company" : "Individual",
+      fullName: value("full_name"),
+      nationality: value("nationality"),
+      emiratesId: value("emirates_id"),
+      passportNumber: value("passport_number"),
+      employer: value("employer"),
+      companyName: value("company_name"),
+      contactPerson: value("contact_person"),
+      tradeLicense: value("trade_license"),
+      mobile: value("mobile"),
+      email: value("email"),
+      salaryAed: customer.salaryAed ?? "",
+      productVariantId: "",
+    }));
+    setFieldError("");
+    setFieldMessage("");
+    setError("");
+  }, []);
+
   const patch = (next: Partial<CaseCreateValues>) => {
-    setForm((current) => ({ ...current, ...next }));
+    if (
+      ["salaryAed", "bankId", "productTypeId", "type"].some(
+        (key) => key in next,
+      )
+    )
+      setEligibilityRevision((value) => value + 1);
+    setForm((current) => {
+      const updated = { ...current, ...next };
+      if (
+        "salaryAed" in next &&
+        (roundWholeText(updated.salaryAed) === null ||
+          updated.salaryAed.trim().startsWith("-"))
+      )
+        updated.productVariantId = "";
+      return updated;
+    });
     setFieldError("");
     setFieldMessage("");
     setError("");
@@ -181,7 +296,7 @@ export function CaseCreateForm({
     "banks",
   );
   const variantOptions = namedOptions(
-    variants.filter(
+    (eligibleReady ? eligibility!.data!.items : []).filter(
       (variant) =>
         variant.bank_id === form.bankId &&
         variant.product_type_id === form.productTypeId,
@@ -228,11 +343,42 @@ export function CaseCreateForm({
   };
 
   const continueOrSubmit = async () => {
-    const issue = caseCreateInvalidField(step, form, creditCard);
-    if (issue) {
-      setFieldError(issue.field);
-      setFieldMessage(issue.message);
-      setError(issue.message);
+    if (prefilling || busy) return;
+    const issue =
+      step === 5
+        ? [1, 2, 3, 4, 5]
+            .map((index) => ({
+              index,
+              issue: caseCreateInvalidField(index, form, creditCard),
+            }))
+            .find((item) => item.issue)
+        : {
+            index: step,
+            issue: caseCreateInvalidField(step, form, creditCard),
+          };
+    if (issue?.issue) {
+      setStep(issue.index);
+      setFieldError(issue.issue.field);
+      setFieldMessage(issue.issue.message);
+      setError(issue.issue.message);
+      return;
+    }
+    if (
+      (step === 3 || step === 5) &&
+      creditCard &&
+      (!eligibleReady ||
+        !variantOptions.some(
+          (option) => option.value === form.productVariantId,
+        ))
+    ) {
+      setStep(3);
+      setFieldError("productVariantId");
+      setFieldMessage(
+        "Load eligibility and select an eligible Variant before continuing.",
+      );
+      setError(
+        "Load eligibility and select an eligible Variant before continuing.",
+      );
       return;
     }
     if (step < 5) {
@@ -248,6 +394,7 @@ export function CaseCreateForm({
             type: form.type,
             fullName: form.fullName,
             nationality: form.nationality,
+            salaryAed: salary,
             emiratesId: form.emiratesId,
             passportNumber: form.passportNumber,
             employer: form.employer,
@@ -291,6 +438,10 @@ export function CaseCreateForm({
       if (failure instanceof ApiFailure) {
         const field = caseCreateServerField(failure.fieldErrors);
         if (field) {
+          if (field.field === "productVariantId") {
+            setEligibility(null);
+            setEligibilityAttempt((value) => value + 1);
+          }
           setStep(field.step);
           setFieldError(field.field);
           setFieldMessage(field.message);
@@ -368,7 +519,7 @@ export function CaseCreateForm({
               type="button"
               size="compact"
               loading={busy}
-              disabled={busy || loading}
+              disabled={busy || loading || prefilling}
               onClick={() => void continueOrSubmit()}
             >
               {step === 5 ? "Create Case" : "Continue"}
@@ -438,6 +589,8 @@ export function CaseCreateForm({
                           type,
                           nationality:
                             type === "Company" ? "" : form.nationality,
+                          salaryAed: "",
+                          productVariantId: "",
                         });
                       }}
                       options={[
@@ -446,6 +599,12 @@ export function CaseCreateForm({
                       ]}
                     />
                   </FormField>
+                  <ExistingCustomerChoice
+                    key={form.type}
+                    type={form.type}
+                    onSelect={prefill}
+                    onBusy={setPrefilling}
+                  />
                   {form.type === "Individual" ? (
                     <>
                       <FormField
@@ -672,6 +831,45 @@ export function CaseCreateForm({
                       invalid={fieldError === "bankId"}
                     />
                   </FormField>
+                  {form.type === "Individual" ? (
+                    <FormField
+                      label="Customer salary (AED)"
+                      htmlFor="case-create-salary"
+                      required
+                      error={
+                        fieldError === "salaryAed" ? fieldMessage : undefined
+                      }
+                      hint={
+                        creditCard
+                          ? "Enter salary to load eligible Variants. Inclusive minimum and maximum; whole AED."
+                          : "Salary is required and recorded for this Case. PF uses the manually entered amount, with no Variant or salary eligibility."
+                      }
+                    >
+                      <CurrencyInput
+                        id="case-create-salary"
+                        compact
+                        value={form.salaryAed}
+                        inputMode="numeric"
+                        onChange={(event) =>
+                          patch({ salaryAed: event.target.value })
+                        }
+                        onBlur={(event) => {
+                          const whole = roundWholeText(event.target.value);
+                          if (
+                            whole !== null &&
+                            !event.target.value.trim().startsWith("-") &&
+                            whole !== event.target.value
+                          )
+                            patch({ salaryAed: whole });
+                        }}
+                        invalid={fieldError === "salaryAed"}
+                      />
+                    </FormField>
+                  ) : (
+                    <p className={styles.support}>
+                      Salary eligibility is not applicable to Company customers.
+                    </p>
+                  )}
                   {creditCard ? (
                     <FormField
                       label="Product Variant"
@@ -679,7 +877,8 @@ export function CaseCreateForm({
                       required
                       error={
                         fieldError === "productVariantId"
-                          ? "Select a product variant."
+                          ? fieldMessage ||
+                            "Select an eligible product variant."
                           : undefined
                       }
                     >
@@ -695,7 +894,19 @@ export function CaseCreateForm({
                           })
                         }
                         options={variantOptions}
-                        placeholder="Select Product Variant"
+                        disabled={!eligibilityQuery || !eligibleReady}
+                        loading={Boolean(
+                          eligibilityQuery &&
+                          eligibility?.key !== eligibilityKey,
+                        )}
+                        placeholder={
+                          !form.bankId
+                            ? "Select a Bank first"
+                            : form.type === "Individual" && !salaryValid
+                              ? "Enter salary first"
+                              : "Select Product Variant"
+                        }
+                        emptyLabel="No eligible Variants"
                         invalid={fieldError === "productVariantId"}
                       />
                     </FormField>
@@ -727,6 +938,55 @@ export function CaseCreateForm({
                       />
                     </FormField>
                   )}
+                  {creditCard && eligibilityQuery ? (
+                    <div className={styles.support}>
+                      {eligibility?.key !== eligibilityKey ? (
+                        "Loading Variant eligibility…"
+                      ) : eligibility.status === "error" ? (
+                        <InlineNotice
+                          tone="error"
+                          title="Eligibility request failed"
+                        >
+                          {eligibility.error}{" "}
+                          <Button
+                            type="button"
+                            size="compact"
+                            variant="ghost"
+                            onClick={() => {
+                              setEligibility(null);
+                              setEligibilityAttempt((value) => value + 1);
+                            }}
+                          >
+                            Retry
+                          </Button>
+                        </InlineNotice>
+                      ) : (
+                        <>
+                          {form.type === "Individual" &&
+                          eligibility.data?.missingCriteriaCount ? (
+                            <InlineNotice
+                              tone="warning"
+                              title="Missing salary criteria"
+                            >
+                              {eligibility.data.missingCriteriaCount} active
+                              Variant(s) have no salary range and are excluded.
+                              An authorized user must configure them in Settings
+                              → Product Variants → Edit.
+                            </InlineNotice>
+                          ) : null}
+                          {!eligibility.data?.items.length ? (
+                            <p>
+                              {eligibility.data?.totalVariantsCount === 0
+                                ? "No active Variants for this Bank/Product."
+                                : eligibility.data?.configuredCount === 0
+                                  ? "No salary ranges are configured for this Bank/Product."
+                                  : "No configured Variants match this salary."}
+                            </p>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                 </FormSection>
               ) : null}
 
@@ -775,6 +1035,20 @@ export function CaseCreateForm({
                       value={form.fullName || form.companyName || "Unavailable"}
                     />
                     <InfoField label="Customer type" value={form.type} />
+                    <InfoField
+                      label="Case salary (AED)"
+                      value={
+                        form.type === "Individual" ? (
+                          <MonetaryAmount
+                            value={form.salaryAed}
+                            compact={false}
+                            align="start"
+                          />
+                        ) : (
+                          "Not applicable"
+                        )
+                      }
+                    />
                     {form.type === "Individual" ? (
                       <InfoField label="Nationality" value={nationalityName} />
                     ) : null}

@@ -32,6 +32,7 @@ export const CASE_CREATE_FIELD_LABELS: Record<string, string> = {
   bankId: "Bank",
   productVariantId: "Product Variant",
   requestedPfAmount: "Requested amount (AED)",
+  salaryAed: "Customer salary (AED)",
   ownerEmployeeId: "Case Owner",
   confirmedInterest: "Customer interest",
   customer: "Customer",
@@ -54,6 +55,7 @@ export type CaseCreateValues = {
   mobile: string;
   email: string;
   requestedPfAmount: string;
+  salaryAed: string;
   confirmedInterest: boolean;
 };
 
@@ -77,6 +79,7 @@ export function emptyCaseCreateValues(
     mobile: "",
     email: "",
     requestedPfAmount: "",
+    salaryAed: "",
     confirmedInterest: false,
   };
 }
@@ -105,6 +108,7 @@ export function caseCreateRequiredField(
   }
   if (step === 3) {
     if (!values.bankId) return "bankId";
+    if (values.type === "Individual" && !values.salaryAed) return "salaryAed";
     return creditCard
       ? values.productVariantId
         ? null
@@ -123,6 +127,20 @@ export function caseCreateInvalidField(
   values: CaseCreateValues,
   creditCard: boolean,
 ): { field: string; message: string } | null {
+  if (step === 3 && values.type === "Individual" && values.salaryAed) {
+    const salary = roundWholeText(values.salaryAed);
+    if (
+      salary === null ||
+      values.salaryAed.trim().startsWith("-") ||
+      BigInt(salary) < 0n ||
+      salary.length > 18
+    )
+      return {
+        field: "salaryAed",
+        message:
+          "Enter a non-negative salary in whole AED (at most 18 digits).",
+      };
+  }
   const required = caseCreateRequiredField(step, values, creditCard);
   if (required)
     return {
@@ -168,7 +186,12 @@ export function caseCreateServerField(
     if (!(field in CASE_CREATE_FIELD_LABELS)) continue;
     const step = ["productTypeId"].includes(field)
       ? 1
-      : ["bankId", "productVariantId", "requestedPfAmount"].includes(field)
+      : [
+            "bankId",
+            "productVariantId",
+            "requestedPfAmount",
+            "salaryAed",
+          ].includes(field)
         ? 3
         : field === "ownerEmployeeId"
           ? 4

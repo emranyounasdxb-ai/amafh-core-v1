@@ -1,4 +1,4 @@
-import { nationalityOptions } from "../../../design-system";
+import { countryOptions } from "../../../design-system";
 
 export type CustomerListRecord = {
   id: string;
@@ -6,6 +6,7 @@ export type CustomerListRecord = {
   type: string;
   name: string | null;
   nationality: string | null;
+  salaryAed?: string | null;
   emiratesId: string | null;
   passportNumber: string | null;
   employer: string | null;
@@ -31,6 +32,7 @@ export const CUSTOMER_COLUMNS = [
   { key: "name", label: "Name", width: 180 },
   { key: "type", label: "Customer type", width: 130 },
   { key: "nationality", label: "Nationality", width: 150 },
+  { key: "salaryAed", label: "Salary (AED)", width: 140 },
   { key: "contactPerson", label: "Contact person", width: 160 },
   { key: "mobile", label: "Mobile", width: 140 },
   { key: "email", label: "Email", width: 180 },
@@ -44,6 +46,7 @@ export const CUSTOMER_COLUMN_SORT: Record<string, string> = {
   name: "name",
   type: "type",
   nationality: "nationality",
+  salaryAed: "salaryAed",
   contactPerson: "contactPerson",
   mobile: "mobile",
   email: "email",
@@ -101,7 +104,7 @@ export function matchesCustomerSearch(row: CustomerListRecord, term: string) {
 export function nationalityLabel(code: string | null | undefined) {
   if (!code) return "";
   return (
-    nationalityOptions().find((option) => option.value === code)?.label || ""
+    countryOptions().find((option) => option.value === code)?.label || ""
   );
 }
 

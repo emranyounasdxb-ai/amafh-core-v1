@@ -14,6 +14,8 @@ export type NamedRecord = {
   branch_id?: string;
   logo_file_id?: string | null;
   image_file_id?: string | null;
+  minimum_salary_aed?: string | null;
+  maximum_salary_aed?: string | null;
 };
 export type EmployeeSummary = {
   id: string;
@@ -34,6 +36,7 @@ export type CaseRecord = {
   productVariantId: string | null;
   pipelineConfigurationId: string;
   requestedPfAmount: string | null;
+  salaryAed?: string | null;
   ownerEmployeeId: string;
   coordinatorEmployeeId: string | null;
   createdByEmployeeId: string;

@@ -11,6 +11,20 @@ from app.services import customer_identity, customer_read
 router = APIRouter(tags=["customers"])
 
 
+@router.get("/case-customer-choices")
+async def case_customer_choices(
+    db: Db,
+    actor: ActorDep,
+    type: str | None = None,
+    q: str = Query("", max_length=128),
+    page: int = Query(1, ge=1),
+    pageSize: int = Query(25, ge=1, le=100),
+):
+    return await customer_read.list_customers(
+        db, actor, page=page, page_size=pageSize, customer_type=type, q=q, for_creation=True
+    )
+
+
 @router.get("/customers")
 async def list_customers(
     db: Db,

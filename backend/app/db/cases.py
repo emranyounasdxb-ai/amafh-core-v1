@@ -39,9 +39,11 @@ customers = Table(
     pk(),
     Column("customer_id", String(80), nullable=False, unique=True),
     Column("customer_type", String(20), nullable=False),
+    Column("salary_aed", Numeric(18, 0)),
     created_at(),
     updated_at(),
     CheckConstraint("customer_type IN ('Individual','Company')"),
+    CheckConstraint("salary_aed IS NULL OR salary_aed >= 0", name="ck_customer_salary_nonnegative"),
 )
 individual_customers = Table(
     "individual_customers",
@@ -116,11 +118,19 @@ product_variants = Table(
     ),
     Column("name", String(150), nullable=False),
     Column("image_file_id", UUID(as_uuid=True), ForeignKey("stored_files.id", ondelete="RESTRICT")),
+    Column("minimum_salary_aed", Numeric(18, 0)),
+    Column("maximum_salary_aed", Numeric(18, 0)),
     Column("active", Boolean, nullable=False, server_default="true"),
     created_at(),
     updated_at(),
     UniqueConstraint("bank_id", "product_type_id", "name"),
     UniqueConstraint("id", "bank_id", "product_type_id", name="uq_variant_id_context"),
+    CheckConstraint(
+        "(minimum_salary_aed IS NULL AND maximum_salary_aed IS NULL) OR "
+        "(minimum_salary_aed IS NOT NULL AND maximum_salary_aed IS NOT NULL "
+        "AND minimum_salary_aed >= 0 AND maximum_salary_aed >= minimum_salary_aed)",
+        name="ck_variant_salary_range",
+    ),
 )
 bank_product_mappings = Table(
     "bank_product_mappings",
@@ -213,6 +223,8 @@ cases = Table(
         ForeignKey("pipeline_configurations.id", ondelete="RESTRICT"),
     ),
     Column("requested_pf_amount", Numeric(18, 0)),
+    Column("salary_aed", Numeric(18, 0)),
+    CheckConstraint("salary_aed IS NULL OR salary_aed >= 0", name="ck_case_salary_nonnegative"),
     Column(
         "created_by_employee_id",
         UUID(as_uuid=True),

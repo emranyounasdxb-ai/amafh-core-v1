@@ -6,6 +6,7 @@ import {
   Dialog,
   EmptyState,
   EmptyValue,
+  MonetaryAmount,
   ErrorState,
   FormField,
   InfoField,
@@ -260,6 +261,20 @@ export function CustomerDetailPage({
                 value={<Value value={individualNationality(identity)} />}
               />
             ) : null}
+            <InfoField
+              label="Salary (AED)"
+              value={
+                row.salaryAed != null ? (
+                  <MonetaryAmount
+                    value={row.salaryAed}
+                    compact={false}
+                    align="start"
+                  />
+                ) : (
+                  <EmptyValue />
+                )
+              }
+            />
           </InfoGrid>
         </SectionCard>
 

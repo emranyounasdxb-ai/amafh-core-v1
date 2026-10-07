@@ -5,6 +5,7 @@ import {
   DropdownSelect,
   EmptyState,
   EmptyValue,
+  MonetaryAmount,
   ErrorState,
   ExportButton,
   FilterButton,
@@ -155,6 +156,12 @@ export function CustomersPage({ open }: { open: (id: string) => void }) {
               ) : (
                 <EmptyValue />
               )
+            ) : (
+              <EmptyValue />
+            );
+          case "salaryAed":
+            return row.salaryAed != null ? (
+              <MonetaryAmount value={row.salaryAed} compact={false} />
             ) : (
               <EmptyValue />
             );

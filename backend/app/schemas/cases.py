@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.normalization import display_name, identifier, nationality
-from app.whole_numbers import WholeAmount
+from app.whole_numbers import NonNegativeWholeAed, WholeAmount
 
 
 class CustomerInput(BaseModel):
@@ -16,6 +16,7 @@ class CustomerInput(BaseModel):
     passportNumber: str | None = Field(default=None, max_length=100)
     fullName: str | None = Field(default=None, max_length=200)
     nationality: str | None = None
+    salaryAed: NonNegativeWholeAed | None = None
     employer: str | None = Field(default=None, max_length=200)
     companyName: str | None = Field(default=None, max_length=200)
     contactPerson: str | None = Field(default=None, max_length=200)
@@ -63,6 +64,8 @@ class CustomerInput(BaseModel):
             raise ValueError("Mandatory Customer identity and contact fields are required")
         if self.type == "Company":
             self.nationality = None
+            if self.salaryAed is not None:
+                raise ValueError("Salary is not applicable to Company customers")
         return self
 
 

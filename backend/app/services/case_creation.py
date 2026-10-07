@@ -26,9 +26,17 @@ from app.schemas.cases import CaseCreate
 from app.services.customer_identity import match_or_create
 from app.services.idempotency import claim, complete
 from app.services.pipelines import effective_pipeline
+from app.services.variant_eligibility import validate_salary_criteria
 
 
 async def _configuration(session: AsyncSession, item: CaseCreate, on) -> tuple[str, object]:
+    if item.customer.type == "Individual" and item.customer.salaryAed is None:
+        raise ApiError(
+            422,
+            "SALARY_REQUIRED",
+            "Enter the Customer salary",
+            {"customer.salaryAed": ["Customer salary is required"]},
+        )
     bank = await session.scalar(
         select(banks.c.id)
         .where(banks.c.id == item.bankId, banks.c.active.is_(True))
@@ -59,20 +67,46 @@ async def _configuration(session: AsyncSession, item: CaseCreate, on) -> tuple[s
     if product["code"] == "CC":
         if item.productVariantId is None or item.requestedPfAmount is not None:
             raise ApiError(
-                422, "INVALID_PRODUCT_CONTEXT", "Credit Card requires a Variant and no PF amount"
+                422,
+                "INVALID_PRODUCT_CONTEXT",
+                "Credit Card requires a Variant and no PF amount",
+                {
+                    "productVariantId" if item.productVariantId is None else "requestedPfAmount": [
+                        "Select a Variant"
+                        if item.productVariantId is None
+                        else "CC does not use a PF amount"
+                    ]
+                },
             )
-        variant = await session.scalar(
-            select(product_variants.c.id)
-            .where(
-                product_variants.c.id == item.productVariantId,
-                product_variants.c.bank_id == item.bankId,
-                product_variants.c.product_type_id == item.productTypeId,
-                product_variants.c.active.is_(True),
+        variant = (
+            (
+                await session.execute(
+                    select(product_variants)
+                    .where(
+                        product_variants.c.id == item.productVariantId,
+                        product_variants.c.bank_id == item.bankId,
+                        product_variants.c.product_type_id == item.productTypeId,
+                        product_variants.c.active.is_(True),
+                    )
+                    .with_for_update(read=True)
+                )
             )
-            .with_for_update(read=True)
+            .mappings()
+            .one_or_none()
         )
         if variant is None:
-            raise ApiError(422, "INVALID_VARIANT", "Product Variant is unavailable")
+            raise ApiError(
+                422,
+                "INVALID_VARIANT",
+                "Product Variant is unavailable",
+                {
+                    "productVariantId": [
+                        "Choose an active Variant for the selected Bank and Product"
+                    ]
+                },
+            )
+        if item.customer.type == "Individual":
+            validate_salary_criteria(variant, item.customer.salaryAed)
     elif product["code"] == "PF":
         if item.productVariantId is not None or item.requestedPfAmount is None:
             raise ApiError(
@@ -184,9 +218,12 @@ async def create_case(
         raise ApiError(403, "OWNER_OUT_OF_SCOPE", "Own Cases can only be created for yourself")
     owner_id = actor.employee_id if personal else item.ownerEmployeeId or actor.employee_id
     try:
-        record_id, replay = await claim(
-            session, actor, "case.create", key, item.model_dump(mode="json")
-        )
+        payload = item.model_dump(mode="json")
+        # Preserve fingerprints of successful pre-feature requests and Company requests.
+        # A genuinely new Individual request still fails the salary check below.
+        if item.customer.salaryAed is None:
+            payload["customer"].pop("salaryAed", None)
+        record_id, replay = await claim(session, actor, "case.create", key, payload)
         if replay is not None:
             await session.rollback()
             return replay
@@ -195,7 +232,7 @@ async def create_case(
         product_code, pipeline_id = await _configuration(
             session, item, now.astimezone(DUBAI).date()
         )
-        customer_id, reused = await match_or_create(session, item.customer)
+        customer_id, reused = await match_or_create(session, item.customer, actor)
         case_id, internal_id = uuid4(), await new_case_id(session, now)
         await session.execute(
             cases.insert().values(
@@ -206,6 +243,7 @@ async def create_case(
                 product_type_id=item.productTypeId,
                 product_variant_id=item.productVariantId,
                 requested_pf_amount=item.requestedPfAmount,
+                salary_aed=item.customer.salaryAed,
                 pipeline_configuration_id=pipeline_id,
                 created_by_employee_id=actor.employee_id,
                 owner_employee_id=owner_id,
@@ -251,6 +289,9 @@ async def create_case(
                 "product": product_code,
                 "bankId": str(item.bankId),
                 "productVariantId": str(item.productVariantId) if item.productVariantId else None,
+                "salaryAed": str(item.customer.salaryAed)
+                if item.customer.salaryAed is not None
+                else None,
                 "requestedPfAmount": str(item.requestedPfAmount)
                 if item.requestedPfAmount
                 else None,
@@ -267,6 +308,9 @@ async def create_case(
             "internalCaseId": internal_id,
             "customerId": str(customer_id),
             "customerReused": reused,
+            "salaryAed": str(item.customer.salaryAed)
+            if item.customer.salaryAed is not None
+            else None,
             "createdByEmployeeId": str(actor.employee_id),
             "ownerEmployeeId": str(owner_id),
             "branchId": str(owner["branch_id"]),

@@ -2,6 +2,8 @@ import { useState } from "react";
 import {
   FileUpload,
   InlineNotice,
+  MonetaryAmount,
+  EmptyValue,
   SectionCard,
   Stack,
   type AppliedFilter,
@@ -52,6 +54,8 @@ type CatalogRecord = {
   product_type_id?: string;
   logo_file_id?: string | null;
   image_file_id?: string | null;
+  minimum_salary_aed?: string | null;
+  maximum_salary_aed?: string | null;
   active: boolean;
 };
 
@@ -65,6 +69,29 @@ const nameField: Field = {
   required: true,
   max: 150,
 };
+const salaryFields: Field[] = [
+  {
+    key: "minimumSalaryAed",
+    label: "Minimum salary (AED)",
+    type: "decimal",
+    required: true,
+    nonNegative: true,
+  },
+  {
+    key: "maximumSalaryAed",
+    label: "Maximum salary (AED)",
+    type: "decimal",
+    required: true,
+    nonNegative: true,
+    hint: "Inclusive salary range for Individual CC Cases. Maximum must be at least the minimum.",
+  },
+];
+const salaryValue = (value: string | null | undefined) =>
+  value != null ? (
+    <MonetaryAmount value={value} compact={false} align="start" />
+  ) : (
+    <EmptyValue />
+  );
 
 const COPY: Record<
   CatalogKind,
@@ -212,6 +239,18 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
               { key: "name", label: "Variant", width: 220, render: imageLabel },
               bankColumn,
               productColumn,
+              {
+                key: "minimum_salary_aed",
+                label: "Minimum salary (AED)",
+                width: 155,
+                render: (row) => salaryValue(row.minimum_salary_aed),
+              },
+              {
+                key: "maximum_salary_aed",
+                label: "Maximum salary (AED)",
+                width: 155,
+                render: (row) => salaryValue(row.maximum_salary_aed),
+              },
               status,
             ]
           : [bankColumn, productColumn, status];
@@ -234,6 +273,25 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
         ]
       : []),
     { label: "Status", value: <ActiveBadge active={row.active} /> },
+    ...(kind === "product-variants"
+      ? [
+          {
+            label: "Minimum salary (AED)",
+            value: salaryValue(row.minimum_salary_aed),
+          },
+          {
+            label: "Maximum salary (AED)",
+            value: salaryValue(row.maximum_salary_aed),
+          },
+          {
+            label: "Individual CC eligibility",
+            value:
+              row.minimum_salary_aed == null || row.maximum_salary_aed == null
+                ? "Salary range not configured. Use Edit to configure; unavailable for Individual CC Cases."
+                : "Inclusive minimum and maximum salary",
+          },
+        ]
+      : []),
   ];
 
   const createFields: Field[] =
@@ -245,7 +303,7 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
             nameField,
           ]
         : kind === "product-variants"
-          ? [bankField, offeredProductField, nameField]
+          ? [bankField, offeredProductField, nameField, ...salaryFields]
           : [bankField, productField];
 
   const actions = (row: CatalogRecord): SettingsAction[] => [
@@ -253,13 +311,16 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
       ? [
           {
             id: "rename",
-            label: "Rename",
-            success: `${copy.kind} renamed.`,
+            label: kind === "product-variants" ? "Edit" : "Rename",
+            success: `${copy.kind} ${kind === "product-variants" ? "updated" : "renamed"}.`,
             command: {
-              title: `Rename ${copy.kind}`,
+              title: `${kind === "product-variants" ? "Edit" : "Rename"} ${copy.kind}`,
               path: `/catalog/${kind}/${row.id}`,
               method: "PATCH" as const,
-              fields: [nameField],
+              fields:
+                kind === "product-variants"
+                  ? [nameField, ...salaryFields]
+                  : [nameField],
               imageUpload: {
                 kind: kind as ImageKind,
                 label: kind === "banks" ? "Bank logo" : `${copy.kind} image`,

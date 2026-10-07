@@ -11,6 +11,7 @@ from app.errors import ApiError
 from app.normalization import identifier
 from app.policies import Actor, require
 from app.schemas.cases import CustomerInput, IdentityCorrection
+from app.whole_numbers import whole_text
 
 
 async def _identity_locks(session: AsyncSession, keys: list[str]) -> None:
@@ -24,7 +25,9 @@ def _canonical(column):
     return func.upper(func.regexp_replace(func.btrim(column), "[[:space:]]+", " ", "g"))
 
 
-async def match_or_create(session: AsyncSession, item: CustomerInput) -> tuple[UUID, bool]:
+async def match_or_create(
+    session: AsyncSession, item: CustomerInput, actor: Actor
+) -> tuple[UUID, bool]:
     if item.type == "Individual":
         assert item.emiratesId and item.passportNumber and item.fullName and item.employer
         await _identity_locks(
@@ -67,6 +70,41 @@ async def match_or_create(session: AsyncSession, item: CustomerInput) -> tuple[U
                 raise ApiError(
                     409, "CUSTOMER_IDENTITY_CONFLICT", "Customer identity needs Owner review"
                 )
+            current_salary = await session.scalar(
+                select(customers.c.salary_aed)
+                .where(customers.c.id == match["customer_id"])
+                .with_for_update()
+            )
+            before = {
+                "salaryAed": whole_text(current_salary) if current_salary is not None else None,
+                "nationality": match["nationality"],
+            }
+            after = {
+                "salaryAed": whole_text(item.salaryAed) if item.salaryAed is not None else None,
+                "nationality": item.nationality,
+            }
+            if before != after:
+                await session.execute(
+                    update(customers)
+                    .where(customers.c.id == match["customer_id"])
+                    .values(salary_aed=item.salaryAed)
+                )
+                await session.execute(
+                    update(individual_customers)
+                    .where(individual_customers.c.customer_id == match["customer_id"])
+                    .values(nationality=item.nationality)
+                )
+                await audit.record(
+                    session,
+                    actor=actor.employee_id,
+                    action="customer.profile_updated",
+                    module="customers",
+                    entity_type="customer",
+                    entity_id=match["customer_id"],
+                    before=before,
+                    after=after,
+                    context={"source": "case_creation"},
+                )
             return match["customer_id"], True
         customer_id = uuid4()
         await session.execute(
@@ -74,6 +112,7 @@ async def match_or_create(session: AsyncSession, item: CustomerInput) -> tuple[U
                 id=customer_id,
                 customer_id=f"CUS-{uuid4().hex.upper()}",
                 customer_type="Individual",
+                salary_aed=item.salaryAed,
             )
         )
         await session.execute(

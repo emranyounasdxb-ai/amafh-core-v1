@@ -3,10 +3,10 @@
 from datetime import date
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.normalization import display_name, identifier
-from app.whole_numbers import WholeCount
+from app.whole_numbers import NonNegativeWholeAed, WholeCount
 
 
 def _required_name(value: str) -> str:
@@ -79,6 +79,15 @@ class MappingCreate(BaseModel):
 
 class VariantCreate(MappingCreate):
     name: str = Field(min_length=1, max_length=150)
+    minimumSalaryAed: NonNegativeWholeAed
+    maximumSalaryAed: NonNegativeWholeAed
+
+    @field_validator("maximumSalaryAed")
+    @classmethod
+    def ordered_salary_range(cls, value, info: ValidationInfo):
+        if info.data.get("minimumSalaryAed") is not None and value < info.data["minimumSalaryAed"]:
+            raise ValueError("Maximum salary must be at least the minimum salary")
+        return value
 
     @field_validator("name")
     @classmethod
@@ -88,6 +97,23 @@ class VariantCreate(MappingCreate):
 
 class VariantUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=150)
+    minimumSalaryAed: NonNegativeWholeAed | None = None
+    maximumSalaryAed: NonNegativeWholeAed | None = None
+
+    @field_validator("maximumSalaryAed")
+    @classmethod
+    def ordered_salary_range(cls, value, info: ValidationInfo):
+        minimum = info.data.get("minimumSalaryAed")
+        if value is not None and minimum is not None and value < minimum:
+            raise ValueError("Maximum salary must be at least the minimum salary")
+        return value
+
+    @model_validator(mode="after")
+    def complete_salary_range(self):
+        if {"minimumSalaryAed", "maximumSalaryAed"} & self.model_fields_set:
+            if self.minimumSalaryAed is None or self.maximumSalaryAed is None:
+                raise ValueError("Supply both minimum and maximum salary")
+        return self
 
     @field_validator("name")
     @classmethod

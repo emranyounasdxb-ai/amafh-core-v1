@@ -60,3 +60,24 @@ WholeAmount = Annotated[
 
 WholeCount = Annotated[int, BeforeValidator(_normalize_int)]
 """Whole points or quantity input: fractional input is rounded before validation."""
+
+
+def _nonnegative_aed(value: Any) -> Any:
+    # Reject a negative input before rounding, including -0.4 which would round to zero.
+    if isinstance(value, bool):
+        raise ValueError("Enter a non-negative AED amount")
+    try:
+        number = Decimal(str(value))
+    except InvalidOperation:
+        raise ValueError("Enter a non-negative AED amount") from None
+    if not number.is_finite() or number < 0:
+        raise ValueError("Enter a non-negative AED amount")
+    try:
+        return round_whole(number)
+    except InvalidOperation:
+        raise ValueError("Enter an AED amount with at most 18 digits") from None
+
+
+NonNegativeWholeAed = Annotated[
+    Decimal, BeforeValidator(_nonnegative_aed), Field(ge=0, max_digits=18, decimal_places=0)
+]

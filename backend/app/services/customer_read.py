@@ -9,6 +9,7 @@ from app.db.cases import cases, company_customers, customers, individual_custome
 from app.errors import ApiError
 from app.policies import Actor, require
 from app.repositories.case_scope import case_access, visible_case
+from app.whole_numbers import whole_text
 
 
 def _authorized_customer(actor: Actor, scope=visible_case):
@@ -25,9 +26,10 @@ async def list_customers(
     q: str = "",
     sort: str = "createdAt",
     direction: str = "desc",
+    for_creation: bool = False,
 ) -> dict:
-    require(actor, "case.read")
-    predicates = [_authorized_customer(actor)]
+    require(actor, "case.create" if for_creation else "case.read")
+    predicates = [_authorized_customer(actor, case_access if for_creation else visible_case)]
     if customer_type:
         if customer_type not in {"Individual", "Company"}:
             raise ApiError(422, "INVALID_FILTER", "Invalid Customer type")
@@ -71,6 +73,7 @@ async def list_customers(
         "type": customers.c.customer_type,
         "name": name,
         "nationality": individual_customers.c.nationality,
+        "salaryAed": customers.c.salary_aed,
         "emiratesId": individual_customers.c.emirates_id,
         "passportNumber": individual_customers.c.passport_number,
         "employer": individual_customers.c.employer,
@@ -92,6 +95,7 @@ async def list_customers(
                 customers.c.customer_id,
                 customers.c.customer_type,
                 customers.c.created_at,
+                customers.c.salary_aed,
                 name.label("name"),
                 individual_customers.c.nationality,
                 individual_customers.c.emirates_id.label("emiratesId"),
@@ -120,6 +124,9 @@ async def list_customers(
                 "type": row["customer_type"],
                 "name": row["name"],
                 "nationality": row["nationality"],
+                "salaryAed": whole_text(row["salary_aed"])
+                if row["salary_aed"] is not None
+                else None,
                 "emiratesId": row["emiratesId"],
                 "passportNumber": row["passportNumber"],
                 "employer": row["employer"],
@@ -168,6 +175,7 @@ async def get_customer(session: AsyncSession, actor: Actor, customer_id: UUID) -
         "id": str(row["id"]),
         "customerId": row["customer_id"],
         "type": row["customer_type"],
+        "salaryAed": whole_text(row["salary_aed"]) if row["salary_aed"] is not None else None,
         "identity": {
             key: str(value) if isinstance(value, UUID) else value
             for key, value in detail.items()

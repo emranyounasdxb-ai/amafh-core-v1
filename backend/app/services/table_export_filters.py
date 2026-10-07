@@ -84,7 +84,7 @@ SORTS = {
         "bankCaseNumber currentStage".split()
     ),
     "customers": frozenset(
-        "customerId type name nationality contactPerson mobile email "
+        "customerId type name nationality salaryAed contactPerson mobile email "
         "passportNumber eidOrTl createdAt".split()
     ),
     "employees": frozenset("fullName companyEmployeeCode designation status".split()),
@@ -136,7 +136,9 @@ SORTS = {
     "catalog-banks": frozenset("name code createdAt active".split()),
     "catalog-products": frozenset("name code createdAt active".split()),
     "catalog-mappings": frozenset("name code createdAt active bankId productTypeId".split()),
-    "catalog-variants": frozenset("name code createdAt active".split()),
+    "catalog-variants": frozenset(
+        "name code createdAt active minimum_salary_aed maximum_salary_aed".split()
+    ),
     "pipelines": frozenset("id effectiveDate active".split()),
     "office-timings": frozenset("effectiveDate branchId startTime endTime".split()),
     "uae-holidays": frozenset("holidayDate name sourceReference".split()),

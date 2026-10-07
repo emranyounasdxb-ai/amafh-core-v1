@@ -45,6 +45,7 @@ def _case(row) -> dict:
         "product_variant_id": "productVariantId",
         "pipeline_configuration_id": "pipelineConfigurationId",
         "requested_pf_amount": "requestedPfAmount",
+        "salary_aed": "salaryAed",
         "created_by_employee_id": "createdByEmployeeId",
         "owner_employee_id": "ownerEmployeeId",
         "coordinator_employee_id": "coordinatorEmployeeId",

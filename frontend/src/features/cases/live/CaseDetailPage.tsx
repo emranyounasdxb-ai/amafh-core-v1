@@ -554,6 +554,23 @@ export function CaseDetailPage({
         <SectionCard title="Product and Bank">
           <InfoGrid>
             <InfoField
+              label="Case salary (AED)"
+              value={
+                item.salaryAed != null ? (
+                  <MonetaryAmount
+                    value={item.salaryAed}
+                    compact={false}
+                    align="start"
+                  />
+                ) : (
+                  <FieldValue
+                    value=""
+                    fallback="Not recorded / not applicable"
+                  />
+                )
+              }
+            />
+            <InfoField
               label="Product"
               value={
                 <RecordImageLabel

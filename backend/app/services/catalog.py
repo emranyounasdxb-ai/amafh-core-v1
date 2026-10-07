@@ -1,5 +1,6 @@
 """Controlled Bank, Product, mapping and Variant configuration."""
 
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import exists, func, or_, select, update
@@ -12,6 +13,8 @@ from app.errors import ApiError
 from app.identifiers import new_bank_code
 from app.policies import Actor, require
 from app.repositories.case_scope import case_access
+from app.schemas.catalog import VariantUpdate
+from app.whole_numbers import whole_text
 
 TABLES = {
     "banks": banks,
@@ -48,7 +51,12 @@ def _may_read(actor: Actor) -> None:
 
 def _row(row) -> dict:
     return {
-        key: str(value) if isinstance(value, UUID) else value for key, value in dict(row).items()
+        key: str(value)
+        if isinstance(value, UUID)
+        else whole_text(value)
+        if isinstance(value, Decimal)
+        else value
+        for key, value in dict(row).items()
     }
 
 
@@ -130,6 +138,11 @@ async def list_records(
             productTypeId=table.c.product_type_id,
             active=table.c.active,
         )
+    if kind == "product-variants":
+        sort_fields.update(
+            minimum_salary_aed=table.c.minimum_salary_aed,
+            maximum_salary_aed=table.c.maximum_salary_aed,
+        )
     order = sort_fields.get(sort)
     if order is None or direction not in {"asc", "desc"}:
         raise ApiError(422, "INVALID_SORT", "Unsupported sort")
@@ -199,7 +212,7 @@ async def create_record(session: AsyncSession, actor: Actor, kind: str, values: 
             module="pipeline",
             entity_type=table.name,
             entity_id=record_id,
-            after={k: str(v) if isinstance(v, UUID) else v for k, v in values.items()},
+            after=_row(values),
         )
         await session.commit()
     except Exception:
@@ -207,7 +220,7 @@ async def create_record(session: AsyncSession, actor: Actor, kind: str, values: 
         raise
     return {
         "id": str(record_id),
-        **{k: str(v) if isinstance(v, UUID) else v for k, v in values.items()},
+        **_row(values),
         "active": True,
     }
 
@@ -237,6 +250,48 @@ async def rename_record(
             entity_id=record_id,
             before={"name": row["name"]},
             after={"name": name},
+        )
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+
+
+async def update_variant(
+    session: AsyncSession, actor: Actor, record_id: UUID, item: VariantUpdate
+) -> None:
+    require(actor, "pipeline.write")
+    values: dict = {"name": item.name}
+    if "minimumSalaryAed" in item.model_fields_set:
+        values.update(
+            minimum_salary_aed=item.minimumSalaryAed, maximum_salary_aed=item.maximumSalaryAed
+        )
+    try:
+        row = (
+            (
+                await session.execute(
+                    select(product_variants)
+                    .where(product_variants.c.id == record_id)
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            raise ApiError(404, "NOT_FOUND", "Record unavailable")
+        await session.execute(
+            update(product_variants).where(product_variants.c.id == record_id).values(**values)
+        )
+        await audit.record(
+            session,
+            actor=actor.employee_id,
+            action="product_variants.updated" if len(values) > 1 else "product_variants.renamed",
+            module="pipeline",
+            entity_type="product_variants",
+            entity_id=record_id,
+            before=_row({key: row[key] for key in values}),
+            after=_row(values),
         )
         await session.commit()
     except Exception:

@@ -17,9 +17,23 @@ from app.schemas.catalog import (
     VariantUpdate,
 )
 from app.services import catalog, pipelines
+from app.services.variant_eligibility import eligible_variants
+from app.whole_numbers import NonNegativeWholeAed
 
 router = APIRouter(tags=["catalog"])
 Kind = Literal["banks", "product-types", "bank-product-mappings", "product-variants"]
+
+
+@router.get("/catalog/product-variants/eligibility")
+async def variant_choices(
+    db: Db,
+    actor: ActorDep,
+    bankId: UUID,
+    productTypeId: UUID,
+    salaryAed: NonNegativeWholeAed | None = None,
+    customerType: Literal["Individual", "Company"] = "Individual",
+):
+    return await eligible_variants(db, actor, bankId, productTypeId, salaryAed, customerType)
 
 
 @router.get("/catalog/{kind}")
@@ -99,13 +113,15 @@ async def create_variant(item: VariantCreate, db: Db, actor: CsrfActor):
             "bank_id": item.bankId,
             "product_type_id": item.productTypeId,
             "name": item.name,
+            "minimum_salary_aed": item.minimumSalaryAed,
+            "maximum_salary_aed": item.maximumSalaryAed,
         },
     )
 
 
 @router.patch("/catalog/product-variants/{record_id}", status_code=204)
 async def rename_variant(record_id: UUID, item: VariantUpdate, db: Db, actor: CsrfActor):
-    await catalog.rename_record(db, actor, "product-variants", record_id, item.name)
+    await catalog.update_variant(db, actor, record_id, item)
 
 
 @router.post("/catalog/{kind}/{record_id}/activate", status_code=204)

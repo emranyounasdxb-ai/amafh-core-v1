@@ -537,6 +537,14 @@ export function CommandFormDialog({
             : `${field.label} is required`,
         ];
       } else if (
+        field.nonNegative &&
+        !empty &&
+        (String(raw).trim().startsWith("-") || roundWholeText(raw) === null)
+      ) {
+        localErrors[field.key] = [
+          `${field.label} must be a non-negative whole AED amount`,
+        ];
+      } else if (
         field.key === "relatedId" &&
         values.relatedType &&
         !isUuid(String(raw ?? ""))
@@ -888,6 +896,11 @@ export function CommandFormDialog({
             field.type === "decimal" || field.type === "number"
               ? (event) => {
                   const whole = roundWholeText(event.target.value);
+                  if (
+                    field.nonNegative &&
+                    event.target.value.trim().startsWith("-")
+                  )
+                    return;
                   if (whole !== null && whole !== event.target.value)
                     change(field.key, whole);
                 }

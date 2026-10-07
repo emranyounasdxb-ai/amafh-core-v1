@@ -5,6 +5,7 @@ const FIELDS: Record<string, Record<string, string>> = {
     type: "type",
     name: "name",
     nationality: "nationality",
+    salaryAed: "salaryAed",
     contactPerson: "contactPerson",
     mobile: "mobile",
     email: "email",
@@ -150,7 +151,12 @@ const FIELDS: Record<string, Record<string, string>> = {
     product_type_id: "productTypeId",
     active: "active",
   },
-  "/catalog/product-variants": { name: "name", active: "active" },
+  "/catalog/product-variants": {
+    name: "name",
+    active: "active",
+    minimum_salary_aed: "minimum_salary_aed",
+    maximum_salary_aed: "maximum_salary_aed",
+  },
 };
 
 export function serverSortField(

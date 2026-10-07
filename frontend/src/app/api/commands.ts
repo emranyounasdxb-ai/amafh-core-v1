@@ -50,6 +50,8 @@ export type Field = {
   hint?: string;
   /** Explicitly clear an optional nullable field instead of omitting it. */
   emptyAsNull?: boolean;
+  /** Reject negative input before whole-number rounding. */
+  nonNegative?: boolean;
 };
 export type CommandConfirmation = {
   description: string;
