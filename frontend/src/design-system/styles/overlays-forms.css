@@ -553,20 +553,22 @@
 }
 
 .ds-listbox__choice,
+.ds-listbox-panel > button.ds-listbox__option,
 .ds-search__suggestions button {
   display: flex;
   align-items: center;
   gap: var(--ds-space-8);
   width: 100%;
   min-height: 40px;
-  padding: 8px 10px;
+  padding: 6px var(--ds-space-8);
   border: 0;
   border-radius: var(--ds-radius-control);
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: var(--ds-body-size);
-  line-height: var(--ds-body-line);
+  font-size: var(--ds-toolbar-size);
+  font-weight: var(--ds-support-weight);
+  line-height: var(--ds-toolbar-line);
   text-align: start;
 }
 
@@ -600,6 +602,23 @@
 .ds-listbox__copy em {
   overflow-wrap: anywhere;
   font-style: normal;
+  font-weight: inherit;
+}
+
+.ds-listbox__copy strong {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.ds-select option,
+.ds-phone__prefix option {
+  font-size: var(--ds-toolbar-size);
+  font-weight: var(--ds-support-weight);
+  line-height: var(--ds-toolbar-line);
+}
+
+.ds-phone__prefix option {
+  font-size: var(--ds-label-size);
 }
 
 .ds-listbox__copy em,
