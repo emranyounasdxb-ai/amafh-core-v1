@@ -60,6 +60,7 @@ import {
   readEmployeeLookup,
   type AssignmentHistoryRecord,
   type EmployeeDetailRecord,
+  type EmployeeLabelRecord,
 } from "./employeePresentation";
 import styles from "./EmployeeDetailPage.module.css";
 import { uploadRecordImage } from "../../../app/api/recordImages";
@@ -144,7 +145,7 @@ export function EmployeeDetailPage({
       : null,
     refresh,
   );
-  const lookup = useResource<Record<string, EmployeeDetailRecord>>(
+  const lookup = useResource<Record<string, EmployeeLabelRecord>>(
     employeeLookupPath([
       employee?.reportingManagerId,
       ...(history.data ?? []).map((row) => row.reporting_manager_id),

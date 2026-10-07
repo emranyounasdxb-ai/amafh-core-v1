@@ -36,7 +36,7 @@ import {
   employeeStatusTone,
   namedLabel,
   readEmployeeLookup,
-  type EmployeeDetailRecord,
+  type EmployeeLabelRecord,
 } from "../../employees/live/employeePresentation";
 import { TeamCommandDialog, type TeamCommand } from "./TeamCommandDialog";
 import { teamScopeFromDetail, type TeamDetailRecord } from "./teamCommands";
@@ -48,7 +48,7 @@ type Member = {
   code: string;
   designation: string;
   status: string;
-  employee?: EmployeeDetailRecord;
+  employee?: EmployeeLabelRecord;
 };
 
 const MEMBER_COLUMNS = [
@@ -89,7 +89,7 @@ export function TeamDetailPage({
   const branches = useResource<NamedRecord[]>("/branches");
   const departments = useResource<NamedRecord[]>("/departments");
   const team = resource.data;
-  const people = useResource<Record<string, EmployeeDetailRecord>>(
+  const people = useResource<Record<string, EmployeeLabelRecord>>(
     employeeLookupPath(
       team ? [team.leaderEmployeeId, ...team.memberEmployeeIds] : [],
     ),

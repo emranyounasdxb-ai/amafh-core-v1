@@ -12,12 +12,15 @@ from app.errors import ApiError
 from app.normalization import identifier
 from app.policies import Actor, require
 from app.repositories.case_scope import case_access
-from app.schemas.catalog import PipelineCreate
+from app.schemas.catalog import MAX_PIPELINE_STAGES, PipelineCreate
 from app.services.catalog import _active_mapping
 
 
 def validate_stages(item: PipelineCreate) -> None:
     stages = item.stages
+    if len(stages) > MAX_PIPELINE_STAGES:
+        message = f"A new Pipeline version supports at most {MAX_PIPELINE_STAGES} stages"
+        raise ApiError(422, "PIPELINE_STAGE_LIMIT", message, {"stages": [message]})
     if sorted(stage.stageOrder for stage in stages) != list(range(1, len(stages) + 1)):
         raise ApiError(422, "INVALID_STAGES", "Stage order must be contiguous from one")
     if len({identifier(stage.name) for stage in stages}) != len(stages):

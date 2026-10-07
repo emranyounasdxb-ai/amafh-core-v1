@@ -68,7 +68,7 @@ export function useCaseLabels(rows: CaseRecord[]) {
       paths.set(row.customerId, `/customers/${row.customerId}`);
       for (const [id, coordinator] of caseEmployees(row))
         if (id && mayReadEmployee(session, id, coordinator))
-          paths.set(id, `/employees/${id}`);
+          paths.set(id, `/employee-labels/${id}`);
     });
     Promise.all(
       [...paths].map(async ([id, path]) => {

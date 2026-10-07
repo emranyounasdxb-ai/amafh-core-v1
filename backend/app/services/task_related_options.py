@@ -16,7 +16,7 @@ from app.errors import ApiError
 from app.policies import EMPLOYEE_SCOPE, Actor
 from app.repositories.case_scope import visible_case
 from app.services.customer_read import _authorized_customer
-from app.services.task_policy import LEADERS
+from app.services.task_policy import finance_link_scope, operation_link_scope
 
 RELATED_TYPES = {
     "case",
@@ -177,7 +177,13 @@ async def related_options(
         )
 
     if kind in {"asset", "attendance", "attendance_import"}:
-        if actor.designation not in LEADERS | {"Admin Staff"}:
+        table = {
+            "asset": assets,
+            "attendance": attendance_records,
+            "attendance_import": csv_import_batches,
+        }[kind]
+        predicate = operation_link_scope(actor, kind, table)
+        if predicate is None:
             return _empty(page, page_size)
         if kind == "asset":
             query = select(
@@ -185,8 +191,7 @@ async def related_options(
                 func.concat(assets.c.brand, " ", assets.c.model).label("label"),
                 assets.c.asset_code.label("subtitle"),
             )
-            if actor.designation == "Admin Staff":
-                query = query.where(assets.c.branch_id == actor.branch_id)
+            query = query.where(predicate)
             if term:
                 query = query.where(
                     _like(term, assets.c.brand, assets.c.model, assets.c.asset_code)
@@ -205,8 +210,7 @@ async def related_options(
                 attendance_records.c.attendance_date,
                 attendance_records.c.status,
             ).join(employees, employees.c.id == attendance_records.c.employee_id)
-            if actor.designation == "Admin Staff":
-                query = query.where(attendance_records.c.branch_id == actor.branch_id)
+            query = query.where(predicate)
             if term:
                 query = query.where(_like(term, employees.c.full_name, attendance_records.c.status))
             total = await session.scalar(query.with_only_columns(func.count()).order_by(None)) or 0
@@ -236,8 +240,7 @@ async def related_options(
             csv_import_batches.c.status,
             csv_import_batches.c.created_at,
         ).where(csv_import_batches.c.kind == "attendance")
-        if actor.designation == "Admin Staff":
-            query = query.where(csv_import_batches.c.branch_id == actor.branch_id)
+        query = query.where(predicate)
         if term:
             query = query.where(_like(term, csv_import_batches.c.status))
         total = await session.scalar(query.with_only_columns(func.count()).order_by(None)) or 0
@@ -264,20 +267,22 @@ async def related_options(
         return _page(items, total, page, page_size)
 
     if kind in {"finance_result", "clawback", "payment"}:
-        if actor.designation not in LEADERS | {"Finance", "Sales Manager"}:
+        scope = finance_link_scope(actor, kind)
+        if scope is None:
             return _empty(page, page_size)
+        source, predicate = scope
         if kind == "payment":
-            query = select(
-                payment_records.c.id,
-                employees.c.full_name.label("label"),
-                payment_records.c.payment_type,
-                payment_records.c.payment_month,
-            ).join(employees, employees.c.id == payment_records.c.employee_id)
-            if actor.designation == "Sales Manager":
-                query = query.where(
-                    employees.c.branch_id == actor.branch_id,
-                    employees.c.department_id == actor.department_id,
+            query = (
+                select(
+                    payment_records.c.id,
+                    employees.c.full_name.label("label"),
+                    payment_records.c.payment_type,
+                    payment_records.c.payment_month,
                 )
+                .select_from(source)
+                .join(employees, employees.c.id == payment_records.c.employee_id)
+            )
+            query = query.where(predicate)
             if term:
                 query = query.where(
                     _like(term, employees.c.full_name, payment_records.c.payment_type)
@@ -308,12 +313,8 @@ async def related_options(
                 clawbacks.c.id,
                 cases.c.internal_case_id.label("label"),
                 clawbacks.c.clawback_date,
-            ).join(cases, cases.c.id == clawbacks.c.case_id)
-            if actor.designation == "Sales Manager":
-                query = query.where(
-                    cases.c.branch_id == actor.branch_id,
-                    cases.c.department_id == actor.department_id,
-                )
+            ).select_from(source)
+            query = query.where(predicate)
             if term:
                 query = query.where(_like(term, cases.c.internal_case_id))
             total = await session.scalar(query.with_only_columns(func.count()).order_by(None)) or 0
@@ -341,12 +342,8 @@ async def related_options(
             case_financial_results.c.id,
             cases.c.internal_case_id.label("label"),
             case_financial_results.c.product_code.label("subtitle"),
-        ).join(cases, cases.c.id == case_financial_results.c.case_id)
-        if actor.designation == "Sales Manager":
-            query = query.where(
-                cases.c.branch_id == actor.branch_id,
-                cases.c.department_id == actor.department_id,
-            )
+        ).select_from(source)
+        query = query.where(predicate)
         if term:
             query = query.where(
                 _like(term, cases.c.internal_case_id, case_financial_results.c.product_code)

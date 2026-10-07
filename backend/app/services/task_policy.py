@@ -17,9 +17,41 @@ from app.policies import Actor, employee_visible
 from app.repositories import permissions as permission_rows
 from app.repositories.case_scope import visible_case
 from app.services.customer_read import _authorized_customer
+from app.services.finance_reads import (
+    _clawback_scope,
+    _completed_scope,
+    _payment_scope,
+    _visible_scope,
+)
+from app.services.operations_scope import branch_scope
 
 LEADERS = {"Owner", "Managing Director"}
 ACTIVE = {"Open", "In Progress"}
+
+
+def operation_link_scope(actor: Actor, kind: str, table):
+    permission = "asset.write" if kind == "asset" else "attendance.write"
+    if permission not in actor.grants or actor.designation not in LEADERS | {"Admin Staff"}:
+        return None
+    try:
+        branch = branch_scope(actor, permission)
+    except ApiError:
+        return None
+    return table.c.branch_id == branch if branch is not None else true()
+
+
+def finance_link_scope(actor: Actor, kind: str):
+    if "finance.read" not in actor.grants or actor.designation not in LEADERS | {
+        "Finance",
+        "Sales Manager",
+    }:
+        return None
+    source, branch, department = {
+        "payment": _payment_scope,
+        "clawback": _clawback_scope,
+        "finance_result": _completed_scope,
+    }[kind]()
+    return source, _visible_scope(actor, branch, department)
 
 
 async def employee_actor(session: AsyncSession, employee_id: UUID) -> Actor:
@@ -228,44 +260,28 @@ async def may_link(session: AsyncSession, actor: Actor, kind: str, record_id: UU
             )
         return employee_visible(actor, dict(row), team_ids)
     if kind in {"asset", "attendance", "attendance_import"}:
-        if actor.designation not in LEADERS | {"Admin Staff"}:
-            return False
         table = {
             "asset": assets,
             "attendance": attendance_records,
             "attendance_import": csv_import_batches,
         }[kind]
-        query = select(table.c.id).where(table.c.id == record_id)
+        predicate = operation_link_scope(actor, kind, table)
+        if predicate is None:
+            return False
+        query = select(table.c.id).where(table.c.id == record_id, predicate)
         if kind == "attendance_import":
             query = query.where(csv_import_batches.c.kind == "attendance")
-        if actor.designation == "Admin Staff":
-            query = query.where(table.c.branch_id == actor.branch_id)
         return await session.scalar(query) is not None
     if kind in {"finance_result", "clawback", "payment"}:
-        if actor.designation not in LEADERS | {"Finance", "Sales Manager"}:
+        scope = finance_link_scope(actor, kind)
+        if scope is None:
             return False
-        if kind == "payment":
-            source = payment_records.join(
-                employees, employees.c.id == payment_records.c.employee_id
-            )
-            query = (
-                select(payment_records.c.id)
-                .select_from(source)
-                .where(payment_records.c.id == record_id)
-            )
-            if actor.designation == "Sales Manager":
-                query = query.where(
-                    employees.c.branch_id == actor.branch_id,
-                    employees.c.department_id == actor.department_id,
-                )
-        else:
-            table = case_financial_results if kind == "finance_result" else clawbacks
-            source = table.join(cases, cases.c.id == table.c.case_id)
-            query = select(table.c.id).select_from(source).where(table.c.id == record_id)
-            if actor.designation == "Sales Manager":
-                query = query.where(
-                    cases.c.branch_id == actor.branch_id,
-                    cases.c.department_id == actor.department_id,
-                )
+        source, predicate = scope
+        table = {
+            "payment": payment_records,
+            "clawback": clawbacks,
+            "finance_result": case_financial_results,
+        }[kind]
+        query = select(table.c.id).select_from(source).where(table.c.id == record_id, predicate)
         return await session.scalar(query) is not None
     return False

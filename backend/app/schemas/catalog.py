@@ -134,6 +134,9 @@ class StageCreate(BaseModel):
         return _required_name(value)
 
 
+MAX_PIPELINE_STAGES = 50
+
+
 class PipelineCreate(MappingCreate):
     effectiveDate: date
-    stages: list[StageCreate] = Field(min_length=2)
+    stages: list[StageCreate] = Field(min_length=2, max_length=MAX_PIPELINE_STAGES)

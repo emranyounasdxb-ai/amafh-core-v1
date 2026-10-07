@@ -38,6 +38,12 @@ from app.services.privileged_access import (
     require_owner_for_privileged_account,
 )
 
+LOCK_DURATION = timedelta(minutes=15)
+
+
+def lock_active(locked_at, now) -> bool:
+    return locked_at is not None and now < locked_at + LOCK_DURATION
+
 
 def _valid_account_scope(
     designation: str, branch_id: UUID | None, department_id: UUID | None
@@ -80,6 +86,22 @@ async def login(session: AsyncSession, email: str, password: str) -> tuple[str, 
             if len(enabled) == 1 and enabled[0]["account_id"] == row["account_id"]
             else None
         )
+    if row is not None and row["locked_at"] is not None and not lock_active(row["locked_at"], now):
+        await session.execute(
+            update(user_accounts)
+            .where(user_accounts.c.id == row["account_id"])
+            .values(locked_at=None, failed_attempts=0)
+        )
+        await audit.record(
+            session,
+            actor=row["employee_id"],
+            action="account.lock_expired",
+            module="security",
+            entity_type="user_account",
+            entity_id=row["account_id"],
+        )
+        row = dict(row)
+        row.update(locked_at=None, failed_attempts=0)
     eligible = bool(
         row
         and row["access_status"] == "Active"
@@ -190,7 +212,7 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
         not row
         or row["access_status"] != "Active"
         or row["employee_status"] != "Active"
-        or row["locked_at"]
+        or lock_active(row["locked_at"], now)
         or not _valid_account_scope(row["designation"], row["branch_id"], row["department_id"])
     ):
         await session.execute(
@@ -273,7 +295,7 @@ async def generate_link(session: AsyncSession, actor: Actor, employee_id: UUID, 
     ):
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
     require_owner_for_privileged_account(actor, account["target_designation"])
-    if kind == "reset" and account["locked_at"]:
+    if kind == "reset" and lock_active(account["locked_at"], utcnow()):
         require(actor, "password.locked_reset")
     if kind == "setup" and account["access_status"] != "Not Provisioned":
         raise ApiError(409, "CONFLICT", "Setup is unavailable")

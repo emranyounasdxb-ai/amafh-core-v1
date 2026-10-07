@@ -92,7 +92,7 @@ export function AuditLog() {
   const query = auditQuery(filters);
   const table = useServerTable<AuditEvent>("settings-audit", "/audit-events", query, 0);
   const people = useEmployeeLabels(table.rows.map((row) => row.actorEmployeeId));
-  const employees = useResource<DataRecord[]>("/employees", 0, loadChoices, "choices");
+  const employees = useResource<DataRecord[]>("/employee-labels", 0, loadChoices, "choices");
   const actorOptions = (employees.data ?? []).flatMap((row) => {
     const label = readableLabel(row.fullName, "");
     if (!label) return [];

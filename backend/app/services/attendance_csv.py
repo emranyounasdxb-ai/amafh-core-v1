@@ -9,6 +9,8 @@ from datetime import date, time
 
 from fastapi import UploadFile
 
+from app.errors import ApiError
+
 HEADERS = (
     "System Employee Code",
     "Employee Name",
@@ -33,13 +35,20 @@ class ParsedRow:
 
 
 async def read_upload(file: UploadFile) -> tuple[bytes, str, int, bool]:
-    """Hash every byte while retaining no more than the approved maximum."""
+    """Hash accepted files only; never retain or fingerprint a partial upload."""
     digest = hashlib.sha256()
     content = bytearray()
     total = 0
     while chunk := await file.read(READ_CHUNK_BYTES):
-        digest.update(chunk)
         total += len(chunk)
+        if total > MAX_CSV_BYTES:
+            raise ApiError(
+                422,
+                "CSV_SIZE_LIMIT",
+                "CSV exceeds the 5 MB limit",
+                {"file": ["Maximum file size is 5 MB"]},
+            )
+        digest.update(chunk)
         if len(content) < MAX_CSV_BYTES:
             content.extend(chunk[: MAX_CSV_BYTES - len(content)])
     return bytes(content), digest.hexdigest(), total, total > MAX_CSV_BYTES

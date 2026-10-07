@@ -67,6 +67,7 @@ const OUTCOMES: SelectOption[] = [
   { value: "Rejected", label: "Rejected" },
 ];
 const EMPTY = { active: "", bankId: "", productTypeId: "" };
+const MAX_PIPELINE_STAGES = 50;
 
 export function PipelineSettings() {
   const { session } = useSession();
@@ -255,20 +256,29 @@ function PipelineStages({ id }: { id: string }) {
       ) : detail.error ? (
         <InlineNotice tone="error">{detail.error}</InlineNotice>
       ) : stages.length ? (
-        <Timeline
-          items={stages.map((stage) => ({
-            id: `${stage.stage_order}`,
-            time: `Stage ${stage.stage_order}`,
-            title: stage.name,
-            description: `${stage.expected_business_days} expected business ${
-              stage.expected_business_days === 1 ? "day" : "days"
-            }`,
-            status: stage.is_final
-              ? `Final · ${stage.final_status ?? "No outcome"}`
-              : "In progress",
-            tone: stage.is_final ? "success" : "neutral",
-          }))}
-        />
+        <>
+          {stages.length > MAX_PIPELINE_STAGES ? (
+            <InlineNotice tone="warning">
+              This existing version has {stages.length} stages, exceeding the
+              {" "}{MAX_PIPELINE_STAGES}-stage limit for new versions. All retained
+              stages remain available.
+            </InlineNotice>
+          ) : null}
+          <Timeline
+            items={stages.map((stage) => ({
+              id: `${stage.stage_order}`,
+              time: `Stage ${stage.stage_order}`,
+              title: stage.name,
+              description: `${stage.expected_business_days} expected business ${
+                stage.expected_business_days === 1 ? "day" : "days"
+              }`,
+              status: stage.is_final
+                ? `Final · ${stage.final_status ?? "No outcome"}`
+                : "In progress",
+              tone: stage.is_final ? "success" : "neutral",
+            }))}
+          />
+        </>
       ) : (
         <p className={styles.support}>No retained stages are available.</p>
       )}
@@ -376,6 +386,8 @@ function PipelineCreateDialog({
     });
     if (!stages.some((stage) => stage.outcome))
       local.stages = "Add at least one final stage with an outcome.";
+    if (stages.length > MAX_PIPELINE_STAGES)
+      local.stages = `A new Pipeline version supports at most ${MAX_PIPELINE_STAGES} stages.`;
     setFieldErrors(local);
     if (Object.keys(local).length) return;
     setBusy(true);
@@ -542,15 +554,21 @@ function PipelineCreateDialog({
         <div>
           <Button
             variant="secondary"
+            disabled={busy || stages.length >= MAX_PIPELINE_STAGES}
             onClick={() =>
-              setStages((current) => [
-                ...current,
-                { name: "", days: "1", outcome: "" },
-              ])
+              setStages((current) =>
+                current.length >= MAX_PIPELINE_STAGES
+                  ? current
+                  : [...current, { name: "", days: "1", outcome: "" }],
+              )
             }
           >
             Add stage
           </Button>
+          <p className={styles.support}>
+            {stages.length} of {MAX_PIPELINE_STAGES} stages. Each new Pipeline
+            version supports a maximum of {MAX_PIPELINE_STAGES} stages.
+          </p>
         </div>
         {fieldErrors.stages ? (
           <InlineNotice tone="error">{fieldErrors.stages}</InlineNotice>

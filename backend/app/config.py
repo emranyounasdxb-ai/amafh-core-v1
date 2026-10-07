@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     environment: Literal["production", "development", "test"] = "production"
     session_idle_seconds: int = 3600
     media_storage_root: Path = Path(__file__).resolve().parent.parent / "private_media"
+    owner_recovery_secret_file: Path | None = None
 
     @field_validator("database_url")
     @classmethod

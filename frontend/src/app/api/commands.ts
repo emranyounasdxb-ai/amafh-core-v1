@@ -71,7 +71,7 @@ export type Command = {
   formClassName?: string;
 };
 export const employeeSource: ChoiceSource = {
-  path: "/employees?status=Active",
+  path: "/employee-labels?status=Active",
   label: "fullName",
   paged: true,
 };

@@ -8,13 +8,11 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 from PIL import Image, UnidentifiedImageError
-from pypdf import PdfReader
-from pypdf.errors import PdfReadError
-from pypdf.generic import DictionaryObject, NullObject, StreamObject
 
 from app.config import settings
 from app.errors import ApiError
 from app.media_keys import valid_media_key
+from app.services.pdf_validation import validate_pdf
 
 MAX_UPLOAD_BYTES = 5_000_000
 MAX_PIXELS = 16_000_000
@@ -87,42 +85,7 @@ async def validated_document(file: UploadFile) -> tuple[bytes, str, str]:
     data = bytes(content)
     if data.startswith(b"%PDF-"):
         detected = "PDF"
-        try:
-            reader = PdfReader(io.BytesIO(data), strict=True)
-            if reader.is_encrypted and not reader.decrypt(""):
-                raise PdfReadError("PDF requires a password")
-            root = reader.root_object
-            pages = root.get("/Pages")
-            if root.get("/Type") != "/Catalog" or pages is None:
-                raise PdfReadError("Invalid PDF catalog")
-            tree = pages.get_object()
-            if not isinstance(tree, DictionaryObject) or tree.get("/Type") != "/Pages":
-                raise PdfReadError("Invalid PDF page tree")
-            # Resolve the page tree and referenced content objects, without
-            # rendering or decompressing page content from untrusted files.
-            for page in reader.pages:
-                if page.get("/Type") != "/Page" or len(page.mediabox) != 4:
-                    raise PdfReadError("Invalid PDF page")
-                contents = page.get("/Contents")
-                if contents is not None:
-                    resolved = contents.get_object()
-                    # An explicit null /Contents has the same meaning as an
-                    # absent entry: a valid page without a content stream.
-                    if isinstance(resolved, NullObject):
-                        continue
-                    objects = resolved if isinstance(resolved, list) else [resolved]
-                    if any(not isinstance(item.get_object(), StreamObject) for item in objects):
-                        raise PdfReadError("Invalid PDF content stream")
-        except (
-            PdfReadError,
-            ValueError,
-            TypeError,
-            KeyError,
-            OverflowError,
-            RecursionError,
-            NotImplementedError,
-        ) as exc:
-            raise ApiError(422, "DOCUMENT_INVALID", "PDF content is invalid") from exc
+        await validate_pdf(data)
     elif data.startswith((b"\xff\xd8\xff", b"\x89PNG\r\n\x1a\n")):
         try:
             with Image.open(io.BytesIO(data)) as source:

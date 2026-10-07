@@ -198,7 +198,7 @@ export function CasesPage({
     "choices",
   );
   const owners = useResource<EmployeeSummary[]>(
-    ownerChoices ? "/employees" : null,
+    ownerChoices ? "/employee-labels" : null,
     0,
     loadEmployees,
     "choices",

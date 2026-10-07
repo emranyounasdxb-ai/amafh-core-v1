@@ -69,7 +69,7 @@ export function useReportSources(
     "choices",
   );
   const employees = useResource<DataRecord[]>(
-    filters.has("employeeId") ? "/employees" : null,
+    filters.has("employeeId") ? "/employee-labels" : null,
     0,
     loadChoices,
     "choices",

@@ -70,7 +70,7 @@ export function EmployeeLabel({
     session?.designation === "Sales Executive" ||
     session?.designation === "Coordinator";
   const record = useResource<DataRecord>(
-    employeeId && !self && !ownScope ? `/employees/${employeeId}` : null,
+    employeeId && !self && !ownScope ? `/employee-labels/${employeeId}` : null,
   );
   if (!employeeId) return <>{safe}</>;
   if (self) {

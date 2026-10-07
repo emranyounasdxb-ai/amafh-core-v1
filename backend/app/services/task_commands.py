@@ -207,10 +207,25 @@ async def command(
             elif action == "reopen":
                 if row["status"] not in {"Completed", "Cancelled"}:
                     raise ApiError(409, "TASK_TRANSITION_INVALID", "Task is not closed")
+                scope = await assignment_scope(session, actor, row["assignee_employee_id"])
+                if row["related_id"] is not None and (
+                    not await may_link(session, actor, row["related_type"], row["related_id"])
+                    or not await may_link(
+                        session, scope["assignee"], row["related_type"], row["related_id"]
+                    )
+                ):
+                    raise ApiError(404, "NOT_FOUND", "Related record unavailable")
                 due = datetime.fromisoformat(payload["dueAt"]).astimezone(UTC)
                 if due <= now:
                     raise ApiError(422, "TASK_DUE_INVALID", "Due time must be in the future")
-                values.update(status="Open", completed_at=None, due_at=due)
+                values.update(
+                    status="Open",
+                    completed_at=None,
+                    due_at=due,
+                    branch_id=scope["branch_id"],
+                    department_id=scope["department_id"],
+                    team_id=scope["team_id"],
+                )
                 event = "Reopened"
                 notices.append((row["assignee_employee_id"], "task.reopened"))
             elif action == "due_date":

@@ -7,7 +7,7 @@ import {
   employeeName,
   namedLabel,
   readEmployeeLookup,
-  type EmployeeDetailRecord,
+  type EmployeeLabelRecord,
 } from "../../employees/live/employeePresentation";
 import {
   caseLookupPath,
@@ -21,7 +21,7 @@ export type PersonLabel = { name: string; code: string };
 
 export function useEmployeeLabels(ids: (string | null | undefined)[]) {
   const { session } = useSession();
-  const lookup = useResource<Record<string, EmployeeDetailRecord>>(
+  const lookup = useResource<Record<string, EmployeeLabelRecord>>(
     employeeLookupPath(ids),
     0,
     readEmployeeLookup,

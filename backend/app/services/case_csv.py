@@ -31,14 +31,19 @@ READ_CHUNK_BYTES = 64 * 1024
 
 
 async def read_upload(file: UploadFile) -> tuple[bytes, str, bool]:
-    """Hash the full upload while retaining at most the approved byte limit."""
+    """Stop before hashing or retaining bytes beyond the accepted upload limit."""
     digest = hashlib.sha256()
     content = bytearray()
     too_large = False
     while chunk := await file.read(READ_CHUNK_BYTES):
-        digest.update(chunk)
         if len(content) + len(chunk) > MAX_CSV_BYTES:
-            too_large = True
+            raise ApiError(
+                422,
+                "CSV_SIZE_LIMIT",
+                "CSV exceeds the 5 MB limit",
+                {"file": ["Maximum file size is 5 MB"]},
+            )
+        digest.update(chunk)
         if len(content) < MAX_CSV_BYTES:
             content.extend(chunk[: MAX_CSV_BYTES - len(content)])
     return bytes(content), digest.hexdigest(), too_large

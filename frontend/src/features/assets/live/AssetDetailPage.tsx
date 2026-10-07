@@ -46,7 +46,7 @@ import {
   employeeName,
   namedLabel,
   readEmployeeLookup,
-  type EmployeeDetailRecord,
+  type EmployeeLabelRecord,
 } from "../../employees/live/employeePresentation";
 import {
   ASSET_COMMAND_LABEL,
@@ -155,7 +155,7 @@ export function AssetDetailPage({
   const history = usePaged<AssetHistoryEntry>(`${base}/history`, refresh);
   const branches = useResource<NamedRecord[]>("/branches");
   const asset = resource.data?.asset;
-  const people = useResource<Record<string, EmployeeDetailRecord>>(
+  const people = useResource<Record<string, EmployeeLabelRecord>>(
     employeeLookupPath([
       asset?.currentEmployeeId,
       ...assignments.rows.flatMap((row) => [

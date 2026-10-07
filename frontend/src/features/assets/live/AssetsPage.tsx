@@ -37,7 +37,7 @@ import {
   employeeName,
   namedLabel,
   readEmployeeLookup,
-  type EmployeeDetailRecord,
+  type EmployeeLabelRecord,
 } from "../../employees/live/employeePresentation";
 import {
   ASSET_CATEGORIES,
@@ -98,7 +98,7 @@ export function AssetsPage({ open }: { open: (id: string) => void }) {
     });
   }, [employeeId, filters, search, table.page, table.size, table.sort]);
   const branches = useResource<NamedRecord[]>("/branches");
-  const people = useResource<Record<string, EmployeeDetailRecord>>(
+  const people = useResource<Record<string, EmployeeLabelRecord>>(
     employeeLookupPath(table.rows.map((row) => row.currentEmployeeId)),
     refresh,
     readEmployeeLookup,

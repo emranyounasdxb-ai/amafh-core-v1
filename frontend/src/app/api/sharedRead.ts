@@ -8,6 +8,12 @@ type InFlight = {
 
 const inFlight = new WeakMap<ApiClient, Map<string, InFlight>>();
 
+export function clearSharedReads(api: ApiClient) {
+  for (const entry of inFlight.get(api)?.values() ?? [])
+    entry.controller.abort();
+  inFlight.delete(api);
+}
+
 export function sharedRead<T>(
   api: ApiClient,
   key: string,
@@ -15,6 +21,7 @@ export function sharedRead<T>(
   signal: AbortSignal,
   load?: (api: ApiClient, path: string, signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
+  const generation = api.sessionGeneration;
   let requests = inFlight.get(api);
   if (!requests) {
     requests = new Map();
@@ -31,11 +38,14 @@ export function sharedRead<T>(
     const created: InFlight = {
       controller,
       readers: 0,
-      promise: Promise.resolve().then(() =>
-        load
+      promise: Promise.resolve().then(async () => {
+        api.assertSessionGeneration(generation);
+        const result = await (load
           ? load(api, path, controller.signal)
-          : api.request<T>(path, { signal: controller.signal }),
-      ),
+          : api.request<T>(path, { signal: controller.signal }));
+        api.assertSessionGeneration(generation);
+        return result;
+      }),
     };
     entry = created;
     registry.set(key, created);

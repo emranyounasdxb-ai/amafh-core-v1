@@ -41,6 +41,10 @@ export type EmployeeAccountState = {
   locked: boolean;
 };
 
+export type EmployeeLabelRecord = EmployeeRecord & {
+  avatarFileId: string | null;
+};
+
 export type EmployeeDetailRecord = EmployeeRecord & {
   reportingManagerId: string | null;
   dateOfJoining: string | null;
@@ -139,25 +143,26 @@ export async function readEmployeeLookup(
   api: ApiClient,
   path: string,
   signal: AbortSignal,
-): Promise<Record<string, EmployeeDetailRecord>> {
-  const ids = (
-    new URLSearchParams(path.split("?")[1] || "").get("ids") || ""
-  )
+): Promise<Record<string, EmployeeLabelRecord>> {
+  const ids = (new URLSearchParams(path.split("?")[1] || "").get("ids") || "")
     .split(",")
     .filter(Boolean);
   const rows = await Promise.all(
     ids.map((id) =>
       api
-        .request<EmployeeDetailRecord>(`/employees/${encodeURIComponent(id)}`, {
-          signal,
-        })
+        .request<EmployeeLabelRecord>(
+          `/employee-labels/${encodeURIComponent(id)}`,
+          {
+            signal,
+          },
+        )
         .catch(() => null),
     ),
   );
   if (signal.aborted) throw new DOMException("Aborted", "AbortError");
   return Object.fromEntries(
     rows
-      .filter((row): row is EmployeeDetailRecord => Boolean(row))
+      .filter((row): row is EmployeeLabelRecord => Boolean(row))
       .map((row) => [row.id, row]),
   );
 }
@@ -166,6 +171,6 @@ export function employeeLookupPath(ids: (string | null | undefined)[]) {
   const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))]
     .sort();
   return unique.length
-    ? `/employees?lookup=details&ids=${unique.join(",")}`
+    ? `/employee-labels?lookup=labels&ids=${unique.join(",")}`
     : null;
 }

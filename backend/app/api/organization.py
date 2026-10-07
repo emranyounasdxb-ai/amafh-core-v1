@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import case, func, select
 
 from app.api.dependencies import ActorDep, CsrfActor, Db
+from app.db.base import utcnow
 from app.db.cases import product_types
 from app.db.organization import (
     assignment_history,
@@ -36,6 +37,7 @@ from app.schemas.organization import (
 from app.services import account_access, employee_profile, organization_hierarchy
 from app.services import organization as service
 from app.services import teams as team_service
+from app.services.auth import lock_active
 
 router = APIRouter(tags=["organization"])
 
@@ -143,6 +145,7 @@ async def list_employees(
     sort: str = "fullName",
     direction: str = "asc",
 ):
+    require(actor, "employee.read")
     query = employee_query(actor)
     if status:
         query = query.where(employees.c.status == status)
@@ -214,8 +217,83 @@ def _reads_account_state(actor: Actor) -> bool:
     return "access.write" in actor.grants or "password.reset" in actor.grants
 
 
+def _employee_labels(actor: Actor):
+    # Retain the existing employee scope, but never expose profile/contact,
+    # employment-history or account data to label consumers.
+    return employee_query(actor).with_only_columns(
+        employees.c.id,
+        employees.c.full_name,
+        employees.c.company_employee_code,
+        employees.c.status,
+        employees.c.branch_id,
+        employees.c.department_id,
+        employees.c.reporting_manager_id,
+        employees.c.avatar_file_id,
+        designations.c.name.label("designation"),
+    )
+
+
+def _label(row):
+    return {
+        "id": str(row["id"]),
+        "fullName": row["full_name"],
+        "employeeCode": row["company_employee_code"],
+        "companyEmployeeCode": row["company_employee_code"],
+        "designation": row["designation"],
+        "status": row["status"],
+        **{
+            key: str(row[column]) if row[column] else None
+            for key, column in (
+                ("branchId", "branch_id"),
+                ("departmentId", "department_id"),
+                ("reportingManagerId", "reporting_manager_id"),
+                ("avatarFileId", "avatar_file_id"),
+            )
+        },
+    }
+
+
+@router.get("/employee-labels")
+async def list_employee_labels(
+    actor: ActorDep,
+    db: Db,
+    page: int = Query(1, ge=1),
+    pageSize: int = Query(25, ge=1, le=100),
+    status: str | None = None,
+    reportingManagerId: UUID | None = None,
+):
+    query = _employee_labels(actor)
+    if status:
+        query = query.where(employees.c.status == status)
+    if reportingManagerId:
+        query = query.where(employees.c.reporting_manager_id == reportingManagerId)
+    total = await db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = (
+        await db.execute(
+            query.order_by(employees.c.full_name, employees.c.id)
+            .offset((page - 1) * pageSize)
+            .limit(pageSize)
+        )
+    ).mappings()
+    return page_response([_label(row) for row in rows], total, page, pageSize)
+
+
+@router.get("/employee-labels/{employee_id}")
+async def get_employee_label(employee_id: UUID, actor: ActorDep, db: Db):
+    row = (
+        (await db.execute(_employee_labels(actor).where(employees.c.id == employee_id)))
+        .mappings()
+        .first()
+    )
+    if row is None:
+        raise ApiError(404, "NOT_FOUND", "Record unavailable")
+    return _label(row)
+
+
 @router.get("/employees/{employee_id}")
 async def get_employee(employee_id: UUID, actor: ActorDep, db: Db):
+    if employee_id != actor.employee_id:
+        require(actor, "employee.read")
     row = (
         (await db.execute(employee_query(actor).where(employees.c.id == employee_id)))
         .mappings()
@@ -274,7 +352,7 @@ async def get_employee(employee_id: UUID, actor: ActorDep, db: Db):
             {
                 "id": str(account["id"]),
                 "accessStatus": account["access_status"],
-                "locked": account["locked_at"] is not None,
+                "locked": lock_active(account["locked_at"], utcnow()),
             }
             if account
             else None
@@ -312,6 +390,8 @@ async def assign_employee(employee_id: UUID, item: AssignmentChange, actor: Csrf
 
 @router.get("/employees/{employee_id}/assignments")
 async def list_assignments(employee_id: UUID, actor: ActorDep, db: Db):
+    if employee_id != actor.employee_id:
+        require(actor, "employee.read")
     if not (await db.execute(employee_query(actor).where(employees.c.id == employee_id))).first():
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
     result = await db.execute(
@@ -366,7 +446,7 @@ async def list_users(
             "id": str(row["id"]),
             "employeeId": str(row["employee_id"]),
             "accessStatus": row["access_status"],
-            "locked": row["locked_at"] is not None,
+            "locked": lock_active(row["locked_at"], utcnow()),
         }
         for row in result.mappings()
     ]
@@ -396,7 +476,7 @@ async def get_user(account_id: UUID, actor: ActorDep, db: Db):
         "id": str(row["id"]),
         "employeeId": str(row["employee_id"]),
         "accessStatus": row["access_status"],
-        "locked": row["locked_at"] is not None,
+        "locked": lock_active(row["locked_at"], utcnow()),
     }
 
 

@@ -137,7 +137,7 @@ export function CaseDetailPage({
   useEffect(() => {
     if (!item || !session || !canApproveCases(session)) return;
     const controller = new AbortController();
-    choices<EmployeeSummary>(api, "/employees?status=Active", controller.signal)
+    choices<EmployeeSummary>(api, "/employee-labels?status=Active", controller.signal)
       .then((rows) => {
         setOwners(
           rows.filter((person) =>

@@ -3,13 +3,7 @@ import { useSession } from "../session/useSession";
 import type { AuthenticatedSession } from "./contracts";
 import { ApiFailure, type ApiClient } from "./http";
 import { sharedRead } from "./sharedRead";
-
-type Snapshot<T> = {
-  scope: string;
-  endpoint: string;
-  path: string;
-  data: T;
-};
+import { sessionSnapshots, type Snapshot } from "./resourceSnapshots";
 
 type RequestStatus = {
   key: string;
@@ -20,10 +14,6 @@ type RequestStatus = {
 
 const sessionIdentities = new WeakMap<AuthenticatedSession, number>();
 // A new authenticated session gets a different object, so retained reads cannot cross logins.
-const sessionSnapshots = new WeakMap<
-  AuthenticatedSession,
-  Map<string, Snapshot<unknown>>
->();
 let nextSessionIdentity = 0;
 const snapshotLimit = 64;
 

@@ -126,7 +126,7 @@ export function CaseCreateForm({
       ),
       choices<EmployeeSummary>(
         api,
-        "/employees?status=Active",
+        "/employee-labels?status=Active",
         controller.signal,
       ),
       api.request<NamedRecord[]>("/branches", { signal: controller.signal }),

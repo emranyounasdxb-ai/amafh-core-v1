@@ -19,7 +19,7 @@ export async function readOrganizationChart(
   const [hierarchy, assignments, branches, departments, teams] =
     await Promise.all([
       api.request<{ employees: OrganizationEmployee[] }>(path, { signal }),
-      choices<EmployeeSummary>(api, "/employees?status=Active", signal),
+      choices<EmployeeSummary>(api, "/employee-labels?status=Active", signal),
       api.request<NamedRecord[]>("/branches", { signal }),
       api.request<NamedRecord[]>("/departments", { signal }),
       choices<OrganizationTeam>(api, "/teams", signal),

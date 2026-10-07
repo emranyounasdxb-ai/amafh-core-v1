@@ -346,6 +346,7 @@ function ChoiceControl({
   const personField =
     !source.search &&
     (source.path.startsWith("/employees") ||
+      source.path.startsWith("/employee-labels") ||
       field.key.toLowerCase().includes("employee"));
   if (personField) {
     return (

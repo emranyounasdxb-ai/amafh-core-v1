@@ -5,6 +5,7 @@ export async function download(
   path: string,
   init?: RequestInit,
 ) {
+  const generation = api.sessionGeneration;
   const response = await api.response(path, init);
   const match = /filename="?([^";]+)"?/i.exec(
     response.headers.get("Content-Disposition") || "",
@@ -18,7 +19,9 @@ export async function download(
           : character,
       )
       .join("") || "download";
-  const url = URL.createObjectURL(await response.blob());
+  const blob = await response.blob();
+  api.assertSessionGeneration(generation);
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = name;

@@ -30,6 +30,7 @@ from app.api.team_lifecycle import router as team_lifecycle_router
 from app.auth_throttle import AuthThrottle
 from app.config import settings
 from app.errors import install_error_handlers
+from app.upload_limits import UploadBodyLimit
 
 
 def create_app() -> FastAPI:
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
 
 app = create_app()
 app.add_middleware(AuthThrottle)
+app.add_middleware(UploadBodyLimit)
 install_error_handlers(app)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(catalog_router, prefix="/api/v1")
