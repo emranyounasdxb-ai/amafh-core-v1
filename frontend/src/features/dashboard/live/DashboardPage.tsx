@@ -4,7 +4,6 @@ import {
   Button,
   ChartCard,
   ChartGrid,
-  Collapsible,
   DataTable,
   DsIcon,
   DropdownSelect,
@@ -397,6 +396,12 @@ export function DashboardPage({
           </FilterToolbarItem>
         </>
       ) : null}
+      <div className={styles.filterActions}>
+        <Button size="compact" onClick={openTasks}>
+          <DsIcon name="tasks" size={16} />
+          Tasks
+        </Button>
+      </div>
     </FilterToolbar>
   );
 
@@ -418,10 +423,6 @@ export function DashboardPage({
               Reports
             </Button>
           ) : null}
-          <Button size="compact" onClick={openTasks}>
-            <DsIcon name="tasks" size={16} />
-            Tasks
-          </Button>
         </div>
       }
     />
@@ -457,19 +458,22 @@ export function DashboardPage({
             : "empty";
     const showAmount = !coordinator && products.includes("PF");
     const monthColumns: DataTableColumn<MonthItem>[] = [
-      { key: "month", header: "Month", width: "110px", render: (item) => formatMonthYear(item.label) },
-      ...products.map(
-        (code): DataTableColumn<MonthItem> => ({
-          key: code,
-          header: `${code} cases`,
-          width: "110px",
-          kind: "number",
-          render: (item) => {
-            const value = code === "CC" ? item.cc : item.pf;
-            return value == null ? "—" : formatFullNumber(value);
-          },
-        }),
-      ),
+      {
+        key: "month",
+        header: "Month",
+        width: "110px",
+        render: (item) => formatMonthYear(item.label),
+      },
+      ...products.map((code): DataTableColumn<MonthItem> => ({
+        key: code,
+        header: `${code} cases`,
+        width: "110px",
+        kind: "number",
+        render: (item) => {
+          const value = code === "CC" ? item.cc : item.pf;
+          return value == null ? "—" : formatFullNumber(value);
+        },
+      })),
       ...(showAmount
         ? [
             {
@@ -477,7 +481,9 @@ export function DashboardPage({
               header: "PF amount",
               width: "130px",
               kind: "money" as const,
-              render: (item: MonthItem) => <MonetaryAmount compact={false} value={item.pfAed} />,
+              render: (item: MonthItem) => (
+                <MonetaryAmount compact={false} value={item.pfAed} />
+              ),
             },
           ]
         : []),
@@ -496,8 +502,8 @@ export function DashboardPage({
       <>
         {dashboard.updating ? (
           <InlineNotice tone="info" title="Refreshing">
-            Updating the Dashboard. Current values stay visible until the
-            update completes.
+            Updating the Dashboard. Current values stay visible until the update
+            completes.
           </InlineNotice>
         ) : null}
         {dashboard.error ? (
@@ -511,6 +517,7 @@ export function DashboardPage({
         {charted ? (
           <ChartGrid>
             <ChartCard
+              emptyMessage="No activity for the selected period."
               title={coordinator ? "Handled Case trend" : "Case activity"}
               description={`${coordinator ? "Handled" : "Created"} cases by month`}
               legend={products.map((code) => ({
@@ -539,6 +546,7 @@ export function DashboardPage({
             </ChartCard>
             {showAmount ? (
               <ChartCard
+                emptyMessage="No activity for the selected period."
                 title="PF amount by month"
                 description="Personal Finance amount achieved"
                 state={valuesState(
@@ -567,7 +575,18 @@ export function DashboardPage({
         {charted && monthly.data && months.length ? (
           <SectionCard
             compact
-            title="Monthly values"
+            title={
+              <button
+                type="button"
+                className={styles.monthlyToggle}
+                aria-expanded={monthlyOpen}
+                aria-controls="dashboard-monthly-values"
+                onClick={() => setMonthlyOpen((open) => !open)}
+              >
+                Monthly values{" "}
+                <DsIcon name={monthlyOpen ? "collapse" : "expand"} size={16} />
+              </button>
+            }
             actions={
               selection.allowed ? (
                 <ExportButton
@@ -580,35 +599,36 @@ export function DashboardPage({
               ) : undefined
             }
           >
-            <Collapsible
-              title="View monthly values"
-              open={monthlyOpen}
-              onOpenChange={setMonthlyOpen}
-            >
-            <DataTable
-              ariaLabel="Monthly activity values"
-              density="compact"
-              columns={monthColumns}
-              rows={months}
-              rowKey={(item) => item.start}
-              selectedKeys={
-                selection.allowed
-                  ? months
-                      .filter((item, index) => selection.checked(item, index))
-                      .map((item) => item.start)
-                  : undefined
-              }
-              onToggleRow={
-                selection.allowed
-                  ? (key) => {
-                      const index = months.findIndex((item) => item.start === key);
-                      if (index >= 0) selection.toggleRow(months[index], index);
-                    }
-                  : undefined
-              }
-              onToggleAll={selection.allowed ? selection.toggleAll : undefined}
-            />
-            </Collapsible>
+            <div id="dashboard-monthly-values" hidden={!monthlyOpen}>
+              <DataTable
+                ariaLabel="Monthly activity values"
+                density="compact"
+                columns={monthColumns}
+                rows={months}
+                rowKey={(item) => item.start}
+                selectedKeys={
+                  selection.allowed
+                    ? months
+                        .filter((item, index) => selection.checked(item, index))
+                        .map((item) => item.start)
+                    : undefined
+                }
+                onToggleRow={
+                  selection.allowed
+                    ? (key) => {
+                        const index = months.findIndex(
+                          (item) => item.start === key,
+                        );
+                        if (index >= 0)
+                          selection.toggleRow(months[index], index);
+                      }
+                    : undefined
+                }
+                onToggleAll={
+                  selection.allowed ? selection.toggleAll : undefined
+                }
+              />
+            </div>
             {selection.error ? (
               <p className={styles.support} role="alert">
                 The CSV export could not be completed. Try again.
@@ -618,12 +638,15 @@ export function DashboardPage({
         ) : null}
 
         {activity || data.branchComparison ? (
-          <ChartGrid>
+          <div className={styles.comparisonCharts}>
             {activity ? (
               <ChartCard
+                emptyMessage="No activity for the selected period."
                 title="Selected-period activity"
                 description="Case outcomes in the authorized scope"
-                state={activityKeys.some((key) => activity[key]) ? "ready" : "empty"}
+                state={
+                  activityKeys.some((key) => activity[key]) ? "ready" : "empty"
+                }
               >
                 <BarChart
                   labels={activityKeys.map((key) => activityLabel[key] ?? key)}
@@ -642,18 +665,29 @@ export function DashboardPage({
               if (!rows) return null;
               return (
                 <ChartCard
+                  emptyMessage="No activity for the selected period."
                   key={code}
-                  title={code === "CC" ? "Branch comparison · CC points" : "Branch comparison · PF amount"}
+                  title={
+                    code === "CC"
+                      ? "Branch comparison · CC points"
+                      : "Branch comparison · PF amount"
+                  }
                   description={`${PRODUCT_LABEL[code]} achieved by Branch`}
                   state={valuesState(
                     "ready",
                     rows.map((row) =>
-                      amount(code === "CC" ? row.achievedCCPoints : row.achievedPFAed),
+                      amount(
+                        code === "CC"
+                          ? row.achievedCCPoints
+                          : row.achievedPFAed,
+                      ),
                     ),
                   )}
                 >
                   <BarChart
-                    labels={rows.map((row) => readable(row.name) || "Unavailable")}
+                    labels={rows.map(
+                      (row) => readable(row.name) || "Unavailable",
+                    )}
                     kind={code === "CC" ? "points" : "currency"}
                     series={[
                       {
@@ -661,7 +695,11 @@ export function DashboardPage({
                         label: code === "CC" ? "CC points" : "PF amount",
                         color: PRODUCT_COLOR[code],
                         values: rows.map((row) =>
-                          amount(code === "CC" ? row.achievedCCPoints : row.achievedPFAed),
+                          amount(
+                            code === "CC"
+                              ? row.achievedCCPoints
+                              : row.achievedPFAed,
+                          ),
                         ),
                       },
                     ]}
@@ -669,16 +707,28 @@ export function DashboardPage({
                 </ChartCard>
               );
             })}
-          </ChartGrid>
+          </div>
         ) : null}
         <div className={styles.panels}>
           {data.teamPerformance ? (
             <SectionCard compact title="Team performance">
               <StatusSummary
                 items={[
-                  { label: "Created", count: amount(data.teamPerformance.createdCaseCount), tone: "neutral" },
-                  { label: "Booked", count: amount(data.teamPerformance.bookedCaseCount), tone: "info" },
-                  { label: "Completed", count: amount(data.teamPerformance.completedCaseCount), tone: "success" },
+                  {
+                    label: "Created",
+                    count: amount(data.teamPerformance.createdCaseCount),
+                    tone: "neutral",
+                  },
+                  {
+                    label: "Booked",
+                    count: amount(data.teamPerformance.bookedCaseCount),
+                    tone: "info",
+                  },
+                  {
+                    label: "Completed",
+                    count: amount(data.teamPerformance.completedCaseCount),
+                    tone: "success",
+                  },
                 ]}
               />
               <dl className={styles.facts}>
@@ -689,7 +739,11 @@ export function DashboardPage({
                 <div>
                   <dt>PF amount</dt>
                   <dd>
-                    <MonetaryAmount compact={false} value={data.teamPerformance.achievedPFAed} align="start" />
+                    <MonetaryAmount
+                      compact={false}
+                      value={data.teamPerformance.achievedPFAed}
+                      align="start"
+                    />
                   </dd>
                 </div>
               </dl>
@@ -697,13 +751,33 @@ export function DashboardPage({
           ) : null}
 
           {data.assets ? (
-            <SectionCard compact title="Assets" description="Authorized Branch inventory">
+            <SectionCard
+              compact
+              title="Assets"
+              description="Authorized Branch inventory"
+            >
               <StatusSummary
                 items={[
-                  { label: "Available", count: amount(data.assets.availableCount), tone: "success" },
-                  { label: "Issued", count: amount(data.assets.issuedCount), tone: "info" },
-                  { label: "Maintenance", count: amount(data.assets.maintenanceCount), tone: "warning" },
-                  { label: "Damaged", count: amount(data.assets.damagedCount), tone: "danger" },
+                  {
+                    label: "Available",
+                    count: amount(data.assets.availableCount),
+                    tone: "success",
+                  },
+                  {
+                    label: "Issued",
+                    count: amount(data.assets.issuedCount),
+                    tone: "info",
+                  },
+                  {
+                    label: "Maintenance",
+                    count: amount(data.assets.maintenanceCount),
+                    tone: "warning",
+                  },
+                  {
+                    label: "Damaged",
+                    count: amount(data.assets.damagedCount),
+                    tone: "danger",
+                  },
                 ]}
               />
             </SectionCard>
@@ -737,18 +811,24 @@ export function DashboardPage({
               title="Employee performance"
               description="Monthly and selected-period leaders"
             >
-              <dl className={styles.facts}>
+              <dl className={styles.performanceProducts}>
                 {products.map((code) => (
-                  <div key={code} className={styles.factGroup}>
+                  <div key={code} className={styles.performanceProduct}>
                     <dt>{PRODUCT_LABEL[code]}</dt>
                     <dd>
                       <span>
                         Employee of the month:{" "}
-                        <strong>{rankingWinner(data.ranking?.[code]?.employeeOfMonth)}</strong>
+                        <strong>
+                          {rankingWinner(data.ranking?.[code]?.employeeOfMonth)}
+                        </strong>
                       </span>
                       <span>
                         Top performer:{" "}
-                        <strong>{rankingWinner(data.ranking?.[code]?.highestPerformer)}</strong>
+                        <strong>
+                          {rankingWinner(
+                            data.ranking?.[code]?.highestPerformer,
+                          )}
+                        </strong>
                       </span>
                     </dd>
                   </div>
@@ -762,7 +842,7 @@ export function DashboardPage({
   }
 
   return (
-    <PageContainer>
+    <PageContainer className={styles.container}>
       <div className={styles.page}>
         {header}
         {filters}

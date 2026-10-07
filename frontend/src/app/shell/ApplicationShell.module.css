@@ -22,8 +22,7 @@
   gap: var(--ds-space-12);
   min-width: 0;
   padding: var(--ds-space-12) var(--ds-space-20);
-  border-bottom: 1px solid var(--ds-border);
-  background: var(--ds-surface);
+  background: var(--ds-canvas);
 }
 
 .topbarLead {
@@ -32,7 +31,7 @@
   align-items: center;
   gap: var(--ds-space-12);
   min-width: 0;
-  flex: 1 1 12rem;
+  flex: 1 1 auto;
 }
 
 .topbarActions {
@@ -256,4 +255,87 @@
 
 :global(.ds-root .ds-app-signout-error) {
   margin: 0;
+}
+.logo {
+  display: block;
+  width: 132px;
+  height: 36px;
+  object-fit: contain;
+}
+.navigationShell,
+.navigationShell :global(.ds-sidebar-header),
+.navigationShell :global(.ds-sidebar-footer) {
+  background: var(--ds-canvas);
+  border: 0;
+}
+.navigationShell :global(.ds-sidebar-header) {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 60px;
+}
+.navigation {
+  display: grid;
+  gap: 6px;
+  padding: 4px 0;
+}
+.navigation button {
+  width: 100%;
+  text-align: start;
+  min-width: 0;
+}
+.navigation button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.navigation :global(.ds-sidebar-item) {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+}
+.navigation :global(.ds-sidebar-item--sub) {
+  grid-template-columns: 16px minmax(0, 1fr);
+}
+.navigationShell:global(.ds-sidebar--collapsed)
+  .navigation
+  :global(.ds-sidebar-item > .ds-icon) {
+  display: block;
+}
+.submenu {
+  padding: 4px 0 4px 14px;
+}
+.submenu:not([hidden]) {
+  display: grid;
+  gap: 2px;
+}
+@media (max-width: 599px) {
+  .topbar {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .topbarLead {
+    gap: 8px;
+  }
+  .logo {
+    width: 112px;
+    height: 32px;
+  }
+  .topbarActions {
+    gap: 4px;
+  }
+  .topbarActions :global(.ds-app-clock) {
+    align-items: flex-end;
+    gap: 0;
+    font-size: 11px;
+    line-height: 16px;
+  }
+  .topbarActions :global(.ds-app-clock > .ds-icon),
+  .topbarActions :global(.ds-app-clock__separator) {
+    display: none;
+  }
+  .topbarActions :global(.ds-app-clock__text) {
+    display: grid;
+    text-align: end;
+  }
+  .pageContext {
+    display: none;
+  }
 }

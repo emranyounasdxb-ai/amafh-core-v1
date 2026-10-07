@@ -100,18 +100,30 @@ export function ProfileMenu({
   designation,
   src,
   items,
+  avatarOnly = false,
 }: {
   name: string;
   designation?: ReactNode;
   src?: string;
   items?: MenuItem[];
+  avatarOnly?: boolean;
 }) {
   return (
     <Menu
       label="Account"
       align="bottom-end"
       trigger={
-        <ProfileCard name={name} designation={designation} src={src} menu />
+        avatarOnly ? (
+          <button
+            type="button"
+            className="ds-icon-button ds-icon-button--ghost"
+            aria-label={`Account menu for ${name}`}
+          >
+            <Avatar name={name} src={src} size="sm" />
+          </button>
+        ) : (
+          <ProfileCard name={name} designation={designation} src={src} menu />
+        )
       }
       items={
         items ?? [

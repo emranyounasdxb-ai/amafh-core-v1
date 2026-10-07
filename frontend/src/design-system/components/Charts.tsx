@@ -50,7 +50,8 @@ export function formatChartValue(
       ? `${formatCompactNumber(value, format)}%`
       : `${formatFullNumber(value, {
           ...format,
-          fullDecimals: options.fullDecimals ?? (Number.isInteger(value) ? 0 : 2),
+          fullDecimals:
+            options.fullDecimals ?? (Number.isInteger(value) ? 0 : 2),
         })}%`;
   }
   if (kind === "currency") {
@@ -59,7 +60,8 @@ export function formatChartValue(
       : formatFullAmount(value, {
           ...format,
           currency,
-          fullDecimals: options.fullDecimals ?? (Number.isInteger(value) ? 0 : 2),
+          fullDecimals:
+            options.fullDecimals ?? (Number.isInteger(value) ? 0 : 2),
         });
   }
   const body = compact
@@ -222,6 +224,7 @@ export function ChartCard({
   state = "ready",
   children,
   retry,
+  emptyMessage,
 }: {
   title: ReactNode;
   description?: ReactNode;
@@ -234,6 +237,7 @@ export function ChartCard({
   state?: ChartState;
   children?: ReactNode;
   retry?: () => void;
+  emptyMessage?: string;
 }) {
   return (
     <section className="ds-chart-card">
@@ -251,7 +255,14 @@ export function ChartCard({
       {state === "loading" ? (
         <ChartLoadingState />
       ) : state === "empty" ? (
-        <ChartEmptyState />
+        emptyMessage ? (
+          <div className="ds-chart-empty-compact" role="status">
+            <DsIcon name="performance" size={24} />
+            <p>{emptyMessage}</p>
+          </div>
+        ) : (
+          <ChartEmptyState />
+        )
       ) : state === "error" ? (
         <ChartErrorState retry={retry} />
       ) : state === "permission" ? (

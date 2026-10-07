@@ -24,10 +24,10 @@ export function DubaiClock() {
   return (
     <p className={clockClass} aria-label={`Current Dubai date and time, ${date} ${time}`}>
       <DsIcon name="calendar" size={16} />
-      <span>
+      <span className="ds-app-clock__text">
         <b>{time}</b>
-        <span aria-hidden="true"> · </span>
-        {date}
+        <span className="ds-app-clock__separator" aria-hidden="true"> · </span>
+        <span className="ds-app-clock__date">{date}</span>
       </span>
     </p>
   );

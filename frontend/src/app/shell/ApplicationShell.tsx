@@ -21,13 +21,11 @@ import {
   DsIcon,
   LoadingState,
   Sidebar,
-  SidebarBrand,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarMobileDrawer,
   SidebarMobileTrigger,
-  SidebarNavigation,
   SidebarProfile,
   SidebarScrollArea,
   SidebarToggle,
@@ -37,13 +35,14 @@ import {
   type SidebarNavGroup,
 } from "../../design-system";
 import { AppErrorBoundary } from "./AppErrorBoundary";
+import { ApplicationNavigation } from "./ApplicationNavigation";
 import { DubaiClock } from "./DubaiClock";
 import styles from "./ApplicationShell.module.css";
 
 export function ApplicationShell() {
   const { session: identity, loading, signOut } = useSession();
   const { route, navigationState, navigate, back } = useAppRoute();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const page = route?.page ?? "dashboard";
@@ -136,11 +135,14 @@ export function ApplicationShell() {
   const sidebarBody = (
     <>
       <SidebarHeader>
-        <SidebarBrand />
+        <SidebarMobileTrigger
+          label="Close navigation"
+          onClick={() => setMobileOpen(false)}
+        />
       </SidebarHeader>
       <SidebarContent>
         <SidebarScrollArea>
-          <SidebarNavigation
+          <ApplicationNavigation
             groups={groups}
             activeId={activeId}
             onSelect={(id) => go(id as PageId)}
@@ -166,10 +168,22 @@ export function ApplicationShell() {
     <DesignSystemRoot>
       <ToastProvider>
         <div className={`ds-app-shell ${styles.shell}`}>
-          <div className={styles.dock}>
-            <Sidebar collapsed={collapsed} label="Application">
+          <div
+            className={styles.dock}
+            onMouseEnter={() => setCollapsed(false)}
+            onMouseLeave={() => setCollapsed(true)}
+            onFocus={() => setCollapsed(false)}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget))
+                setCollapsed(true);
+            }}
+          >
+            <Sidebar
+              collapsed={collapsed}
+              label="Application"
+              className={styles.navigationShell}
+            >
               <SidebarHeader>
-                <SidebarBrand />
                 <SidebarToggle
                   collapsed={collapsed}
                   onClick={() => setCollapsed((value) => !value)}
@@ -177,7 +191,9 @@ export function ApplicationShell() {
               </SidebarHeader>
               <SidebarContent>
                 <SidebarScrollArea>
-                  <SidebarNavigation
+                  <ApplicationNavigation
+                    collapsed={collapsed}
+                    onExpand={() => setCollapsed(false)}
                     groups={groups}
                     activeId={activeId}
                     onSelect={(id) => go(id as PageId)}
@@ -204,7 +220,13 @@ export function ApplicationShell() {
                 <span className={styles.mobileTrigger}>
                   <SidebarMobileTrigger onClick={() => setMobileOpen(true)} />
                 </span>
-                {page !== "cases" &&
+                <img
+                  className={styles.logo}
+                  src="/production/amafh-core-full-logo-exact.svg"
+                  alt="AMAFH Core"
+                />
+                {page !== "dashboard" &&
+                page !== "cases" &&
                 page !== "customers" &&
                 page !== "tasks" &&
                 page !== "notifications" ? (
@@ -218,6 +240,7 @@ export function ApplicationShell() {
                   onOpenRecord={openRecord}
                 />
                 <ProfileMenu
+                  avatarOnly
                   name={identity.displayName}
                   designation={identity.designation}
                   items={profileItems()}
@@ -243,7 +266,11 @@ export function ApplicationShell() {
             onClose={() => setMobileOpen(false)}
             label="Application"
           >
-            <Sidebar collapsed={false} label="Application">
+            <Sidebar
+              collapsed={false}
+              label="Application"
+              className={styles.navigationShell}
+            >
               {sidebarBody}
             </Sidebar>
           </SidebarMobileDrawer>

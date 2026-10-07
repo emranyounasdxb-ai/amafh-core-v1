@@ -1,6 +1,6 @@
 .page {
   display: grid;
-  gap: var(--ds-section-gap);
+  gap: var(--ds-space-16);
   min-width: 0;
   max-width: 100%;
 }
@@ -72,7 +72,133 @@
   min-width: 0;
 }
 
-.factGroup dd {
+.container {
+  padding-top: 12px;
+}
+.filterActions {
+  margin-inline-start: auto;
+}
+@media (min-width: 1280px) {
+  .filters:has(:global(#dashboard-branch)) {
+    display: grid;
+    grid-template-columns:
+      minmax(120px, 0.9fr) minmax(116px, 1fr) minmax(144px, 1.2fr)
+      minmax(108px, 0.9fr) minmax(116px, 1fr) auto;
+  }
+}
+.page :global(.ds-kpi-summary) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.page :global(.ds-kpi-card) {
+  min-width: 0;
+  height: 100%;
+  padding: 14px;
+}
+.page :global(.ds-kpi-card__label) {
+  overflow-wrap: anywhere;
+}
+.comparisonCharts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.page :global(.ds-chart-empty-compact) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 108px;
+  align-self: center;
+  color: var(--ds-text-muted);
+  text-align: center;
+}
+.page :global(.ds-chart-empty-compact p) {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+.page :global(.ds-chart-legend) {
+  flex-direction: row;
+  justify-content: flex-start;
+}
+.monthlyToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.monthlyToggle:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 4px;
+}
+.performanceProducts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin: 8px 0 0;
+}
+.performanceProduct {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+.performanceProduct dt {
+  font-size: 13px;
+  font-weight: 700;
+}
+.performanceProduct dd {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ds-text-muted);
+}
+.performanceProduct dd span {
   display: grid;
   gap: 2px;
+}
+.performanceProduct strong {
+  color: var(--ds-text);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1199px) {
+  .comparisonCharts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .comparisonCharts > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 899px) {
+  .page :global(.ds-kpi-summary) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 599px) {
+  .container {
+    padding: 12px;
+  }
+  .comparisonCharts,
+  .panels,
+  .performanceProducts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .page :global(.ds-kpi-summary) {
+    gap: 8px;
+  }
+  .page :global(.ds-kpi-card) {
+    padding: 12px;
+  }
 }
