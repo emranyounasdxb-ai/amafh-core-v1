@@ -27,10 +27,24 @@ from app.api.table_exports import router as table_exports_router
 from app.api.targets import router as targets_router
 from app.api.tasks import router as tasks_router
 from app.api.team_lifecycle import router as team_lifecycle_router
+from app.auth_throttle import AuthThrottle
 from app.config import settings
 from app.errors import install_error_handlers
 
-app = FastAPI(title="AMAFH Core API", version="0.1.0")
+
+def create_app() -> FastAPI:
+    documentation = settings().environment != "production"
+    return FastAPI(
+        title="AMAFH Core API",
+        version="0.1.0",
+        openapi_url="/openapi.json" if documentation else None,
+        docs_url="/docs" if documentation else None,
+        redoc_url="/redoc" if documentation else None,
+    )
+
+
+app = create_app()
+app.add_middleware(AuthThrottle)
 install_error_handlers(app)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(catalog_router, prefix="/api/v1")

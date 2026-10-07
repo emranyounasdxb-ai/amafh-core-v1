@@ -10,6 +10,7 @@ import {
 } from "../../design-system";
 import { useSession } from "./useSession";
 import styles from "./SignIn.module.css";
+import { clearPasswordLink, passwordLinkToken } from "./passwordLink";
 
 export function SignIn() {
   const { signIn, notice, api, expired, dismissExpiry } = useSession();
@@ -35,10 +36,11 @@ export function SignIn() {
         await api.request(`/auth/${kind}`, {
           method: "POST",
           body: JSON.stringify({
-            token: new URLSearchParams(window.location.search).get("token"),
+            token: passwordLinkToken(),
             password,
           }),
         });
+        clearPasswordLink();
         window.history.replaceState(null, "", "/");
         window.dispatchEvent(new PopStateEvent("popstate"));
         setCompleted(true);
@@ -97,7 +99,7 @@ export function SignIn() {
                     ? "Password saved. Sign in with your work email and new password."
                     : notice ||
                       (kind
-                        ? "Enter a new password to continue."
+                        ? "Use 12–128 characters with uppercase, lowercase, a number and a special character."
                         : "Enter your work email and password to continue.")
                 }
               />
@@ -126,11 +128,15 @@ export function SignIn() {
                       kind && !completed ? "new-password" : "current-password"
                     }
                     required
+                    minLength={kind && !completed ? 12 : undefined}
+                    maxLength={128}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </FormField>
-                {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+                {error ? (
+                  <InlineNotice tone="error">{error}</InlineNotice>
+                ) : null}
                 <Button
                   type="submit"
                   size="large"

@@ -24,6 +24,7 @@ from app.repositories import identity
 from app.repositories import permissions as permission_rows
 from app.security import (
     DUMMY_PASSWORD_HASH,
+    MAX_PASSWORD_LENGTH,
     hash_password,
     new_token,
     token_digest,
@@ -47,6 +48,8 @@ def _valid_account_scope(
 
 
 async def login(session: AsyncSession, email: str, password: str) -> tuple[str, str, dict]:
+    if len(password) > MAX_PASSWORD_LENGTH:
+        raise ApiError(401, "INVALID_CREDENTIALS", "Invalid credentials or account unavailable")
     now = utcnow()
     email = login_email.normalize(email)
     matches = (
@@ -57,6 +60,26 @@ async def login(session: AsyncSession, email: str, password: str) -> tuple[str, 
     ]
     # An ambiguous email never selects an account, so no account's lockout counter moves.
     row = enabled[0] if len(enabled) == 1 else None
+    if row is not None:
+        # Match the employee -> account lock order used by recovery/lifecycle.
+        # Reload after locking to prevent concurrent failures losing increments.
+        await lock_account_employee(session, row["account_id"])
+        await session.execute(
+            select(user_accounts.c.id)
+            .where(user_accounts.c.id == row["account_id"])
+            .with_for_update()
+        )
+        refreshed = await identity.by_email(session, email)
+        enabled = [
+            r
+            for r in refreshed
+            if r["access_status"] == "Active" and r["employee_status"] == "Active"
+        ]
+        row = (
+            enabled[0]
+            if len(enabled) == 1 and enabled[0]["account_id"] == row["account_id"]
+            else None
+        )
     eligible = bool(
         row
         and row["access_status"] == "Active"
@@ -85,6 +108,15 @@ async def login(session: AsyncSession, email: str, password: str) -> tuple[str, 
             await session.execute(
                 login_failures.insert().values(account_id=row["account_id"], occurred_at=now)
             )
+            if failures >= 5:
+                await session.execute(
+                    update(sessions)
+                    .where(
+                        sessions.c.account_id == row["account_id"],
+                        sessions.c.invalidated_at.is_(None),
+                    )
+                    .values(invalidated_at=now)
+                )
             await audit.record(
                 session,
                 actor=row["employee_id"],
@@ -283,7 +315,6 @@ async def generate_link(session: AsyncSession, actor: Actor, employee_id: UUID, 
 
 
 async def complete_link(session: AsyncSession, raw_token: str, password: str, kind: str) -> None:
-    encoded = hash_password(password)
     digest = token_digest(raw_token)
     token_account_id = await session.scalar(
         select(password_tokens.c.account_id).where(
@@ -333,6 +364,9 @@ async def complete_link(session: AsyncSession, raw_token: str, password: str, ki
         )
         if generator_role != "Owner":
             raise ApiError(400, "INVALID_LINK", "Link invalid or expired")
+    # Only a usable link may incur password hashing. Employee/account/token locks
+    # remain held through hashing and commit, so concurrent redemption hashes once.
+    encoded = hash_password(password)
     await session.execute(
         update(user_accounts)
         .where(user_accounts.c.id == token["account_id"])

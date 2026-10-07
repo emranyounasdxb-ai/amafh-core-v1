@@ -40,7 +40,6 @@ async def by_email(session: AsyncSession, email: str):
         account_query()
         .where(stored_email() == email)
         .order_by(user_accounts.c.id)
-        .with_for_update(of=user_accounts)
     )
     return result.mappings().all()
 

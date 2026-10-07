@@ -10,6 +10,8 @@ from argon2.exceptions import VerifyMismatchError
 from app.errors import ApiError
 
 hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4, hash_len=32, salt_len=16)
+MIN_PASSWORD_LENGTH = 12
+MAX_PASSWORD_LENGTH = 128
 
 # An unavailable account still incurs the same Argon2 verification cost as an
 # eligible account. This is a valid precomputed hash, never a user credential.
@@ -28,6 +30,8 @@ def token_digest(value: str) -> str:
 
 
 def validate_password(value: str) -> None:
+    if not MIN_PASSWORD_LENGTH <= len(value) <= MAX_PASSWORD_LENGTH:
+        raise ApiError(422, "PASSWORD_POLICY", "Password must contain 12 to 128 characters")
     if not all(
         (
             any(c.isupper() for c in value),

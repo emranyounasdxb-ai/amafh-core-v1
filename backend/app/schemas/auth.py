@@ -18,8 +18,8 @@ class LoginRequest(BaseModel):
 
 
 class PasswordChange(BaseModel):
-    token: str = Field(min_length=30)
-    password: str
+    token: str = Field(min_length=30, max_length=128)
+    password: str = Field(max_length=128)
 
 
 class LinkRequest(BaseModel):
