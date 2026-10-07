@@ -48,11 +48,17 @@ const operatingCityField: Field = {
 const targetProductField: Field = {
   key: "productTypeId",
   label: "Target product",
+  choiceLabel: "nameWithCode",
+  emptyAsNull: true,
+  hint: "Optional. Select an active CC/PF Product to enable Targets. Classification cannot change once Targets use it.",
   source: {
-    path: "/catalog/product-types?active=true",
+    path: "/catalog/product-types",
     label: "name",
     paged: true,
+    where: { active: "true" },
     allowed: { code: ["CC", "PF"] },
+    keepSelected: true,
+    emptyLabel: "No active CC/PF Products available. Check Settings → Products.",
   },
 };
 
@@ -261,7 +267,9 @@ export function DepartmentSettings() {
   const productFact = (row: OrgRecord) => (
     <Text
       value={
-        row.product_type_id ? products.label(row.product_type_id) : "Not assigned"
+        row.product_type_id
+          ? `${products.label(row.product_type_id)}${row.product_type_code ? ` (${row.product_type_code})` : ""}`
+          : "Not assigned — unavailable for Targets"
       }
     />
   );

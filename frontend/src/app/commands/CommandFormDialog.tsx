@@ -230,9 +230,12 @@ function ChoiceControl({
       (field.key !== "branchId" ||
         session?.designation !== "Admin Staff" ||
         row.id === session.branchId) &&
-      Object.entries(source.where || {}).every(
-        ([key, value]) => String(row[key]) === value,
-      ) &&
+      ((source.keepSelected &&
+        values[field.key] &&
+        String(row[source.value || "id"]) === String(values[field.key])) ||
+        Object.entries(source.where || {}).every(
+          ([key, value]) => String(row[key]) === value,
+        )) &&
       Object.entries(source.matchFrom || {}).every(
         ([key, valueKey]) =>
           Boolean(values[valueKey]) &&
@@ -260,7 +263,9 @@ function ChoiceControl({
     const label =
       field.choiceLabel === "departmentWithBranch"
         ? `${baseLabel} · ${branchName(row)}`
-        : baseLabel;
+        : field.choiceLabel === "nameWithCode"
+          ? `${baseLabel} (${String(row.code)})${row.active === false ? " · Inactive" : ""}`
+          : baseLabel;
     const subtitle = String(
       row.subtitle || row.employeeCode || row.companyEmployeeCode || "",
     );

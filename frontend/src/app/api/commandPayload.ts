@@ -36,7 +36,10 @@ export function commandPayload(command: Command, values: DataRecord): string {
   for (const field of command.fields) {
     if (field.show && !field.show(values)) continue;
     const value = values[field.key];
-    if (value === "" || value === undefined) continue;
+    if (value === "" || value === undefined) {
+      if (field.emptyAsNull) body[field.key] = null;
+      continue;
+    }
     body[field.key] =
       field.type === "number"
         ? Number(roundWholeText(value) ?? value)

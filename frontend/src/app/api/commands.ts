@@ -15,6 +15,8 @@ export type ChoiceSource = {
   /** A required parent choice; do not request options until it is present. */
   requires?: { key: string; placeholder: string };
   emptyLabel?: string;
+  /** Keep an already saved choice visible when it no longer matches `where`. */
+  keepSelected?: boolean;
 };
 export type Field = {
   key: string;
@@ -38,7 +40,7 @@ export type Field = {
   show?: (values: DataRecord) => boolean;
   initial?: unknown;
   initialChoiceLabel?: string;
-  choiceLabel?: "departmentWithBranch";
+  choiceLabel?: "departmentWithBranch" | "nameWithCode";
   choiceContextKey?: string;
   /** Copies an attribute of the selected choice into form state (not submitted). */
   choiceContext?: { key: string; from: string };
@@ -46,6 +48,8 @@ export type Field = {
   section?: string;
   control?: "nationality";
   hint?: string;
+  /** Explicitly clear an optional nullable field instead of omitting it. */
+  emptyAsNull?: boolean;
 };
 export type CommandConfirmation = {
   description: string;
