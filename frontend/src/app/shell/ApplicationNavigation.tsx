@@ -24,7 +24,12 @@ export function ApplicationNavigation({
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     const buttons = Array.from(
       event.currentTarget.querySelectorAll<HTMLButtonElement>("button"),
-    ).filter((button) => !button.disabled && button.getClientRects().length > 0);
+    ).filter(
+      (button) =>
+        !button.disabled &&
+        !button.closest("[inert]") &&
+        button.getClientRects().length > 0,
+    );
     if (!buttons.length) return;
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     event.preventDefault();
@@ -44,7 +49,23 @@ export function ApplicationNavigation({
       onKeyDown={onKeyDown}
     >
       {groups.map((group) => {
-        const open = !collapsed && (opened[group.id] ?? activeGroup === group.id);
+        if (group.id === "main" || group.items.length === 1)
+          return group.items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={`ds-sidebar-item ${item.id === activeId ? "ds-sidebar-item--active" : ""}`}
+              data-navigation-kind="direct"
+              aria-label={item.label}
+              aria-current={item.id === activeId ? "page" : undefined}
+              onClick={() => onSelect(item.id)}
+            >
+              <DsIcon name={item.icon ?? "dashboard"} size={18} />
+              <span className={styles.navLabel}>{item.label}</span>
+            </button>
+          ));
+        const open =
+          !collapsed && (opened[group.id] ?? activeGroup === group.id);
         return (
           <div
             key={group.id}
@@ -59,36 +80,41 @@ export function ApplicationNavigation({
               aria-label={group.label}
               aria-expanded={open}
               aria-controls={`app-${group.id}-submenu`}
+              data-navigation-kind="parent"
               onClick={() => {
                 onExpand?.();
                 setOpened((current) => ({ ...current, [group.id]: !open }));
               }}
             >
               <DsIcon name={group.items[0]?.icon ?? "dashboard"} size={18} />
-              {!collapsed ? (
-                <>
-                  <span>{group.label}</span>
-                  <DsIcon name={open ? "collapse" : "expand"} size={14} />
-                </>
-              ) : null}
+              <span className={styles.navLabel}>{group.label}</span>
+              <span className={styles.navChevron}>
+                <DsIcon name={open ? "collapse" : "expand"} size={14} />
+              </span>
             </button>
             <div
               id={`app-${group.id}-submenu`}
-              hidden={!open}
+              data-open={open}
+              aria-hidden={!open}
+              inert={!open}
               className={styles.submenu}
             >
-              {group.items.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  className={`ds-sidebar-item ds-sidebar-item--sub ${item.id === activeId ? "ds-sidebar-item--active" : ""}`}
-                  aria-current={item.id === activeId ? "page" : undefined}
-                  onClick={() => onSelect(item.id)}
-                >
-                  <DsIcon name={item.icon ?? "dashboard"} size={16} />
-                  <span>{item.label}</span>
-                </button>
-              ))}
+              <div className={styles.submenuClip}>
+                <div className={styles.submenuItems}>
+                  {group.items.map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      className={`ds-sidebar-item ds-sidebar-item--sub ${item.id === activeId ? "ds-sidebar-item--active" : ""}`}
+                      aria-current={item.id === activeId ? "page" : undefined}
+                      data-navigation-kind="child"
+                      onClick={() => onSelect(item.id)}
+                    >
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         );

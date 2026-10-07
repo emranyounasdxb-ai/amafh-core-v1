@@ -1,6 +1,8 @@
 .shell {
   display: grid;
+  --app-topbar-height: 56px;
   grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: var(--app-topbar-height) minmax(0, 1fr);
   min-width: 0;
   min-height: 100vh;
   max-width: 100%;
@@ -9,19 +11,21 @@
 }
 
 .column {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   max-width: 100%;
 }
 
 .topbar {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--ds-space-12);
   min-width: 0;
-  padding: var(--ds-space-12) var(--ds-space-20);
+  padding: var(--ds-space-8) var(--ds-space-20);
   background: var(--ds-canvas);
 }
 
@@ -43,18 +47,6 @@
   margin-inline-start: auto;
 }
 
-.pageContext {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ds-text-muted);
-  font-size: var(--ds-body-size);
-  line-height: var(--ds-body-line);
-  font-weight: 600;
-}
-
 .main {
   min-width: 0;
   max-width: 100%;
@@ -67,10 +59,9 @@
 }
 
 .dock {
-  min-height: 100vh;
-  height: 100vh;
+  height: calc(100dvh - var(--app-topbar-height));
   position: sticky;
-  top: 0;
+  top: var(--app-topbar-height);
 }
 
 @media (max-width: 899px) {
@@ -271,7 +262,20 @@
 .navigationShell :global(.ds-sidebar-header) {
   display: flex;
   justify-content: flex-end;
-  min-height: 60px;
+  min-height: 44px;
+}
+.dock .navigationShell {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.navigationShell {
+  --app-motion: 450ms cubic-bezier(0.2, 0, 0.2, 1);
+  transition:
+    width var(--app-motion),
+    min-width var(--app-motion),
+    max-width var(--app-motion);
+}
+.main :global(.ds-page) {
+  padding-top: 8px;
 }
 .navigation {
   display: grid;
@@ -290,21 +294,139 @@
 }
 .navigation :global(.ds-sidebar-item) {
   grid-template-columns: 18px minmax(0, 1fr) auto;
+  transition: gap var(--app-motion);
 }
 .navigation :global(.ds-sidebar-item--sub) {
-  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 .navigationShell:global(.ds-sidebar--collapsed)
   .navigation
   :global(.ds-sidebar-item > .ds-icon) {
   display: block;
 }
+/* Grid tracks interpolate the actual submenu height, including interruption. */
 .submenu {
-  padding: 4px 0 4px 14px;
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    grid-template-rows var(--app-motion),
+    opacity 300ms ease,
+    transform var(--app-motion);
 }
-.submenu:not([hidden]) {
+.submenu[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+}
+.submenuClip {
+  min-height: 0;
+  overflow: hidden;
+}
+.submenuItems {
   display: grid;
   gap: 2px;
+  position: relative;
+  margin-inline-start: 18px;
+  padding: 4px 0 4px 12px;
+}
+.submenuItems::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 4px;
+  bottom: 20px;
+  width: 1px;
+  background: var(--ds-border);
+}
+.submenuItems button {
+  position: relative;
+  overflow: visible;
+}
+.submenuItems button::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: -12px;
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  background: var(--ds-border);
+}
+.navLabel {
+  opacity: 1;
+  max-width: 192px;
+  transform: translateX(0);
+  transition:
+    opacity 300ms ease,
+    max-width var(--app-motion),
+    transform var(--app-motion);
+}
+.navChevron {
+  display: flex;
+  opacity: 1;
+  max-width: 14px;
+  transition:
+    opacity 300ms ease,
+    max-width var(--app-motion);
+}
+.navigationShell:global(.ds-sidebar--collapsed) .navLabel,
+.navigationShell:global(.ds-sidebar--collapsed) .navChevron {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-4px);
+}
+.navigationShell:global(.ds-sidebar--collapsed)
+  .navigation
+  :global(.ds-sidebar-item) {
+  display: grid;
+  width: 100%;
+  margin-inline: 0;
+  padding-inline: 10px;
+  gap: 0;
+}
+.navigationShell:global(.ds-sidebar--collapsed) :global(.ds-sidebar-scroll) {
+  padding-inline: 10px;
+}
+.navigationShell :global(.ds-sidebar-footer .ds-user-identity__copy),
+.navigationShell :global(.ds-sidebar-footer .ds-profile-card > .ds-icon) {
+  max-width: 192px;
+  opacity: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    opacity 300ms ease,
+    max-width var(--app-motion);
+}
+.navigationShell :global(.ds-sidebar-footer .ds-user-identity),
+.navigationShell :global(.ds-sidebar-footer .ds-profile-card) {
+  transition: gap var(--app-motion);
+}
+.navigationShell:global(.ds-sidebar--collapsed)
+  :global(.ds-sidebar-footer .ds-user-identity__copy),
+.navigationShell:global(.ds-sidebar--collapsed)
+  :global(.ds-sidebar-footer .ds-profile-card > .ds-icon) {
+  opacity: 0;
+  max-width: 0;
+}
+.navigationShell:global(.ds-sidebar--collapsed)
+  :global(.ds-sidebar-footer .ds-user-identity),
+.navigationShell:global(.ds-sidebar--collapsed)
+  :global(.ds-sidebar-footer .ds-profile-card) {
+  gap: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .navigationShell,
+  .submenu,
+  .navLabel,
+  .navChevron,
+  .navigation :global(.ds-sidebar-item),
+  .navigationShell :global(.ds-sidebar-footer .ds-user-identity__copy),
+  .navigationShell :global(.ds-sidebar-footer .ds-profile-card > .ds-icon),
+  .navigationShell :global(.ds-sidebar-footer .ds-profile-card),
+  .navigationShell :global(.ds-sidebar-footer .ds-user-identity) {
+    transition: none;
+  }
 }
 @media (max-width: 599px) {
   .topbar {
@@ -334,8 +456,5 @@
   .topbarActions :global(.ds-app-clock__text) {
     display: grid;
     text-align: end;
-  }
-  .pageContext {
-    display: none;
   }
 }

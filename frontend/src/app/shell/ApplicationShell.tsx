@@ -10,11 +10,7 @@ import {
 } from "../router/useAppRoute";
 import { useSession } from "../session/useSession";
 import { SignIn } from "../session/SignIn";
-import {
-  pageTitles,
-  sidebarActiveId,
-  sidebarGroups,
-} from "../navigation/sidebarGroups";
+import { sidebarActiveId, sidebarGroups } from "../navigation/sidebarGroups";
 import { NotificationBell } from "../../features/notifications/NotificationBell";
 import {
   DesignSystemRoot,
@@ -28,7 +24,6 @@ import {
   SidebarMobileTrigger,
   SidebarProfile,
   SidebarScrollArea,
-  SidebarToggle,
   ToastProvider,
   ProfileMenu,
   type MenuItem,
@@ -168,6 +163,31 @@ export function ApplicationShell() {
     <DesignSystemRoot>
       <ToastProvider>
         <div className={`ds-app-shell ${styles.shell}`}>
+          <header className={styles.topbar}>
+            <div className={styles.topbarLead}>
+              <img
+                className={styles.logo}
+                src="/production/amafh-core-full-logo-exact.svg"
+                alt="AMAFH Core"
+              />
+              <span className={styles.mobileTrigger}>
+                <SidebarMobileTrigger onClick={() => setMobileOpen(true)} />
+              </span>
+            </div>
+            <div className={styles.topbarActions}>
+              <DubaiClock />
+              <NotificationBell
+                onViewAll={() => go("notifications")}
+                onOpenRecord={openRecord}
+              />
+              <ProfileMenu
+                avatarOnly
+                name={identity.displayName}
+                designation={identity.designation}
+                items={profileItems()}
+              />
+            </div>
+          </header>
           <div
             className={styles.dock}
             onMouseEnter={() => setCollapsed(false)}
@@ -183,12 +203,6 @@ export function ApplicationShell() {
               label="Application"
               className={styles.navigationShell}
             >
-              <SidebarHeader>
-                <SidebarToggle
-                  collapsed={collapsed}
-                  onClick={() => setCollapsed((value) => !value)}
-                />
-              </SidebarHeader>
               <SidebarContent>
                 <SidebarScrollArea>
                   <ApplicationNavigation
@@ -202,6 +216,7 @@ export function ApplicationShell() {
               </SidebarContent>
               <SidebarFooter>
                 <SidebarProfile
+                  collapsed={false}
                   name={identity.displayName}
                   designation={identity.designation}
                   items={profileItems()}
@@ -215,38 +230,6 @@ export function ApplicationShell() {
             </Sidebar>
           </div>
           <div className={styles.column}>
-            <header className={styles.topbar}>
-              <div className={styles.topbarLead}>
-                <span className={styles.mobileTrigger}>
-                  <SidebarMobileTrigger onClick={() => setMobileOpen(true)} />
-                </span>
-                <img
-                  className={styles.logo}
-                  src="/production/amafh-core-full-logo-exact.svg"
-                  alt="AMAFH Core"
-                />
-                {page !== "dashboard" &&
-                page !== "cases" &&
-                page !== "customers" &&
-                page !== "tasks" &&
-                page !== "notifications" ? (
-                  <p className={styles.pageContext}>{pageTitles[page]}</p>
-                ) : null}
-              </div>
-              <div className={styles.topbarActions}>
-                <DubaiClock />
-                <NotificationBell
-                  onViewAll={() => go("notifications")}
-                  onOpenRecord={openRecord}
-                />
-                <ProfileMenu
-                  avatarOnly
-                  name={identity.displayName}
-                  designation={identity.designation}
-                  items={profileItems()}
-                />
-              </div>
-            </header>
             <main className={styles.main}>
               <AppErrorBoundary>
                 <LiveRoutes
