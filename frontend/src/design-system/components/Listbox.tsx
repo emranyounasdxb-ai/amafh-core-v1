@@ -1,8 +1,10 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -64,18 +66,43 @@ export function Listbox({
     return tree.filter((item) => optionMatches(item, query));
   }, [expandedIds, options, query]);
   const listRef = useRef<HTMLDivElement>(null);
-  const itemHeight = 40;
+  const itemHeight = 32;
+  const itemGap = 4;
+  const itemStride = itemHeight + itemGap;
+  const [variableHeight, setVariableHeight] = useState(false);
   const virtual =
+    !variableHeight &&
     rows.length > 80 &&
     !options.some((item) => item.group || item.children?.length);
   const maxHeight = 280;
   const [scrollTop, setScrollTop] = useState(0);
   const start = virtual
-    ? Math.max(0, Math.floor(scrollTop / itemHeight) - 6)
+    ? Math.max(0, Math.floor(scrollTop / itemStride) - 6)
     : 0;
   const end = virtual
-    ? Math.min(rows.length, start + Math.ceil(maxHeight / itemHeight) + 12)
+    ? Math.min(rows.length, start + Math.ceil(maxHeight / itemStride) + 12)
     : rows.length;
+
+  useLayoutEffect(() => {
+    if (!virtual || !listRef.current) return;
+    const elements = listRef.current.querySelectorAll<HTMLElement>(
+      ".ds-listbox__option",
+    );
+    const measure = () => {
+      // Wrapped labels and secondary text need natural row heights.
+      if (
+        Array.from(elements).some(
+          (row) => row.getBoundingClientRect().height > itemHeight,
+        )
+      ) {
+        setVariableHeight(true);
+      }
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    elements.forEach((row) => observer.observe(row));
+    return () => observer.disconnect();
+  }, [virtual, start, end, rows]);
 
   useEffect(() => {
     const node = listRef.current?.querySelector<HTMLElement>(
@@ -196,12 +223,27 @@ export function Listbox({
       role="listbox"
       aria-label={label}
       aria-multiselectable={mode === "multi" || mode === "checkbox"}
-      style={{ maxHeight, overflow: "auto" }}
+      style={
+        {
+          maxHeight,
+          overflow: "auto",
+          "--ds-listbox-row-height": `${itemHeight}px`,
+          "--ds-listbox-row-gap": `${itemGap}px`,
+        } as CSSProperties
+      }
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
     >
       {virtual ? (
-        <div style={{ height: rows.length * itemHeight, position: "relative" }}>
-          <div style={{ transform: `translateY(${start * itemHeight}px)` }}>
+        <div
+          style={{
+            height: rows.length * itemStride - itemGap,
+            position: "relative",
+          }}
+        >
+          <div
+            className="ds-listbox__rows"
+            style={{ transform: `translateY(${start * itemStride}px)` }}
+          >
             {body}
           </div>
         </div>

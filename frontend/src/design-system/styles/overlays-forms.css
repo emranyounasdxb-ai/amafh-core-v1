@@ -521,8 +521,14 @@
 }
 
 .ds-listbox,
-.ds-listbox-panel {
+.ds-listbox-panel,
+.ds-listbox__rows {
   display: grid;
+  gap: var(--ds-listbox-row-gap, var(--ds-space-4));
+}
+
+.ds-listbox,
+.ds-listbox-panel {
   min-width: 0;
   max-height: inherit;
   overflow: auto;
@@ -544,7 +550,7 @@
   align-items: stretch;
   gap: 0;
   width: 100%;
-  min-height: 40px;
+  min-height: var(--ds-listbox-row-height, var(--ds-control-h-compact));
   padding: 0;
   border: 0;
   border-radius: var(--ds-radius-control);
@@ -559,8 +565,8 @@
   align-items: center;
   gap: var(--ds-space-8);
   width: 100%;
-  min-height: 40px;
-  padding: 6px var(--ds-space-8);
+  min-height: var(--ds-listbox-row-height, var(--ds-control-h-compact));
+  padding: var(--ds-space-4) var(--ds-space-8);
   border: 0;
   border-radius: var(--ds-radius-control);
   background: transparent;
@@ -568,7 +574,7 @@
   font: inherit;
   font-size: var(--ds-toolbar-size);
   font-weight: var(--ds-support-weight);
-  line-height: var(--ds-toolbar-line);
+  line-height: var(--ds-support-line);
   text-align: start;
 }
 
@@ -576,7 +582,7 @@
 .ds-listbox__option--active,
 .ds-listbox__option:hover .ds-listbox__choice,
 .ds-search__suggestions button:hover {
-  background: var(--ds-brand-subtle);
+  background: var(--ds-subtle);
 }
 
 .ds-listbox__option--selected,
@@ -685,6 +691,8 @@
 }
 
 .ds-search__suggestions {
+  display: grid;
+  gap: var(--ds-space-4);
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
