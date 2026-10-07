@@ -11,6 +11,6 @@
 
 .correct {
   display: grid;
-  gap: var(--ds-space-12);
+  gap: var(--ds-space-8);
   min-width: 0;
 }

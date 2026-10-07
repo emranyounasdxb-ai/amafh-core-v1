@@ -30,6 +30,6 @@
 
 .dialogBody {
   display: grid;
-  gap: var(--ds-space-16);
+  gap: var(--ds-space-8);
   min-width: 0;
 }

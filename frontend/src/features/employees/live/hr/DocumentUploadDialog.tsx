@@ -198,7 +198,7 @@ export function DocumentUploadDialog({
         </>
       }
     >
-      <FormLayout columns={1}>
+      <FormLayout columns={2}>
         {replacing ? (
           <InlineNotice tone="info" title="New version">
             Version {replacing.latest.version} becomes Superseded and stays

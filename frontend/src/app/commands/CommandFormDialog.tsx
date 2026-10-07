@@ -23,7 +23,6 @@ import {
   MonthPicker,
   NationalitySelect,
   PersonSelect,
-  Stack,
   TextArea,
   TextInput,
   useDebouncedValue,
@@ -472,6 +471,7 @@ export function CommandFormDialog({
     <Dialog
       open
       title={command.title}
+      size={sections.length > 1 ? "xl" : "lg"}
       busy={busy}
       onClose={onClose}
       closeOnOutside={!busy}
@@ -505,15 +505,17 @@ export function CommandFormDialog({
         </>
       ) : null}
       {sections.length > 1 || sections[0]?.title ? (
-        <Stack>
+        <div className="ds-command-sections">
           {sections.map((section) => (
             <FormSection key={section.title} title={section.title} columns={2}>
               {section.fields.map(renderField)}
             </FormSection>
           ))}
-        </Stack>
+        </div>
       ) : (
-        <FormLayout columns={1}>{visible.map(renderField)}</FormLayout>
+        <FormLayout columns={2} className="ds-command-fields">
+          {visible.map(renderField)}
+        </FormLayout>
       )}
       {reference?.(values)}
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}

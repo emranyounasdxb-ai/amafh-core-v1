@@ -11,6 +11,7 @@ export function Popover({
   label,
   closeOnOutside = true,
   className,
+  lockHeight = true,
 }: {
   trigger: ReactNode;
   children: ReactNode;
@@ -20,6 +21,7 @@ export function Popover({
   label?: string;
   closeOnOutside?: boolean;
   className?: string;
+  lockHeight?: boolean;
 }) {
   const fallbackId = useId();
   const [uncontrolled, setUncontrolled] = useState(false);
@@ -43,6 +45,7 @@ export function Popover({
         label={label ?? fallbackId}
         trapFocus
         className={className}
+        lockHeight={lockHeight}
       >
         {children}
       </PositionedOverlay>

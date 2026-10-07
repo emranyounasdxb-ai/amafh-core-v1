@@ -11,7 +11,7 @@
 }
 
 .form :global(.ds-section-card) {
-  padding: var(--ds-space-12);
+  padding: var(--ds-space-8);
 }
 
 .form :global(.ds-form-section) {

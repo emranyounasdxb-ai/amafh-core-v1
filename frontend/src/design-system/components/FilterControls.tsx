@@ -83,6 +83,7 @@ export function FilterPopover({
       label="Filters"
       placement="auto"
       className="ds-filter-panel"
+      lockHeight={false}
       trigger={<FilterButton count={count} />}
     >
       <div className="ds-filter-popover">
