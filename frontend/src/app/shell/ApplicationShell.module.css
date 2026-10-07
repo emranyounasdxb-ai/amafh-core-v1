@@ -26,6 +26,7 @@
   gap: var(--ds-space-12);
   min-width: 0;
   padding: var(--ds-space-8) var(--ds-space-20);
+  padding-inline-start: var(--ds-space-16);
   background: var(--ds-canvas);
 }
 
@@ -249,9 +250,10 @@
 }
 .logo {
   display: block;
-  width: 132px;
-  height: 36px;
+  width: 120px;
+  height: 32px;
   object-fit: contain;
+  object-position: left center;
 }
 .navigationShell,
 .navigationShell :global(.ds-sidebar-header),
@@ -294,10 +296,14 @@
 }
 .navigation :global(.ds-sidebar-item) {
   grid-template-columns: 18px minmax(0, 1fr) auto;
+  font-size: var(--ds-toolbar-size);
+  line-height: var(--ds-toolbar-line);
   transition: gap var(--app-motion);
 }
 .navigation :global(.ds-sidebar-item--sub) {
   grid-template-columns: minmax(0, 1fr);
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
 }
 .navigationShell:global(.ds-sidebar--collapsed)
   .navigation
@@ -431,14 +437,15 @@
 @media (max-width: 599px) {
   .topbar {
     padding: 8px 12px;
+    padding-inline-start: var(--ds-space-16);
     gap: 8px;
   }
   .topbarLead {
     gap: 8px;
   }
   .logo {
-    width: 112px;
-    height: 32px;
+    width: 104px;
+    height: 28px;
   }
   .topbarActions {
     gap: 4px;

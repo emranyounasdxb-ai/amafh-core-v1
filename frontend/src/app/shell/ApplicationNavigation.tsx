@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { DsIcon, type SidebarNavGroup } from "../../design-system";
 import styles from "./ApplicationShell.module.css";
 
@@ -19,7 +19,9 @@ export function ApplicationNavigation({
   const activeGroup = groups.find((group) =>
     group.items.some((item) => item.id === activeId),
   )?.id;
-  const [opened, setOpened] = useState<Record<string, boolean>>({});
+  const [opened, setOpened] = useState<string | null | undefined>(undefined);
+  const openGroup = opened === undefined ? activeGroup : opened;
+  const hoveredParent = useRef<string | null>(null);
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     const buttons = Array.from(
@@ -47,6 +49,21 @@ export function ApplicationNavigation({
       className={styles.navigation}
       aria-label="Main navigation"
       onKeyDown={onKeyDown}
+      onPointerMove={(event) => {
+        if (event.pointerType !== "mouse") return;
+        const parent = (event.target as Element).closest<HTMLButtonElement>(
+          '[data-navigation-kind="parent"]',
+        );
+        const groupId = parent?.dataset.navigationGroup ?? null;
+        if (hoveredParent.current === groupId) return;
+        hoveredParent.current = groupId;
+        // Only pointer movement changes the hover target. Animated layout changes
+        // must not switch groups underneath a stationary pointer.
+        if (groupId) setOpened(groupId);
+      }}
+      onPointerLeave={() => {
+        hoveredParent.current = null;
+      }}
     >
       {groups.map((group) => {
         if (group.id === "main" || group.items.length === 1)
@@ -58,22 +75,18 @@ export function ApplicationNavigation({
               data-navigation-kind="direct"
               aria-label={item.label}
               aria-current={item.id === activeId ? "page" : undefined}
-              onClick={() => onSelect(item.id)}
+              onClick={() => {
+                setOpened(null);
+                onSelect(item.id);
+              }}
             >
               <DsIcon name={item.icon ?? "dashboard"} size={18} />
               <span className={styles.navLabel}>{item.label}</span>
             </button>
           ));
-        const open =
-          !collapsed && (opened[group.id] ?? activeGroup === group.id);
+        const open = !collapsed && openGroup === group.id;
         return (
-          <div
-            key={group.id}
-            onPointerEnter={(event) => {
-              if (event.pointerType === "mouse")
-                setOpened((current) => ({ ...current, [group.id]: true }));
-            }}
-          >
+          <div key={group.id}>
             <button
               type="button"
               className={`ds-sidebar-item ${activeGroup === group.id ? "ds-sidebar-item--active" : ""}`}
@@ -81,9 +94,10 @@ export function ApplicationNavigation({
               aria-expanded={open}
               aria-controls={`app-${group.id}-submenu`}
               data-navigation-kind="parent"
+              data-navigation-group={group.id}
               onClick={() => {
                 onExpand?.();
-                setOpened((current) => ({ ...current, [group.id]: !open }));
+                setOpened(open ? null : group.id);
               }}
             >
               <DsIcon name={group.items[0]?.icon ?? "dashboard"} size={18} />
