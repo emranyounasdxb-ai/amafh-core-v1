@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { cx } from "../lib/cx";
 
 export type AvatarSize = "sm" | "md" | "lg" | "xl";
@@ -13,6 +14,7 @@ export function Avatar({
   size?: AvatarSize;
   className?: string;
 }) {
+  const [failed, setFailed] = useState<string | undefined>();
   const initials = name
     .split(" ")
     .filter(Boolean)
@@ -24,7 +26,11 @@ export function Avatar({
       className={cx("ds-avatar", `ds-avatar--${size}`, className)}
       title={name}
     >
-      {src ? <img src={src} alt="" /> : initials || "?"}
+      {src && failed !== src ? (
+        <img src={src} alt="" onError={() => setFailed(src)} />
+      ) : (
+        initials || "?"
+      )}
     </span>
   );
 }

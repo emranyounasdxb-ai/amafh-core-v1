@@ -29,6 +29,7 @@ class LinkRequest(BaseModel):
 class CurrentUser(BaseModel):
     employeeId: str
     displayName: str
+    avatarFileId: str | None = None
     designation: str
     branchId: str | None
     departmentId: str | None

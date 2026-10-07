@@ -149,6 +149,7 @@ export function profileCommand(
     path: `/employees/${employeeId}`,
     method: "PATCH",
     submitLabel: "Save profile",
+    imageUpload: { kind: "employee", label: "Profile photo" },
     fields: canChangeLoginEmail
       ? profileFields
       : profileFields.filter((field) => field.key !== "personalEmail"),
@@ -162,6 +163,7 @@ export function createEmployeeCommand(isOwner = true): Command {
     title: "Add Employee",
     path: "/employees",
     submitLabel: "Add employee",
+    imageUpload: { kind: "employee", label: "Profile photo" },
     fields: [
       {
         key: "companyEmployeeCode",

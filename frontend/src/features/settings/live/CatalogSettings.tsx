@@ -30,12 +30,18 @@ import { canManageSettings } from "./settingsRegistry";
 import { SettingsTable } from "./SettingsTable";
 import { useNamedRecords } from "./useNamedRecords";
 import styles from "./SettingsPage.module.css";
+import {
+  recordImageSrc,
+  uploadRecordImage,
+  type ImageKind,
+} from "../../../app/api/recordImages";
+import {
+  RecordImage,
+  RecordImageLabel,
+} from "../../../shared/media/RecordImage";
 
 export type CatalogKind =
-  | "banks"
-  | "product-types"
-  | "bank-product-mappings"
-  | "product-variants";
+  "banks" | "product-types" | "bank-product-mappings" | "product-variants";
 
 type CatalogRecord = {
   id: string;
@@ -53,7 +59,12 @@ const STATUSES = [
   { value: "true", label: "Active" },
   { value: "false", label: "Inactive" },
 ];
-const nameField: Field = { key: "name", label: "Name", required: true, max: 150 };
+const nameField: Field = {
+  key: "name",
+  label: "Name",
+  required: true,
+  max: 150,
+};
 
 const COPY: Record<
   CatalogKind,
@@ -139,6 +150,12 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
     kind === "bank-product-mappings"
       ? `${banks.label(row.bank_id)} · ${products.label(row.product_type_id)}`
       : row.name || copy.kind;
+  const imageLabel = (row: CatalogRecord) => (
+    <RecordImageLabel
+      src={recordImageSrc(kind as ImageKind, row)}
+      label={label(row)}
+    />
+  );
   const status: ServerColumn<CatalogRecord> = {
     key: "active",
     label: "Status",
@@ -149,30 +166,50 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
     key: "bank_id",
     label: "Bank",
     width: 180,
-    render: (row) => <Text value={banks.label(row.bank_id)} />,
+    render: (row) => (
+      <RecordImageLabel
+        label={banks.label(row.bank_id)}
+        src={banks.image(row.bank_id)}
+      />
+    ),
   };
   const productColumn: ServerColumn<CatalogRecord> = {
     key: "product_type_id",
     label: "Product",
     width: 180,
-    render: (row) => <Text value={products.label(row.product_type_id)} />,
+    render: (row) => (
+      <RecordImageLabel
+        label={products.label(row.product_type_id)}
+        src={products.image(row.product_type_id)}
+      />
+    ),
   };
   const columns: ServerColumn<CatalogRecord>[] =
     kind === "banks"
       ? [
-          { key: "name", label: "Bank", width: 220, render: (row) => <Text value={row.name} /> },
-          { key: "bank_code", label: "Bank code", width: 140, render: (row) => <Text value={row.bank_code} /> },
+          { key: "name", label: "Bank", width: 220, render: imageLabel },
+          {
+            key: "bank_code",
+            label: "Bank code",
+            width: 140,
+            render: (row) => <Text value={row.bank_code} />,
+          },
           status,
         ]
       : kind === "product-types"
         ? [
-            { key: "name", label: "Product", width: 220, render: (row) => <Text value={row.name} /> },
-            { key: "code", label: "Product code", width: 140, render: (row) => <Text value={row.code} /> },
+            { key: "name", label: "Product", width: 220, render: imageLabel },
+            {
+              key: "code",
+              label: "Product code",
+              width: 140,
+              render: (row) => <Text value={row.code} />,
+            },
             status,
           ]
         : kind === "product-variants"
           ? [
-              { key: "name", label: "Variant", width: 220, render: (row) => <Text value={row.name} /> },
+              { key: "name", label: "Variant", width: 220, render: imageLabel },
               bankColumn,
               productColumn,
               status,
@@ -203,13 +240,12 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
     kind === "banks"
       ? [nameField]
       : kind === "product-types"
-        ? [{ key: "code", label: "Product code", required: true, max: 20 }, nameField]
+        ? [
+            { key: "code", label: "Product code", required: true, max: 20 },
+            nameField,
+          ]
         : kind === "product-variants"
-          ? [
-              bankField,
-              offeredProductField,
-              nameField,
-            ]
+          ? [bankField, offeredProductField, nameField]
           : [bankField, productField];
 
   const actions = (row: CatalogRecord): SettingsAction[] => [
@@ -224,6 +260,10 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
               path: `/catalog/${kind}/${row.id}`,
               method: "PATCH" as const,
               fields: [nameField],
+              imageUpload: {
+                kind: kind as ImageKind,
+                label: kind === "banks" ? "Bank logo" : `${copy.kind} image`,
+              },
             },
             record: row,
           },
@@ -287,11 +327,9 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
           : (row) => (
               <CatalogImage
                 key={row.id}
-                path={`/catalog/${kind}/${row.id}/image`}
+                kind={kind as ImageKind}
+                row={row}
                 title={kind === "banks" ? "Logo" : "Image"}
-                present={Boolean(
-                  kind === "banks" ? row.logo_file_id : row.image_file_id,
-                )}
                 canWrite={manage}
                 onSaved={() => setRefresh((value) => value + 1)}
               />
@@ -306,6 +344,14 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
                 title: copy.add,
                 path: `/catalog/${kind}`,
                 fields: createFields,
+                imageUpload:
+                  kind === "bank-product-mappings"
+                    ? undefined
+                    : {
+                        kind: kind as ImageKind,
+                        label:
+                          kind === "banks" ? "Bank logo" : `${copy.kind} image`,
+                      },
               },
             }
           : undefined
@@ -317,15 +363,15 @@ export function CatalogSettings({ kind }: { kind: CatalogKind }) {
 }
 
 function CatalogImage({
-  path,
+  kind,
+  row,
   title,
-  present,
   canWrite,
   onSaved,
 }: {
-  path: string;
+  kind: ImageKind;
+  row: CatalogRecord;
   title: string;
-  present: boolean;
   canWrite: boolean;
   onSaved: () => void;
 }) {
@@ -333,7 +379,7 @@ function CatalogImage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const [version, setVersion] = useState(0);
+  const [fileId, setFileId] = useState<string | null>(null);
   const [files, setFiles] = useState<FileList | null>(null);
   const upload = async (next: FileList | null) => {
     setFiles(next);
@@ -342,11 +388,9 @@ function CatalogImage({
     setBusy(true);
     setError("");
     setSaved(false);
-    const body = new FormData();
-    body.append("file", file);
     try {
-      await api.request(path, { method: "PUT", body });
-      setVersion((value) => value + 1);
+      const uploaded = await uploadRecordImage(api, kind, row.id, file);
+      setFileId(uploaded.fileId);
       setSaved(true);
       onSaved();
     } catch (failure) {
@@ -359,22 +403,26 @@ function CatalogImage({
       setBusy(false);
     }
   };
+  const src = recordImageSrc(
+    kind,
+    fileId ? { ...row, logo_file_id: fileId, image_file_id: fileId } : row,
+  );
   return (
     <SectionCard title={title} compact>
       <Stack gap={8}>
-        {present || version > 0 ? (
-          <img
-            className={styles.image}
-            src={`/api/v1${path}?v=${version}`}
-            alt={title}
-          />
+        {src ? (
+          <RecordImage src={src} label={title} preview />
         ) : (
           <p className={styles.support}>No {title.toLowerCase()} uploaded.</p>
         )}
         {canWrite ? (
           <FileUpload
-            id={`${path}-upload`}
-            label={present || version > 0 ? `Replace ${title.toLowerCase()}` : `Upload ${title.toLowerCase()}`}
+            id={`catalog-${row.id}-upload`}
+            label={
+              src
+                ? `Replace ${title.toLowerCase()}`
+                : `Upload ${title.toLowerCase()}`
+            }
             hint="JPEG, PNG, or WebP"
             accept="image/jpeg,image/png,image/webp"
             files={files}

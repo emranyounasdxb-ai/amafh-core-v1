@@ -43,6 +43,8 @@ import {
 } from "../../../shared/table/serverTable";
 import { FinanceToolbar } from "./financeTable";
 import styles from "./FinancePage.module.css";
+import { recordImageSrc, type ImageKind } from "../../../app/api/recordImages";
+import { RecordImage } from "../../../shared/media/RecordImage";
 
 const TABLE_ID = "finance-rules";
 const STATUSES = [
@@ -94,8 +96,14 @@ export function RulesView({
       { kind: "product-variants" as const, id: rule.product_variant_id },
     ]),
   );
-  const optionsOf = (page: Page<NamedRecord> | null) =>
-    (page?.items ?? []).map((item) => ({ value: item.id, label: item.name }));
+  const optionsOf = (page: Page<NamedRecord> | null, kind: ImageKind) =>
+    (page?.items ?? []).map((item) => ({
+      value: item.id,
+      label: item.name,
+      leading: recordImageSrc(kind, item) ? (
+        <RecordImage src={recordImageSrc(kind, item)} label={item.name} />
+      ) : undefined,
+    }));
   const set = (patch: Partial<typeof EMPTY>) =>
     setFilters((current) => ({ ...current, ...patch }));
   const applied = [
@@ -200,7 +208,9 @@ export function RulesView({
       label: "Commission",
       width: 120,
       kind: "money",
-      render: (row) => <MonetaryAmount compact={false} value={row.commission_aed} />,
+      render: (row) => (
+        <MonetaryAmount compact={false} value={row.commission_aed} />
+      ),
     },
     {
       key: "effective_date",
@@ -299,7 +309,7 @@ export function RulesView({
           label="Bank"
           placeholder="All banks"
           value={filters.bankId}
-          options={optionsOf(banks.data)}
+          options={optionsOf(banks.data, "banks")}
           loading={banks.loading}
           onChange={(bankId) => set({ bankId })}
         />
@@ -308,7 +318,7 @@ export function RulesView({
           label="Product"
           placeholder="All products"
           value={filters.productTypeId}
-          options={optionsOf(products.data)}
+          options={optionsOf(products.data, "product-types")}
           loading={products.loading}
           onChange={(productTypeId) => set({ productTypeId })}
         />

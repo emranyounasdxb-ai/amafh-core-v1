@@ -23,6 +23,7 @@ def account_query():
             user_accounts.c.locked_at,
             employees.c.id.label("employee_id"),
             employees.c.full_name,
+            employees.c.avatar_file_id,
             employees.c.status.label("employee_status"),
             employees.c.branch_id,
             employees.c.department_id,

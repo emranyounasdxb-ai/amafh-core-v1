@@ -9,6 +9,7 @@ import {
 import type { AuthenticatedSession } from "../api/contracts";
 import { ApiClient } from "../api/http";
 import { createFormTokenStore } from "./formToken";
+import { MEDIA_UPDATED } from "../api/recordImages";
 
 const PERMISSION_REFRESH_MS = 60_000;
 const PERMISSION_REFUSED = "amafh:permission-refused";
@@ -17,6 +18,7 @@ function sameIdentity(a: AuthenticatedSession, b: AuthenticatedSession) {
   return (
     a.employeeId === b.employeeId &&
     a.displayName === b.displayName &&
+    a.avatarFileId === b.avatarFileId &&
     a.designation === b.designation &&
     a.branchId === b.branchId &&
     a.departmentId === b.departmentId &&
@@ -107,11 +109,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("focus", refresh);
     window.addEventListener(PERMISSION_REFUSED, refresh);
+    window.addEventListener(MEDIA_UPDATED, refresh);
     document.addEventListener("visibilitychange", onVisible);
     const timer = window.setInterval(onVisible, PERMISSION_REFRESH_MS);
     return () => {
       window.removeEventListener("focus", refresh);
       window.removeEventListener(PERMISSION_REFUSED, refresh);
+      window.removeEventListener(MEDIA_UPDATED, refresh);
       document.removeEventListener("visibilitychange", onVisible);
       window.clearInterval(timer);
     };

@@ -41,6 +41,8 @@ import {
   type CaseCreateValues,
 } from "./caseCreatePresentation";
 import styles from "./CaseCreateForm.module.css";
+import { recordImageSrc, type ImageKind } from "../../../app/api/recordImages";
+import { RecordImage } from "../../../shared/media/RecordImage";
 
 const nationalityChoices = nationalityOptions().filter(
   (option) => option.value !== "XK",
@@ -159,8 +161,14 @@ export function CaseCreateForm({
     setError("");
   };
 
-  const namedOptions = (rows: NamedRecord[]): SelectOption[] =>
-    rows.map((row) => ({ value: row.id, label: row.name }));
+  const namedOptions = (rows: NamedRecord[], kind: ImageKind): SelectOption[] =>
+    rows.map((row) => ({
+      value: row.id,
+      label: row.name,
+      leading: recordImageSrc(kind, row) ? (
+        <RecordImage src={recordImageSrc(kind, row)} label={row.name} />
+      ) : undefined,
+    }));
 
   const bankOptions = namedOptions(
     banks.filter((bank) =>
@@ -170,6 +178,7 @@ export function CaseCreateForm({
           mapping.product_type_id === form.productTypeId,
       ),
     ),
+    "banks",
   );
   const variantOptions = namedOptions(
     variants.filter(
@@ -177,6 +186,7 @@ export function CaseCreateForm({
         variant.bank_id === form.bankId &&
         variant.product_type_id === form.productTypeId,
     ),
+    "product-variants",
   );
   const ownerPeople: PersonOption[] = people
     .filter(
@@ -190,6 +200,7 @@ export function CaseCreateForm({
       value: person.id,
       name: person.fullName,
       subtitle: person.employeeCode,
+      src: recordImageSrc("employee", person),
     }));
 
   const stepLabel = (index: number) =>
@@ -402,7 +413,7 @@ export function CaseCreateForm({
                           productVariantId: "",
                         })
                       }
-                      options={namedOptions(products)}
+                      options={namedOptions(products, "product-types")}
                       placeholder="Select Product"
                       invalid={fieldError === "productTypeId"}
                     />

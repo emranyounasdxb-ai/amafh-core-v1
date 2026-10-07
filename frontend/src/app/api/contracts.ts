@@ -4,6 +4,7 @@ import type { Designation } from "../../access";
 export type AuthenticatedSession = {
   employeeId: string;
   displayName: string;
+  avatarFileId?: string | null;
   designation: Designation;
   branchId: string | null;
   departmentId: string | null;

@@ -79,6 +79,11 @@ import {
 import { useCaseLabels } from "./useCaseLabels";
 import { ResponsiveFilterPanel } from "../../../shared/filters/ResponsiveFilterPanel";
 import styles from "./CasesPage.module.css";
+import { recordImageSrc, type ImageKind } from "../../../app/api/recordImages";
+import {
+  RecordImage,
+  RecordImageLabel,
+} from "../../../shared/media/RecordImage";
 
 function isOffline(error: string) {
   return !navigator.onLine || error.includes("could not be reached");
@@ -215,14 +220,22 @@ export function CasesPage({
   const namedOptions = (
     rows: NamedRecord[] | null,
     loading: boolean,
+    kind: ImageKind,
   ): SelectOption[] =>
     (rows ?? []).map((row) => ({
       value: row.id,
       label: optionLabel(row, "name"),
       disabled: loading,
+      leading: recordImageSrc(kind, row) ? (
+        <RecordImage src={recordImageSrc(kind, row)} label={row.name} />
+      ) : undefined,
     }));
-  const bankOptions = namedOptions(banks.data, banks.loading);
-  const productOptions = namedOptions(products.data, products.loading);
+  const bankOptions = namedOptions(banks.data, banks.loading, "banks");
+  const productOptions = namedOptions(
+    products.data,
+    products.loading,
+    "product-types",
+  );
   const ownerPeople: PersonOption[] = (owners.data ?? [])
     .filter(
       (person) =>
@@ -234,6 +247,7 @@ export function CasesPage({
       value: person.id,
       name: person.fullName,
       subtitle: person.employeeCode,
+      src: recordImageSrc("employee", person),
     }));
 
   const updateFilters = (patch: Partial<CaseListFilters>) => {
@@ -276,9 +290,19 @@ export function CasesPage({
           case "customer":
             return <TruncatedText value={label(row.customerId)} />;
           case "product":
-            return <TruncatedText value={label(row.productTypeId)} />;
+            return (
+              <RecordImageLabel
+                label={label(row.productTypeId)}
+                src={label.image(row.productTypeId)}
+              />
+            );
           case "bank":
-            return <TruncatedText value={label(row.bankId)} />;
+            return (
+              <RecordImageLabel
+                label={label(row.bankId)}
+                src={label.image(row.bankId)}
+              />
+            );
           case "variant":
             return row.requestedPfAmount ? (
               <MonetaryAmount
@@ -287,8 +311,9 @@ export function CasesPage({
                 align="start"
               />
             ) : (
-              <TruncatedText
-                value={label(row.productVariantId) || "Not recorded"}
+              <RecordImageLabel
+                src={label.image(row.productVariantId)}
+                label={label(row.productVariantId) || "Not recorded"}
               />
             );
           case "createdBy":

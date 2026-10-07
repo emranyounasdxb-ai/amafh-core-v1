@@ -184,7 +184,10 @@ export function DropdownSelect({
           unavailable && "ds-combo--unavailable",
         )}
       >
-        {leading}
+        {leading ??
+          (selected.length === 1 && selected[0]?.leading ? (
+            <span className="ds-combo__leading">{selected[0].leading}</span>
+          ) : undefined)}
         {searchable ? (
           <input
             ref={searchRef}

@@ -62,6 +62,7 @@ import {
   type EmployeeDetailRecord,
 } from "./employeePresentation";
 import styles from "./EmployeeDetailPage.module.css";
+import { uploadRecordImage } from "../../../app/api/recordImages";
 import { EmployeeDocumentsSection } from "./hr/EmployeeDocumentsSection";
 import { EmployeeLettersSection } from "./hr/EmployeeLettersSection";
 import { EmployeePackageSection } from "./hr/EmployeePackageSection";
@@ -247,13 +248,8 @@ export function EmployeeDetailPage({
     }
     setAvatarBusy(true);
     setAvatarError("");
-    const body = new FormData();
-    body.append("file", file);
     try {
-      await api.request(`/employees/${employee.id}/media/avatar`, {
-        method: "PUT",
-        body,
-      });
+      await uploadRecordImage(api, "employee", employee.id, file);
       setAvatarOpen(false);
       setAvatarFiles(null);
       setNotice("Profile photo updated.");
@@ -725,6 +721,11 @@ export function EmployeeDetailPage({
           </>
         }
       >
+        <Avatar
+          name={employeeName(employee)}
+          src={employeeAvatarSrc(employee)}
+          size="lg"
+        />
         <FileUpload
           id="employee-avatar-file"
           label="Profile photo"

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Response
 from sqlalchemy import select
 
 from app.api.dependencies import ActorDep, CsrfActor, Db
-from app.db.organization import team_memberships, teams
+from app.db.organization import employees, team_memberships, teams
 from app.repositories import permissions as permission_rows
 from app.schemas.auth import CurrentUser, LinkRequest, LoginRequest, PasswordChange
 from app.services import auth
@@ -36,6 +36,7 @@ def public_user(row: dict, team_id, grants: frozenset[str], csrf: str | None = N
     return CurrentUser(
         employeeId=str(row["employee_id"]),
         displayName=row["full_name"],
+        avatarFileId=str(row["avatar_file_id"]) if row["avatar_file_id"] else None,
         designation=row["designation"],
         branchId=str(row["branch_id"]) if row["branch_id"] else None,
         departmentId=str(row["department_id"]) if row["department_id"] else None,
@@ -64,9 +65,13 @@ async def login(payload: LoginRequest, response: Response, db: Db):
 @router.get("/me")
 async def me(actor: ActorDep, db: Db):
     team_id = await team_context(db, actor.employee_id, actor.designation)
+    avatar_id = await db.scalar(
+        select(employees.c.avatar_file_id).where(employees.c.id == actor.employee_id)
+    )
     return {
         "employeeId": str(actor.employee_id),
         "displayName": actor.display_name,
+        "avatarFileId": str(avatar_id) if avatar_id else None,
         "designation": actor.designation,
         "branchId": str(actor.branch_id) if actor.branch_id else None,
         "departmentId": str(actor.department_id) if actor.department_id else None,

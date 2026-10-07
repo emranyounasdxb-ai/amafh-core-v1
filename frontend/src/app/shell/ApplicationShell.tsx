@@ -33,6 +33,7 @@ import { AppErrorBoundary } from "./AppErrorBoundary";
 import { ApplicationNavigation } from "./ApplicationNavigation";
 import { DubaiClock } from "./DubaiClock";
 import styles from "./ApplicationShell.module.css";
+import { recordImageSrc } from "../api/recordImages";
 
 export function ApplicationShell() {
   const { session: identity, loading, signOut } = useSession();
@@ -42,6 +43,12 @@ export function ApplicationShell() {
   const [signOutError, setSignOutError] = useState("");
   const page = route?.page ?? "dashboard";
   const session = identity;
+  const photo = identity
+    ? recordImageSrc("employee", {
+        id: identity.employeeId,
+        avatarFileId: identity.avatarFileId,
+      })
+    : undefined;
 
   const groups = useMemo((): SidebarNavGroup[] => {
     if (!session) return [];
@@ -147,6 +154,7 @@ export function ApplicationShell() {
       <SidebarFooter>
         <SidebarProfile
           name={identity.displayName}
+          src={photo}
           designation={identity.designation}
           items={profileItems(true)}
         />
@@ -183,6 +191,7 @@ export function ApplicationShell() {
               <ProfileMenu
                 avatarOnly
                 name={identity.displayName}
+                src={photo}
                 designation={identity.designation}
                 items={profileItems()}
               />
@@ -218,6 +227,7 @@ export function ApplicationShell() {
                 <SidebarProfile
                   collapsed={false}
                   name={identity.displayName}
+                  src={photo}
                   designation={identity.designation}
                   items={profileItems()}
                 />

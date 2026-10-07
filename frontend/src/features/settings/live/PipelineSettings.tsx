@@ -25,10 +25,7 @@ import type { DataRecord } from "../../../app/api/models";
 import { useResource } from "../../../app/api/useResource";
 import { roundWholeText } from "../../../app/numbers/wholeNumber";
 import { useSession } from "../../../app/session/useSession";
-import {
-  filterQuery,
-  useServerTable,
-} from "../../../shared/table/serverTable";
+import { filterQuery, useServerTable } from "../../../shared/table/serverTable";
 import { SelectFilter } from "../../finance/live/financeCells";
 import { stateAction } from "./settingsActions";
 import { ActiveBadge, Text, WholeNumber } from "./settingsCells";
@@ -36,6 +33,11 @@ import { canManageSettings } from "./settingsRegistry";
 import { SettingsTable } from "./SettingsTable";
 import { useNamedRecords } from "./useNamedRecords";
 import styles from "./SettingsPage.module.css";
+import {
+  recordImageSrc,
+  type ImageRecord,
+} from "../../../app/api/recordImages";
+import { RecordImage } from "../../../shared/media/RecordImage";
 
 type PipelineRecord = {
   id: string;
@@ -163,7 +165,9 @@ export function PipelineSettings() {
             key: "product_type_id",
             label: "Product",
             width: 170,
-            render: (row) => <Text value={products.label(row.product_type_id)} />,
+            render: (row) => (
+              <Text value={products.label(row.product_type_id)} />
+            ),
           },
           {
             key: "version",
@@ -199,7 +203,10 @@ export function PipelineSettings() {
             value: <WholeNumber value={row.version} />,
             numeric: true,
           },
-          { label: "Effective", value: <CompactDate value={row.effective_date} /> },
+          {
+            label: "Effective",
+            value: <CompactDate value={row.effective_date} />,
+          },
           { label: "Status", value: <ActiveBadge active={row.active} /> },
         ]}
         detail={(row) => <PipelineStages id={row.id} />}
@@ -300,7 +307,18 @@ function PipelineCreateDialog({
     const controller = new AbortController();
     choices<DataRecord>(api, "/catalog/banks?active=true", controller.signal)
       .then((rows) =>
-        setBanks(rows.map((row) => ({ value: String(row.id), label: String(row.name) }))),
+        setBanks(
+          rows.map((row) => ({
+            value: String(row.id),
+            label: String(row.name),
+            leading: recordImageSrc("banks", row as ImageRecord) ? (
+              <RecordImage
+                src={recordImageSrc("banks", row as ImageRecord)}
+                label={String(row.name)}
+              />
+            ) : undefined,
+          })),
+        ),
       )
       .catch(() => {
         if (!controller.signal.aborted) setError("Banks are unavailable.");
@@ -320,6 +338,12 @@ function PipelineCreateDialog({
         const options = rows.map((row) => ({
           value: String(row.id),
           label: String(row.name),
+          leading: recordImageSrc("product-types", row as ImageRecord) ? (
+            <RecordImage
+              src={recordImageSrc("product-types", row as ImageRecord)}
+              label={String(row.name)}
+            />
+          ) : undefined,
         }));
         setOffered({ bankId, options });
         setProductTypeId((current) =>
@@ -505,7 +529,9 @@ function PipelineCreateDialog({
                 variant="ghost"
                 disabled={stages.length <= 2}
                 onClick={() =>
-                  setStages((current) => current.filter((_, position) => position !== index))
+                  setStages((current) =>
+                    current.filter((_, position) => position !== index),
+                  )
                 }
               >
                 <DsIcon name="delete" />
@@ -517,7 +543,10 @@ function PipelineCreateDialog({
           <Button
             variant="secondary"
             onClick={() =>
-              setStages((current) => [...current, { name: "", days: "1", outcome: "" }])
+              setStages((current) => [
+                ...current,
+                { name: "", days: "1", outcome: "" },
+              ])
             }
           >
             Add stage

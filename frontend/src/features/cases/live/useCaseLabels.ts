@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "../../../app/session/useSession";
 import type { AuthenticatedSession } from "../../../app/api/contracts";
+import {
+  recordImageSrc,
+  type ImageKind,
+  type ImageRecord,
+} from "../../../app/api/recordImages";
 import type {
   CaseRecord,
   DataRecord,
@@ -36,6 +41,7 @@ export function useCaseLabels(rows: CaseRecord[]) {
   const [result, setResult] = useState<{
     session: AuthenticatedSession | null;
     labels: Record<string, string>;
+    images: Record<string, string | undefined>;
   } | null>(null);
   const outOfScope = useMemo(() => {
     const ids = new Set<string>();
@@ -80,9 +86,15 @@ export function useCaseLabels(rows: CaseRecord[]) {
                 identity?.company_name ||
                 "Unavailable",
             ),
+            path.startsWith("/catalog/")
+              ? recordImageSrc(
+                  path.split("/")[2] as ImageKind,
+                  value as ImageRecord,
+                )
+              : undefined,
           ] as const;
         } catch {
-          return [id, "Unavailable"] as const;
+          return [id, "Unavailable", undefined] as const;
         }
       }),
     ).then(async (values) => {
@@ -96,8 +108,8 @@ export function useCaseLabels(rows: CaseRecord[]) {
           }),
         ]);
         values.push(
-          ...branches.map((b) => [b.id, b.name] as const),
-          ...departments.map((d) => [d.id, d.name] as const),
+          ...branches.map((b) => [b.id, b.name, undefined] as const),
+          ...departments.map((d) => [d.id, d.name, undefined] as const),
         );
       } catch {
         /* Inaccessible labels do not grant access to related records. */
@@ -107,13 +119,17 @@ export function useCaseLabels(rows: CaseRecord[]) {
           session,
           labels: {
             ...(previous?.session === session ? previous.labels : {}),
-            ...Object.fromEntries(values),
+            ...Object.fromEntries(values.map(([id, name]) => [id, name])),
+          },
+          images: {
+            ...(previous?.session === session ? previous.images : {}),
+            ...Object.fromEntries(values.map(([id, , image]) => [id, image])),
           },
         }));
     });
     return () => controller.abort();
   }, [api, rows, session]);
-  return (id: string | null) =>
+  const label = (id: string | null) =>
     id
       ? id === session?.employeeId
         ? session.displayName
@@ -123,4 +139,8 @@ export function useCaseLabels(rows: CaseRecord[]) {
             ? "Unavailable"
             : "Loading…"
       : "Not assigned";
+  return Object.assign(label, {
+    image: (id: string | null) =>
+      result?.session === session && id ? result.images[id] : undefined,
+  });
 }

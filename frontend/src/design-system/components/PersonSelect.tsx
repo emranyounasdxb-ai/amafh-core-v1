@@ -7,6 +7,7 @@ export type PersonOption = {
   name: string;
   subtitle?: string;
   disabled?: boolean;
+  src?: string;
 };
 
 export function PersonSelect({
@@ -36,7 +37,7 @@ export function PersonSelect({
     description: person.subtitle,
     disabled: person.disabled,
     keywords: [person.name, person.subtitle ?? ""],
-    leading: <Avatar name={person.name} size="sm" />,
+    leading: <Avatar name={person.name} src={person.src} size="sm" />,
   }));
   return (
     <Combobox

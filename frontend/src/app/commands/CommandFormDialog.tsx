@@ -38,6 +38,14 @@ import type { DataRecord, Page } from "../api/models";
 import { roundWholeText } from "../numbers/wholeNumber";
 import { isUuid } from "../presentation/labels";
 import { useSession } from "../session/useSession";
+import {
+  imageFileError,
+  recordImageSrc,
+  uploadRecordImage,
+  type ImageRecord,
+  type ImageKind,
+} from "../api/recordImages";
+import { ImageUploadField, RecordImage } from "../../shared/media/RecordImage";
 
 function choicePath(field: Field, values: DataRecord) {
   const source = field.source!;
@@ -218,10 +226,19 @@ function ChoiceControl({
     const subtitle = String(
       row.subtitle || row.employeeCode || row.companyEmployeeCode || "",
     );
+    const imageSrc = source.path.startsWith("/catalog/")
+      ? recordImageSrc(
+          source.path.split("/")[2]?.split("?")[0] as ImageKind,
+          row as ImageRecord,
+        )
+      : undefined;
     return {
       value,
       label,
       description: subtitle && !isUuid(subtitle) ? subtitle : undefined,
+      leading: imageSrc ? (
+        <RecordImage src={imageSrc} label={label} />
+      ) : undefined,
     };
   });
   const currentValue = String(values[field.key] ?? "");
@@ -280,6 +297,7 @@ function ChoiceControl({
       value: String(row[source.value || "id"] ?? ""),
       name: String(row[source.label] || row.fullName || row.name || ""),
       subtitle: subtitle || undefined,
+      src: recordImageSrc("employee", row as ImageRecord),
     };
   });
   const personField =
@@ -356,6 +374,15 @@ export function CommandFormDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fields, setFields] = useState<Record<string, string[]>>({});
+  const [imageFiles, setImageFiles] = useState<FileList | null>(null);
+  const [imageError, setImageError] = useState("");
+  // A failed upload retries against the already saved record, never creates it again.
+  const [savedRecord, setSavedRecord] = useState<{
+    id: string;
+    value: unknown;
+  } | null>(null);
+  const finishOrClose = () =>
+    savedRecord ? onSaved(savedRecord.value) : onClose();
   const replay = useRef({ payload: "", key: "" });
   const ready = useCallback((key: string, path: string) => {
     setReadyFields((current) =>
@@ -405,6 +432,14 @@ export function CommandFormDialog({
   );
   const submit = async () => {
     if (busy || waiting) return;
+    const image = imageFiles?.[0];
+    if (image && command.imageUpload) {
+      const invalid = imageFileError(image);
+      if (invalid) {
+        setImageError(invalid);
+        return;
+      }
+    }
     const localErrors: Record<string, string[]> = {};
     for (const field of visible) {
       const raw = values[field.key];
@@ -423,7 +458,7 @@ export function CommandFormDialog({
         localErrors[field.key] = ["Select a related record"];
       }
     }
-    if (Object.keys(localErrors).length) {
+    if (!savedRecord && Object.keys(localErrors).length) {
       setError("");
       setFields(localErrors);
       return;
@@ -433,15 +468,38 @@ export function CommandFormDialog({
       replay.current = { payload, key: crypto.randomUUID() };
     setBusy(true);
     setError("");
+    setImageError("");
     setFields({});
     try {
-      const value = await api.request(command.path, {
-        method: command.method || "POST",
-        body: payload,
-        headers: command.idempotent
-          ? { "Idempotency-Key": replay.current.key }
-          : undefined,
-      });
+      const value = savedRecord
+        ? savedRecord.value
+        : await api.request(command.path, {
+            method: command.method || "POST",
+            body: payload,
+            headers: command.idempotent
+              ? { "Idempotency-Key": replay.current.key }
+              : undefined,
+          });
+      if (command.imageUpload && image) {
+        const id =
+          savedRecord?.id ||
+          String((value as DataRecord | undefined)?.id || record.id || "");
+        if (!id) throw new Error("Saved record identity unavailable");
+        setSavedRecord({ id, value });
+        try {
+          await uploadRecordImage(api, command.imageUpload.kind, id, image);
+        } catch (failure) {
+          setImageError(
+            failure instanceof ApiFailure
+              ? failure.message
+              : "Image upload failed. Retry when the connection returns.",
+          );
+          setError(
+            "The record was saved, but its image was not. Retry the image upload or close this form and replace it later.",
+          );
+          return;
+        }
+      }
       onSaved(value);
     } catch (failure) {
       if (failure instanceof ApiFailure) {
@@ -473,19 +531,23 @@ export function CommandFormDialog({
       title={command.title}
       size={sections.length > 1 ? "xl" : "lg"}
       busy={busy}
-      onClose={onClose}
+      onClose={finishOrClose}
       closeOnOutside={!busy}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
-            Cancel
+          <Button variant="secondary" disabled={busy} onClick={finishOrClose}>
+            {savedRecord ? "Close" : "Cancel"}
           </Button>
           <Button
             loading={busy}
             disabled={waiting}
             onClick={() => void submit()}
           >
-            {waiting ? "Loading choices…" : command.submitLabel || "Save"}
+            {waiting
+              ? "Loading choices…"
+              : savedRecord
+                ? "Retry image upload"
+                : command.submitLabel || "Save"}
           </Button>
         </>
       }
@@ -504,19 +566,29 @@ export function CommandFormDialog({
           </InfoGrid>
         </>
       ) : null}
-      {sections.length > 1 || sections[0]?.title ? (
-        <div className="ds-command-sections">
-          {sections.map((section) => (
-            <FormSection key={section.title} title={section.title} columns={2}>
-              {section.fields.map(renderField)}
-            </FormSection>
-          ))}
-        </div>
+      {command.imageUpload ? (
+        <fieldset
+          disabled={busy || Boolean(savedRecord)}
+          style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+        >
+          {renderFields()}
+        </fieldset>
       ) : (
-        <FormLayout columns={2} className="ds-command-fields">
-          {visible.map(renderField)}
-        </FormLayout>
+        renderFields()
       )}
+      {command.imageUpload ? (
+        <ImageUploadField
+          upload={command.imageUpload}
+          record={record.id ? (record as ImageRecord) : undefined}
+          files={imageFiles}
+          busy={busy}
+          error={imageError || undefined}
+          onChange={(next) => {
+            setImageFiles(next);
+            setImageError("");
+          }}
+        />
+      ) : null}
       {reference?.(values)}
       {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
       {Object.entries(fields)
@@ -528,6 +600,22 @@ export function CommandFormDialog({
         ))}
     </Dialog>
   );
+
+  function renderFields() {
+    return sections.length > 1 || sections[0]?.title ? (
+      <div className="ds-command-sections">
+        {sections.map((section) => (
+          <FormSection key={section.title} title={section.title} columns={2}>
+            {section.fields.map(renderField)}
+          </FormSection>
+        ))}
+      </div>
+    ) : (
+      <FormLayout columns={2} className="ds-command-fields">
+        {visible.map(renderField)}
+      </FormLayout>
+    );
+  }
 
   function renderField(field: Field) {
     const invalid = fields[field.key]?.join(" ");

@@ -61,6 +61,8 @@ import {
 } from "./caseDetailPresentation";
 import { useCaseLabels } from "./useCaseLabels";
 import styles from "./CaseDetailPage.module.css";
+import { recordImageSrc } from "../../../app/api/recordImages";
+import { RecordImageLabel } from "../../../shared/media/RecordImage";
 
 type DialogKind =
   "approval" | "booking" | "correction" | "reopen" | "void" | "";
@@ -309,11 +311,13 @@ export function CaseDetailPage({
     value: person.id,
     name: person.fullName,
     subtitle: person.employeeCode,
+    src: recordImageSrc("employee", person),
   }));
   const ownerOptions: PersonOption[] = owners.map((person) => ({
     value: person.id,
     name: person.fullName,
     subtitle: person.employeeCode,
+    src: recordImageSrc("employee", person),
   }));
   const stageOptions: SelectOption[] = stages.map((stage) => ({
     value: stage.name,
@@ -551,11 +555,25 @@ export function CaseDetailPage({
           <InfoGrid>
             <InfoField
               label="Product"
-              value={<FieldValue value={productName} fallback="Unavailable" />}
+              value={
+                <RecordImageLabel
+                  src={label.image(item.productTypeId)}
+                  label={productName}
+                >
+                  <FieldValue value={productName} fallback="Unavailable" />
+                </RecordImageLabel>
+              }
             />
             <InfoField
               label="Bank"
-              value={<FieldValue value={bankName} fallback="Unavailable" />}
+              value={
+                <RecordImageLabel
+                  src={label.image(item.bankId)}
+                  label={bankName}
+                >
+                  <FieldValue value={bankName} fallback="Unavailable" />
+                </RecordImageLabel>
+              }
             />
             <InfoField
               label="Variant / PF amount"
@@ -567,7 +585,12 @@ export function CaseDetailPage({
                     align="start"
                   />
                 ) : (
-                  <FieldValue value={variantName} fallback="Not recorded" />
+                  <RecordImageLabel
+                    src={label.image(item.productVariantId)}
+                    label={variantName}
+                  >
+                    <FieldValue value={variantName} fallback="Not recorded" />
+                  </RecordImageLabel>
                 )
               }
             />

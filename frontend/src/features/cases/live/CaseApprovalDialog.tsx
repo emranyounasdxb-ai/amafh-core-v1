@@ -10,6 +10,7 @@ import { ApiFailure } from "../../../app/api/http";
 import type { CaseRecord, EmployeeSummary } from "../../../app/api/models";
 import { useSession } from "../../../app/session/useSession";
 import styles from "./CaseApprovalDialog.module.css";
+import { recordImageSrc } from "../../../app/api/recordImages";
 
 export function CaseApprovalDialog({
   item,
@@ -43,6 +44,7 @@ export function CaseApprovalDialog({
           value: person.id,
           name: person.fullName,
           subtitle: person.employeeCode,
+          src: recordImageSrc("employee", person),
         })),
     [item.branchId, item.departmentId, people],
   );

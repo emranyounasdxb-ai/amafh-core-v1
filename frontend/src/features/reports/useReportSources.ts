@@ -1,4 +1,8 @@
 import type { SelectOption } from "../../design-system";
+import { Avatar } from "../../design-system";
+import { createElement } from "react";
+import { recordImageSrc, type ImageRecord } from "../../app/api/recordImages";
+import { RecordImage } from "../../shared/media/RecordImage";
 import { choices } from "../../app/api/choices";
 import type { ApiClient } from "../../app/api/http";
 import type { DataRecord, NamedRecord } from "../../app/api/models";
@@ -116,7 +120,22 @@ export function useReportSources(
         }));
     if (key === "designationId") return named(designations.data);
     if (key === "teamId") return named(teams.data);
-    if (key === "bankId") return named(banks.data);
+    if (key === "bankId")
+      return (banks.data ?? []).flatMap((row) => {
+        const label = readableLabel(row.name, "");
+        const src = recordImageSrc("banks", row as ImageRecord);
+        return label
+          ? [
+              {
+                value: String(row.id),
+                label,
+                leading: src
+                  ? createElement(RecordImage, { src, label })
+                  : undefined,
+              },
+            ]
+          : [];
+      });
     if (key === "employeeId")
       return (employees.data ?? []).flatMap((row) => {
         const label = readableLabel(row.fullName, "");
@@ -129,6 +148,13 @@ export function useReportSources(
           {
             value: String(row.id),
             label,
+            leading: recordImageSrc("employee", row as ImageRecord)
+              ? createElement(Avatar, {
+                  name: label,
+                  src: recordImageSrc("employee", row as ImageRecord),
+                  size: "sm",
+                })
+              : undefined,
             ...(code ? { description: code } : {}),
           },
         ];

@@ -12,6 +12,8 @@ export type NamedRecord = {
   bank_id?: string;
   product_type_id?: string;
   branch_id?: string;
+  logo_file_id?: string | null;
+  image_file_id?: string | null;
 };
 export type EmployeeSummary = {
   id: string;
@@ -21,6 +23,7 @@ export type EmployeeSummary = {
   status: string;
   branchId: string | null;
   departmentId: string | null;
+  avatarFileId?: string | null;
 };
 export type CaseRecord = {
   id: string;

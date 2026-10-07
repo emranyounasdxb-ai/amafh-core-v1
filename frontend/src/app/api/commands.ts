@@ -1,4 +1,5 @@
 import type { DataRecord } from "./models";
+import type { ImageUpload } from "./recordImages";
 
 export type ChoiceSource = {
   path: string;
@@ -56,6 +57,7 @@ export type Command = {
   transform?: (values: DataRecord) => DataRecord;
   confirmation?: CommandConfirmation;
   submitLabel?: string;
+  imageUpload?: ImageUpload;
 };
 export const employeeSource: ChoiceSource = {
   path: "/employees?status=Active",
