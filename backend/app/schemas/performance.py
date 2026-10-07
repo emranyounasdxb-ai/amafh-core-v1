@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.whole_numbers import WholeAmount, WholeCount
 
@@ -49,6 +49,32 @@ class HolidayInput(BaseModel):
     holidayDate: date
     name: str = Field(min_length=1, max_length=200)
     sourceReference: str = Field(min_length=1, max_length=1000)
+
+
+class HolidayRangeInput(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    startDate: date
+    endDate: date
+    sourceReference: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("name", "sourceReference")
+    @classmethod
+    def required_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("This field is required")
+        return value.strip()
+
+    @model_validator(mode="after")
+    def valid_range(self):
+        if self.endDate < self.startDate:
+            raise ValueError("End date must be on or after start date")
+        if (self.endDate - self.startDate).days >= 366:
+            raise ValueError("Each holiday range may contain at most 366 dates")
+        return self
+
+
+class HolidayBatchInput(BaseModel):
+    rows: list[HolidayRangeInput] = Field(min_length=1, max_length=366)
 
 
 class HolidayYearInput(BaseModel):

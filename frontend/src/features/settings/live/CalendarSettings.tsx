@@ -25,6 +25,7 @@ import { Text } from "./settingsCells";
 import { useNamedRecords } from "./useNamedRecords";
 import { canManageSettings } from "./settingsRegistry";
 import { SettingsTable } from "./SettingsTable";
+import { HolidayEntryDialog } from "./HolidayEntryDialog";
 import styles from "./SettingsPage.module.css";
 
 type OfficeTimingRecord = {
@@ -184,15 +185,21 @@ export function OfficeTimingSettings() {
   );
 }
 
-const holidayCommand: Command = {
-  title: "Add UAE Holiday",
-  path: "/performance/uae-holidays",
+const editHolidayCommand = (id: string): Command => ({
+  title: "Edit Holiday",
+  path: `/performance/uae-holidays/${id}`,
+  method: "PATCH",
   fields: [
     { key: "holidayDate", label: "Holiday date", type: "date", required: true },
     { key: "name", label: "Holiday name", required: true, max: 200 },
-    { key: "sourceReference", label: "Official source reference", required: true, max: 1000 },
+    {
+      key: "sourceReference",
+      label: "Official source reference",
+      required: true,
+      max: 1000,
+    },
   ],
-};
+});
 
 const certifyCommand: Command = {
   title: "Certify Holiday Year",
@@ -209,6 +216,7 @@ export function HolidaySettings() {
   const [refresh, setRefresh] = useState(0);
   const [year, setYear] = useState("");
   const [certifying, setCertifying] = useState(false);
+  const [entry, setEntry] = useState<"single" | "bulk" | null>(null);
   const [notice, setNotice] = useState("");
   const table = useServerTable<HolidayRecord>(
     "settings-uae-holidays",
@@ -221,11 +229,25 @@ export function HolidaySettings() {
     refresh,
   );
   const certified = years.data?.items ?? [];
-  const yearOptions = [...new Set([...certified.map((item) => item.applicableYear), new Date().getFullYear()])]
+  const yearOptions = [
+    ...new Set([
+      ...certified.map((item) => item.applicableYear),
+      ...table.rows.map((item) => item.applicableYear),
+      new Date().getFullYear(),
+    ]),
+  ]
     .sort((a, b) => b - a)
     .map((value) => ({ value: String(value), label: String(value) }));
   const applied: AppliedFilter[] = year
-    ? [{ id: "year", label: "Year", field: "Year", value: year, onRemove: () => setYear("") }]
+    ? [
+        {
+          id: "year",
+          label: "Year",
+          field: "Year",
+          value: year,
+          onRemove: () => setYear(""),
+        },
+      ]
     : [];
   return (
     <div className={styles.panel}>
@@ -254,9 +276,25 @@ export function HolidaySettings() {
         onClearFilters={() => setYear("")}
         extraActions={
           manage ? (
-            <Button size="compact" variant="secondary" onClick={() => setCertifying(true)}>
-              Certify Year
-            </Button>
+            <>
+              <Button size="compact" onClick={() => setEntry("single")}>
+                Add Holiday
+              </Button>
+              <Button
+                size="compact"
+                variant="secondary"
+                onClick={() => setEntry("bulk")}
+              >
+                Bulk Add Holidays
+              </Button>
+              <Button
+                size="compact"
+                variant="secondary"
+                onClick={() => setCertifying(true)}
+              >
+                Certify Year
+              </Button>
+            </>
           ) : null
         }
         columns={[
@@ -267,7 +305,12 @@ export function HolidaySettings() {
             kind: "date",
             render: (row) => <CompactDate value={row.holidayDate} />,
           },
-          { key: "name", label: "Holiday", width: 240, render: (row) => <Text value={row.name} /> },
+          {
+            key: "name",
+            label: "Holiday",
+            width: 240,
+            render: (row) => <Text value={row.name} />,
+          },
           {
             key: "sourceReference",
             label: "Official source",
@@ -281,11 +324,22 @@ export function HolidaySettings() {
           { label: "Date", value: <CompactDate value={row.holidayDate} /> },
           { label: "Holiday", value: <Text value={row.name} /> },
           { label: "Year", value: <Text value={String(row.applicableYear)} /> },
-          { label: "Official source", value: <Text value={row.sourceReference} /> },
+          {
+            label: "Official source",
+            value: <Text value={row.sourceReference} />,
+          },
         ]}
-        create={
+        actions={
           manage
-            ? { label: "Add Holiday", success: "UAE holiday added.", command: holidayCommand }
+            ? (row) => [
+                {
+                  id: "edit",
+                  label: "Edit",
+                  success: "Holiday updated.",
+                  command: editHolidayCommand(row.id),
+                  record: { ...row },
+                },
+              ]
             : undefined
         }
         onSaved={() => setRefresh((value) => value + 1)}
@@ -307,7 +361,12 @@ export function HolidaySettings() {
               />
             }
             columns={[
-              { key: "applicableYear", header: "Year", width: "100px", render: (row) => String(row.applicableYear) },
+              {
+                key: "applicableYear",
+                header: "Year",
+                width: "100px",
+                render: (row) => String(row.applicableYear),
+              },
               {
                 key: "sourceReference",
                 header: "Official source",
@@ -324,6 +383,19 @@ export function HolidaySettings() {
           />
         )}
       </SectionCard>
+      {entry ? (
+        <HolidayEntryDialog
+          bulk={entry === "bulk"}
+          onClose={() => setEntry(null)}
+          onSaved={(count) => {
+            setEntry(null);
+            setNotice(
+              `${count} holiday ${count === 1 ? "date" : "dates"} added.`,
+            );
+            setRefresh((value) => value + 1);
+          }}
+        />
+      ) : null}
       {certifying ? (
         <CommandFormDialog
           command={certifyCommand}

@@ -8,17 +8,25 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(
+        self,
+        status: int,
+        code: str,
+        message: str,
+        field_errors: dict[str, list[str]] | None = None,
+    ) -> None:
         self.status = status
         self.code = code
         self.message = message
+        self.field_errors = field_errors or {}
 
 
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def api_error(_request: Request, exc: ApiError) -> JSONResponse:
         return JSONResponse(
-            {"code": exc.code, "message": exc.message, "fieldErrors": {}}, status_code=exc.status
+            {"code": exc.code, "message": exc.message, "fieldErrors": exc.field_errors},
+            status_code=exc.status,
         )
 
     @app.exception_handler(RequestValidationError)

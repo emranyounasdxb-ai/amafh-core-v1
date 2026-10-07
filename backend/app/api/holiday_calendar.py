@@ -1,11 +1,12 @@
 """Official-source UAE holiday calendar administration."""
 
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Query
 
 from app.api.dependencies import ActorDep, CsrfActor, Db
-from app.schemas.performance import HolidayInput, HolidayYearInput
+from app.schemas.performance import HolidayBatchInput, HolidayInput, HolidayYearInput
 from app.schemas.performance_responses import (
     HolidayDate,
     HolidayDatePage,
@@ -40,6 +41,16 @@ async def holiday_years(db: Db, actor: ActorDep):
 @router.post("/performance/uae-holidays", status_code=201, response_model=HolidayDate)
 async def holiday_create(item: HolidayInput, db: Db, actor: CsrfActor):
     return await holiday_calendar.add_date(db, actor, item)
+
+
+@router.post("/performance/uae-holidays/bulk", status_code=201, response_model=list[HolidayDate])
+async def holiday_bulk_create(item: HolidayBatchInput, db: Db, actor: CsrfActor):
+    return await holiday_calendar.add_batch(db, actor, item)
+
+
+@router.patch("/performance/uae-holidays/{holiday_id}", response_model=HolidayDate)
+async def holiday_edit(holiday_id: UUID, item: HolidayInput, db: Db, actor: CsrfActor):
+    return await holiday_calendar.edit_date(db, actor, holiday_id, item)
 
 
 @router.post(
