@@ -130,7 +130,7 @@ async def login(session: AsyncSession, email: str, password: str) -> tuple[str, 
             await session.execute(
                 login_failures.insert().values(account_id=row["account_id"], occurred_at=now)
             )
-            if failures >= 5:
+            if failures >= 5 and row["designation"] != "Owner":
                 await session.execute(
                     update(sessions)
                     .where(
@@ -212,7 +212,7 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
         not row
         or row["access_status"] != "Active"
         or row["employee_status"] != "Active"
-        or lock_active(row["locked_at"], now)
+        or (row["designation"] != "Owner" and lock_active(row["locked_at"], now))
         or not _valid_account_scope(row["designation"], row["branch_id"], row["department_id"])
     ):
         await session.execute(

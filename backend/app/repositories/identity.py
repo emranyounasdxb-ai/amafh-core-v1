@@ -38,9 +38,7 @@ def account_query():
 async def by_email(session: AsyncSession, email: str):
     """Every account whose employee email matches; the caller must reject ambiguity."""
     result = await session.execute(
-        account_query()
-        .where(stored_email() == email)
-        .order_by(user_accounts.c.id)
+        account_query().where(stored_email() == email).order_by(user_accounts.c.id)
     )
     return result.mappings().all()
 

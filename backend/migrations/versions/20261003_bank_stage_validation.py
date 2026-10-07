@@ -4,8 +4,8 @@ Revision ID: 20261003bankstageval
 Revises: 20261002taskviewed
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects.postgresql import UUID
 
 revision = "20261003bankstageval"

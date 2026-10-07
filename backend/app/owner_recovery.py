@@ -29,7 +29,11 @@ def _secret_path() -> Path:
     if path.is_symlink():
         raise RuntimeError("Recovery verifier must not be a symbolic link")
     resolved = path.resolve()
-    for protected in (Path(__file__).resolve().parents[2], settings().media_storage_root.resolve()):
+    source = Path(__file__).resolve().parents[1]
+    # A checkout also contains frontend source; the container contains only /app.
+    if (source.parent / "frontend" / "package.json").is_file():
+        source = source.parent
+    for protected in (source, settings().media_storage_root.resolve()):
         if resolved == protected or protected in resolved.parents:
             raise RuntimeError("Recovery verifier must be outside application source and uploads")
     return path

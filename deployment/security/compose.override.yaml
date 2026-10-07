@@ -1,0 +1,12 @@
+services:
+  backend:
+    # The limiter is process-local: keep exactly one worker and one backend replica.
+    # Resolve only the existing gateway; never trust every container or client.
+    command:
+      - python
+      - -c
+      - "import socket, uvicorn; uvicorn.run('app.main:app', host='0.0.0.0', port=8000, workers=1, proxy_headers=True, forwarded_allow_ips=socket.gethostbyname('gateway'))"
+    environment:
+      AMAFH_OWNER_RECOVERY_SECRET_FILE: /run/amafh-owner-recovery/verifier
+    volumes:
+      - /opt/amafhcore/secrets/owner-recovery:/run/amafh-owner-recovery:ro
