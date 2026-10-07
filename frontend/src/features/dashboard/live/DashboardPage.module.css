@@ -6,7 +6,72 @@
 }
 
 .filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.filterGroup {
+  display: flex;
+  width: fit-content;
+  flex-wrap: wrap;
+  gap: var(--ds-space-8);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.filterGroup > :global(.ds-filter-toolbar__item) {
+  flex: 0 1 160px;
+  width: 160px;
+  min-width: 0;
+}
+
+.filterGroup > :global(.ds-filter-toolbar__item):first-child {
+  flex-basis: 132px;
+  width: 132px;
+}
+
+.filterGroup > :global(.ds-filter-toolbar__item):has(:global(#dashboard-department)) {
+  flex-basis: 180px;
+  width: 180px;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  gap: var(--ds-card-gap);
+  align-items: start;
+  min-width: 0;
+}
+
+.main,
+.secondary {
+  display: grid;
+  gap: var(--ds-card-gap);
+  min-width: 0;
+  align-content: start;
+}
+
+.monthly :global(.ds-section-header) {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--ds-space-4);
+}
+
+.monthly :global(.ds-section-header) > :global(.ds-button) {
+  flex-shrink: 0;
+}
+
+.monthly > :global(#dashboard-monthly-values) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.monthly :global(.ds-table-wrap) {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .headerActions {
@@ -34,14 +99,13 @@
 .panels {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--ds-section-gap);
+  gap: var(--ds-card-gap);
   min-width: 0;
   align-items: start;
 }
 
 .shortcuts {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: var(--ds-space-8);
   min-width: 0;
 }
@@ -78,17 +142,9 @@
 .filterActions {
   margin-inline-start: auto;
 }
-@media (min-width: 1280px) {
-  .filters:has(:global(#dashboard-branch)) {
-    display: grid;
-    grid-template-columns:
-      minmax(120px, 0.9fr) minmax(116px, 1fr) minmax(144px, 1.2fr)
-      minmax(108px, 0.9fr) minmax(116px, 1fr) auto;
-  }
-}
 .page :global(.ds-kpi-summary) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--ds-card-gap);
 }
 .page :global(.ds-kpi-card) {
   min-width: 0;
@@ -101,8 +157,17 @@
 .comparisonCharts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: var(--ds-card-gap);
   align-items: stretch;
+}
+
+.main :global(.ds-chart-grid-cards > .ds-chart-card) {
+  grid-column: auto;
+}
+
+.main :global(.ds-chart-container),
+.main :global(.ds-chart-svg) {
+  overflow: visible;
 }
 .page :global(.ds-chart-empty-compact) {
   display: flex;
@@ -141,8 +206,8 @@
 }
 .performanceProducts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-20);
   margin: 8px 0 0;
 }
 .performanceProduct {
@@ -174,11 +239,8 @@
   overflow-wrap: anywhere;
 }
 @media (max-width: 1199px) {
-  .comparisonCharts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .comparisonCharts > :last-child:nth-child(odd) {
-    grid-column: 1 / -1;
+  .content {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 899px) {
@@ -187,10 +249,14 @@
   }
 }
 @media (max-width: 599px) {
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .container {
     padding: 12px;
   }
   .comparisonCharts,
+  .main :global(.ds-chart-grid-cards),
   .panels,
   .performanceProducts {
     grid-template-columns: minmax(0, 1fr);
@@ -201,4 +267,11 @@
   .page :global(.ds-kpi-card) {
     padding: 12px;
   }
+}
+
+.shortcuts :global(.ds-button) {
+  width: 100%;
+  height: auto;
+  min-height: var(--ds-control-h-compact);
+  white-space: normal;
 }

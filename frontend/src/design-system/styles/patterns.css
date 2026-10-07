@@ -63,7 +63,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
-  gap: var(--ds-space-16);
+  gap: var(--ds-card-gap);
   min-width: 0;
   max-width: 100%;
 }

@@ -108,3 +108,29 @@
   outline: 2px solid var(--ds-focus);
   outline-offset: 2px;
 }
+
+/* Only containers with multiple cards use the shared card gap. Internal form,
+   table and card content spacing continues to use its existing tokens. */
+.ds-root
+  :has(
+    > :is(
+        .ds-section-card,
+        .ds-chart-card,
+        .ds-kpi-card,
+        .ds-profile-card,
+        .ds-filter-card,
+        .ds-kpi-summary-wrap,
+        .ds-chart-grid-cards
+      )
+      ~ :is(
+        .ds-section-card,
+        .ds-chart-card,
+        .ds-kpi-card,
+        .ds-profile-card,
+        .ds-filter-card,
+        .ds-kpi-summary-wrap,
+        .ds-chart-grid-cards
+      )
+  ) {
+  gap: var(--ds-card-gap);
+}

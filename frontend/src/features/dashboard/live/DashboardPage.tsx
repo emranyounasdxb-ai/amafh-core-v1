@@ -305,97 +305,104 @@ export function DashboardPage({
 
   const filters = (
     <FilterToolbar label="Dashboard filters" className={styles.filters}>
-      <FilterToolbarItem label="Period" htmlFor="dashboard-period">
-        <DropdownSelect
-          id="dashboard-period"
-          compact
-          clearable={false}
-          value={period}
-          options={PERIODS}
-          onChange={(value) => setPeriod((pick(value) as Period) || "month")}
-        />
-      </FilterToolbarItem>
-      {scoped ? (
-        <>
-          <FilterToolbarItem label="Branch" htmlFor="dashboard-branch">
-            <DropdownSelect
-              id="dashboard-branch"
-              compact
-              clearable
-              searchable
-              placeholder="All Branches"
-              value={scope.branchId}
-              loading={branches.loading && !branches.data}
-              options={(branches.data ?? []).map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              onChange={(value) => {
-                const branchId = pick(value);
-                const department = departments.data?.find(
-                  (item) => item.id === scope.departmentId,
-                );
-                setScope({
-                  ...scope,
-                  branchId,
-                  departmentId:
-                    branchId && department?.branch_id !== branchId
-                      ? ""
-                      : scope.departmentId,
-                });
-              }}
-            />
-          </FilterToolbarItem>
-          <FilterToolbarItem label="Department" htmlFor="dashboard-department">
-            <DropdownSelect
-              id="dashboard-department"
-              compact
-              clearable
-              searchable
-              placeholder="All Departments"
-              value={scope.departmentId}
-              loading={departments.loading && !departments.data}
-              options={departmentOptions}
-              onChange={(value) =>
-                setScope({ ...scope, departmentId: pick(value) })
-              }
-            />
-          </FilterToolbarItem>
-          <FilterToolbarItem label="Bank" htmlFor="dashboard-bank">
-            <DropdownSelect
-              id="dashboard-bank"
-              compact
-              clearable
-              searchable
-              placeholder="All Banks"
-              value={scope.bankId}
-              loading={banks.loading && !banks.data}
-              options={(banks.data ?? []).map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              onChange={(value) => setScope({ ...scope, bankId: pick(value) })}
-            />
-          </FilterToolbarItem>
-          <FilterToolbarItem label="Product" htmlFor="dashboard-product">
-            <DropdownSelect
-              id="dashboard-product"
-              compact
-              clearable
-              placeholder="All products"
-              value={scope.productCode}
-              options={productOptions}
-              onChange={(value) => {
-                const next = pick(value);
-                setScope({
-                  ...scope,
-                  productCode: next === "CC" || next === "PF" ? next : "",
-                });
-              }}
-            />
-          </FilterToolbarItem>
-        </>
-      ) : null}
+      <div className={styles.filterGroup}>
+        <FilterToolbarItem label="Period" htmlFor="dashboard-period">
+          <DropdownSelect
+            id="dashboard-period"
+            compact
+            clearable={false}
+            value={period}
+            options={PERIODS}
+            onChange={(value) => setPeriod((pick(value) as Period) || "month")}
+          />
+        </FilterToolbarItem>
+        {scoped ? (
+          <>
+            <FilterToolbarItem label="Branch" htmlFor="dashboard-branch">
+              <DropdownSelect
+                id="dashboard-branch"
+                compact
+                clearable
+                searchable
+                placeholder="All Branches"
+                value={scope.branchId}
+                loading={branches.loading && !branches.data}
+                options={(branches.data ?? []).map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
+                onChange={(value) => {
+                  const branchId = pick(value);
+                  const department = departments.data?.find(
+                    (item) => item.id === scope.departmentId,
+                  );
+                  setScope({
+                    ...scope,
+                    branchId,
+                    departmentId:
+                      branchId && department?.branch_id !== branchId
+                        ? ""
+                        : scope.departmentId,
+                  });
+                }}
+              />
+            </FilterToolbarItem>
+            <FilterToolbarItem
+              label="Department"
+              htmlFor="dashboard-department"
+            >
+              <DropdownSelect
+                id="dashboard-department"
+                compact
+                clearable
+                searchable
+                placeholder="All Departments"
+                value={scope.departmentId}
+                loading={departments.loading && !departments.data}
+                options={departmentOptions}
+                onChange={(value) =>
+                  setScope({ ...scope, departmentId: pick(value) })
+                }
+              />
+            </FilterToolbarItem>
+            <FilterToolbarItem label="Bank" htmlFor="dashboard-bank">
+              <DropdownSelect
+                id="dashboard-bank"
+                compact
+                clearable
+                searchable
+                placeholder="All Banks"
+                value={scope.bankId}
+                loading={banks.loading && !banks.data}
+                options={(banks.data ?? []).map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
+                onChange={(value) =>
+                  setScope({ ...scope, bankId: pick(value) })
+                }
+              />
+            </FilterToolbarItem>
+            <FilterToolbarItem label="Product" htmlFor="dashboard-product">
+              <DropdownSelect
+                id="dashboard-product"
+                compact
+                clearable
+                placeholder="All products"
+                value={scope.productCode}
+                options={productOptions}
+                onChange={(value) => {
+                  const next = pick(value);
+                  setScope({
+                    ...scope,
+                    productCode: next === "CC" || next === "PF" ? next : "",
+                  });
+                }}
+              />
+            </FilterToolbarItem>
+          </>
+        ) : null}
+      </div>
       <div className={styles.filterActions}>
         <Button size="compact" onClick={openTasks}>
           <DsIcon name="tasks" size={16} />
@@ -512,330 +519,354 @@ export function DashboardPage({
             the previous selection.
           </InlineNotice>
         ) : null}
-        {kpis.length ? <KpiSummary compact items={kpis} /> : null}
+        <div className={styles.content}>
+          <div className={styles.main}>
+            {kpis.length ? <KpiSummary compact items={kpis} /> : null}
 
-        {charted ? (
-          <ChartGrid>
-            <ChartCard
-              emptyMessage="No activity for the selected period."
-              title={coordinator ? "Handled Case trend" : "Case activity"}
-              description={`${coordinator ? "Handled" : "Created"} cases by month`}
-              legend={products.map((code) => ({
-                id: code,
-                label: PRODUCT_LABEL[code],
-                color: PRODUCT_COLOR[code],
-              }))}
-              state={valuesState(
-                monthlyState,
-                months.flatMap((item) => [amount(item.cc), amount(item.pf)]),
-              )}
-              retry={monthly.reload}
-            >
-              <BarChart
-                grouped
-                labels={monthLabels}
-                series={products.map((code) => ({
-                  id: code,
-                  label: PRODUCT_LABEL[code],
-                  color: PRODUCT_COLOR[code],
-                  values: months.map((item) =>
-                    amount(code === "CC" ? item.cc : item.pf),
-                  ),
-                }))}
-              />
-            </ChartCard>
-            {showAmount ? (
-              <ChartCard
-                emptyMessage="No activity for the selected period."
-                title="PF amount by month"
-                description="Personal Finance amount achieved"
-                state={valuesState(
-                  monthlyState,
-                  months.map((item) => amount(item.pfAed)),
-                )}
-                retry={monthly.reload}
-              >
-                <LineChart
-                  labels={monthLabels}
-                  kind="currency"
-                  series={[
-                    {
-                      id: "pf",
-                      label: "PF amount",
-                      color: PRODUCT_COLOR.PF,
-                      values: months.map((item) => amount(item.pfAed)),
-                    },
-                  ]}
-                />
-              </ChartCard>
-            ) : null}
-          </ChartGrid>
-        ) : null}
-
-        {charted && monthly.data && months.length ? (
-          <SectionCard
-            compact
-            title={
-              <button
-                type="button"
-                className={styles.monthlyToggle}
-                aria-expanded={monthlyOpen}
-                aria-controls="dashboard-monthly-values"
-                onClick={() => setMonthlyOpen((open) => !open)}
-              >
-                Monthly values{" "}
-                <DsIcon name={monthlyOpen ? "collapse" : "expand"} size={16} />
-              </button>
-            }
-            actions={
-              selection.allowed ? (
-                <ExportButton
-                  size="compact"
-                  selectedCount={selection.selectedCount}
-                  loading={selection.working}
-                  disabled={!selection.selectedCount}
-                  onClick={() => void selection.exportCsv()}
-                />
-              ) : undefined
-            }
-          >
-            <div id="dashboard-monthly-values" hidden={!monthlyOpen}>
-              <DataTable
-                ariaLabel="Monthly activity values"
-                density="compact"
-                columns={monthColumns}
-                rows={months}
-                rowKey={(item) => item.start}
-                selectedKeys={
-                  selection.allowed
-                    ? months
-                        .filter((item, index) => selection.checked(item, index))
-                        .map((item) => item.start)
-                    : undefined
-                }
-                onToggleRow={
-                  selection.allowed
-                    ? (key) => {
-                        const index = months.findIndex(
-                          (item) => item.start === key,
-                        );
-                        if (index >= 0)
-                          selection.toggleRow(months[index], index);
-                      }
-                    : undefined
-                }
-                onToggleAll={
-                  selection.allowed ? selection.toggleAll : undefined
-                }
-              />
-            </div>
-            {selection.error ? (
-              <p className={styles.support} role="alert">
-                The CSV export could not be completed. Try again.
-              </p>
-            ) : null}
-          </SectionCard>
-        ) : null}
-
-        {activity || data.branchComparison ? (
-          <div className={styles.comparisonCharts}>
-            {activity ? (
-              <ChartCard
-                emptyMessage="No activity for the selected period."
-                title="Selected-period activity"
-                description="Case outcomes in the authorized scope"
-                state={
-                  activityKeys.some((key) => activity[key]) ? "ready" : "empty"
-                }
-              >
-                <BarChart
-                  labels={activityKeys.map((key) => activityLabel[key] ?? key)}
-                  series={[
-                    {
-                      id: "cases",
-                      label: "Cases",
-                      values: activityKeys.map((key) => amount(activity[key])),
-                    },
-                  ]}
-                />
-              </ChartCard>
-            ) : null}
-            {products.map((code) => {
-              const rows = data.branchComparison?.[code];
-              if (!rows) return null;
-              return (
+            {charted ? (
+              <ChartGrid>
                 <ChartCard
                   emptyMessage="No activity for the selected period."
-                  key={code}
-                  title={
-                    code === "CC"
-                      ? "Branch comparison · CC points"
-                      : "Branch comparison · PF amount"
-                  }
-                  description={`${PRODUCT_LABEL[code]} achieved by Branch`}
+                  title={coordinator ? "Handled Case trend" : "Case activity"}
+                  description={`${coordinator ? "Handled" : "Created"} cases by month`}
+                  legend={products.map((code) => ({
+                    id: code,
+                    label: PRODUCT_LABEL[code],
+                    color: PRODUCT_COLOR[code],
+                  }))}
                   state={valuesState(
-                    "ready",
-                    rows.map((row) =>
-                      amount(
-                        code === "CC"
-                          ? row.achievedCCPoints
-                          : row.achievedPFAed,
-                      ),
-                    ),
+                    monthlyState,
+                    months.flatMap((item) => [
+                      amount(item.cc),
+                      amount(item.pf),
+                    ]),
                   )}
+                  retry={monthly.reload}
                 >
                   <BarChart
-                    labels={rows.map(
-                      (row) => readable(row.name) || "Unavailable",
+                    grouped
+                    labels={monthLabels}
+                    series={products.map((code) => ({
+                      id: code,
+                      label: PRODUCT_LABEL[code],
+                      color: PRODUCT_COLOR[code],
+                      values: months.map((item) =>
+                        amount(code === "CC" ? item.cc : item.pf),
+                      ),
+                    }))}
+                  />
+                </ChartCard>
+                {showAmount ? (
+                  <ChartCard
+                    emptyMessage="No activity for the selected period."
+                    title="PF amount by month"
+                    description="Personal Finance amount achieved"
+                    state={valuesState(
+                      monthlyState,
+                      months.map((item) => amount(item.pfAed)),
                     )}
-                    kind={code === "CC" ? "points" : "currency"}
-                    series={[
-                      {
-                        id: code,
-                        label: code === "CC" ? "CC points" : "PF amount",
-                        color: PRODUCT_COLOR[code],
-                        values: rows.map((row) =>
+                    retry={monthly.reload}
+                  >
+                    <LineChart
+                      labels={monthLabels}
+                      kind="currency"
+                      series={[
+                        {
+                          id: "pf",
+                          label: "PF amount",
+                          color: PRODUCT_COLOR.PF,
+                          values: months.map((item) => amount(item.pfAed)),
+                        },
+                      ]}
+                    />
+                  </ChartCard>
+                ) : null}
+              </ChartGrid>
+            ) : null}
+
+            {activity || data.branchComparison ? (
+              <div className={styles.comparisonCharts}>
+                {activity ? (
+                  <ChartCard
+                    emptyMessage="No activity for the selected period."
+                    title="Selected-period activity"
+                    description="Case outcomes in the authorized scope"
+                    state={
+                      activityKeys.some((key) => activity[key])
+                        ? "ready"
+                        : "empty"
+                    }
+                  >
+                    <BarChart
+                      labels={activityKeys.map(
+                        (key) => activityLabel[key] ?? key,
+                      )}
+                      series={[
+                        {
+                          id: "cases",
+                          label: "Cases",
+                          values: activityKeys.map((key) =>
+                            amount(activity[key]),
+                          ),
+                        },
+                      ]}
+                    />
+                  </ChartCard>
+                ) : null}
+                {products.map((code) => {
+                  const rows = data.branchComparison?.[code];
+                  if (!rows) return null;
+                  return (
+                    <ChartCard
+                      emptyMessage="No activity for the selected period."
+                      key={code}
+                      title={
+                        code === "CC"
+                          ? "Branch comparison · CC points"
+                          : "Branch comparison · PF amount"
+                      }
+                      description={`${PRODUCT_LABEL[code]} achieved by Branch`}
+                      state={valuesState(
+                        "ready",
+                        rows.map((row) =>
                           amount(
                             code === "CC"
                               ? row.achievedCCPoints
                               : row.achievedPFAed,
                           ),
                         ),
-                      },
-                    ]}
-                  />
-                </ChartCard>
-              );
-            })}
-          </div>
-        ) : null}
-        <div className={styles.panels}>
-          {data.teamPerformance ? (
-            <SectionCard compact title="Team performance">
-              <StatusSummary
-                items={[
-                  {
-                    label: "Created",
-                    count: amount(data.teamPerformance.createdCaseCount),
-                    tone: "neutral",
-                  },
-                  {
-                    label: "Booked",
-                    count: amount(data.teamPerformance.bookedCaseCount),
-                    tone: "info",
-                  },
-                  {
-                    label: "Completed",
-                    count: amount(data.teamPerformance.completedCaseCount),
-                    tone: "success",
-                  },
-                ]}
-              />
-              <dl className={styles.facts}>
-                <div>
-                  <dt>CC points</dt>
-                  <dd>{count(data.teamPerformance.achievedCCPoints)}</dd>
-                </div>
-                <div>
-                  <dt>PF amount</dt>
-                  <dd>
-                    <MonetaryAmount
-                      compact={false}
-                      value={data.teamPerformance.achievedPFAed}
-                      align="start"
+                      )}
+                    >
+                      <BarChart
+                        labels={rows.map(
+                          (row) => readable(row.name) || "Unavailable",
+                        )}
+                        kind={code === "CC" ? "points" : "currency"}
+                        series={[
+                          {
+                            id: code,
+                            label: code === "CC" ? "CC points" : "PF amount",
+                            color: PRODUCT_COLOR[code],
+                            values: rows.map((row) =>
+                              amount(
+                                code === "CC"
+                                  ? row.achievedCCPoints
+                                  : row.achievedPFAed,
+                              ),
+                            ),
+                          },
+                        ]}
+                      />
+                    </ChartCard>
+                  );
+                })}
+              </div>
+            ) : null}
+            {data.teamPerformance || data.assets ? (
+              <div className={styles.panels}>
+                {data.teamPerformance ? (
+                  <SectionCard compact title="Team performance">
+                    <StatusSummary
+                      items={[
+                        {
+                          label: "Created",
+                          count: amount(data.teamPerformance.createdCaseCount),
+                          tone: "neutral",
+                        },
+                        {
+                          label: "Booked",
+                          count: amount(data.teamPerformance.bookedCaseCount),
+                          tone: "info",
+                        },
+                        {
+                          label: "Completed",
+                          count: amount(data.teamPerformance.completedCaseCount),
+                          tone: "success",
+                        },
+                      ]}
                     />
-                  </dd>
-                </div>
-              </dl>
-            </SectionCard>
-          ) : null}
+                    <dl className={styles.facts}>
+                      <div>
+                        <dt>CC points</dt>
+                        <dd>{count(data.teamPerformance.achievedCCPoints)}</dd>
+                      </div>
+                      <div>
+                        <dt>PF amount</dt>
+                        <dd>
+                          <MonetaryAmount
+                            compact={false}
+                            value={data.teamPerformance.achievedPFAed}
+                            align="start"
+                          />
+                        </dd>
+                      </div>
+                    </dl>
+                  </SectionCard>
+                ) : null}
 
-          {data.assets ? (
-            <SectionCard
-              compact
-              title="Assets"
-              description="Authorized Branch inventory"
-            >
-              <StatusSummary
-                items={[
-                  {
-                    label: "Available",
-                    count: amount(data.assets.availableCount),
-                    tone: "success",
-                  },
-                  {
-                    label: "Issued",
-                    count: amount(data.assets.issuedCount),
-                    tone: "info",
-                  },
-                  {
-                    label: "Maintenance",
-                    count: amount(data.assets.maintenanceCount),
-                    tone: "warning",
-                  },
-                  {
-                    label: "Damaged",
-                    count: amount(data.assets.damagedCount),
-                    tone: "danger",
-                  },
-                ]}
-              />
-            </SectionCard>
-          ) : null}
-
-          <SectionCard compact title="Work shortcuts">
-            <div className={styles.shortcuts}>
-              <Button variant="secondary" size="compact" onClick={openTasks}>
-                <DsIcon name="tasks" size={16} />
-                Open Tasks
-                <strong className="ds-numeric">
-                  {formatFullNumber(data.openTaskCount)}
-                </strong>
-              </Button>
-              <Button
-                variant="secondary"
-                size="compact"
-                onClick={openNotifications}
+                {data.assets ? (
+                  <SectionCard
+                    compact
+                    title="Assets"
+                    description="Authorized Branch inventory"
+                  >
+                    <StatusSummary
+                      items={[
+                        {
+                          label: "Available",
+                          count: amount(data.assets.availableCount),
+                          tone: "success",
+                        },
+                        {
+                          label: "Issued",
+                          count: amount(data.assets.issuedCount),
+                          tone: "info",
+                        },
+                        {
+                          label: "Maintenance",
+                          count: amount(data.assets.maintenanceCount),
+                          tone: "warning",
+                        },
+                        {
+                          label: "Damaged",
+                          count: amount(data.assets.damagedCount),
+                          tone: "danger",
+                        },
+                      ]}
+                    />
+                  </SectionCard>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <div className={styles.secondary}>
+            {data.ranking ? (
+              <SectionCard
+                compact
+                title="Employee performance"
+                description="Monthly and selected-period leaders"
               >
-                <DsIcon name="notification" size={16} />
-                Unread Notifications
-                <strong className="ds-numeric">
-                  {formatFullNumber(data.unreadNotificationCount)}
-                </strong>
-              </Button>
-            </div>
-          </SectionCard>
-          {data.ranking ? (
-            <SectionCard
-              compact
-              title="Employee performance"
-              description="Monthly and selected-period leaders"
-            >
-              <dl className={styles.performanceProducts}>
-                {products.map((code) => (
-                  <div key={code} className={styles.performanceProduct}>
-                    <dt>{PRODUCT_LABEL[code]}</dt>
-                    <dd>
-                      <span>
-                        Employee of the month:{" "}
-                        <strong>
-                          {rankingWinner(data.ranking?.[code]?.employeeOfMonth)}
-                        </strong>
-                      </span>
-                      <span>
-                        Top performer:{" "}
-                        <strong>
-                          {rankingWinner(
-                            data.ranking?.[code]?.highestPerformer,
-                          )}
-                        </strong>
-                      </span>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
+                <dl className={styles.performanceProducts}>
+                  {products.map((code) => (
+                    <div key={code} className={styles.performanceProduct}>
+                      <dt>{PRODUCT_LABEL[code]}</dt>
+                      <dd>
+                        <span>
+                          Employee of the month:{" "}
+                          <strong>
+                            {rankingWinner(
+                              data.ranking?.[code]?.employeeOfMonth,
+                            )}
+                          </strong>
+                        </span>
+                        <span>
+                          Top performer:{" "}
+                          <strong>
+                            {rankingWinner(
+                              data.ranking?.[code]?.highestPerformer,
+                            )}
+                          </strong>
+                        </span>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </SectionCard>
+            ) : null}
+            {charted && monthly.data && months.length ? (
+              <SectionCard
+                compact
+                className={styles.monthly}
+                title={
+                  <button
+                    type="button"
+                    className={styles.monthlyToggle}
+                    aria-expanded={monthlyOpen}
+                    aria-controls="dashboard-monthly-values"
+                    onClick={() => setMonthlyOpen((open) => !open)}
+                  >
+                    Monthly values{" "}
+                    <DsIcon
+                      name={monthlyOpen ? "collapse" : "expand"}
+                      size={16}
+                    />
+                  </button>
+                }
+                actions={
+                  selection.allowed ? (
+                    <ExportButton
+                      size="compact"
+                      selectedCount={selection.selectedCount}
+                      loading={selection.working}
+                      disabled={!selection.selectedCount}
+                      onClick={() => void selection.exportCsv()}
+                    />
+                  ) : undefined
+                }
+              >
+                <div id="dashboard-monthly-values" hidden={!monthlyOpen}>
+                  <DataTable
+                    ariaLabel="Monthly activity values"
+                    density="compact"
+                    columns={monthColumns}
+                    rows={months}
+                    rowKey={(item) => item.start}
+                    selectedKeys={
+                      selection.allowed
+                        ? months
+                            .filter((item, index) =>
+                              selection.checked(item, index),
+                            )
+                            .map((item) => item.start)
+                        : undefined
+                    }
+                    onToggleRow={
+                      selection.allowed
+                        ? (key) => {
+                            const index = months.findIndex(
+                              (item) => item.start === key,
+                            );
+                            if (index >= 0)
+                              selection.toggleRow(months[index], index);
+                          }
+                        : undefined
+                    }
+                    onToggleAll={
+                      selection.allowed ? selection.toggleAll : undefined
+                    }
+                  />
+                </div>
+                {selection.error ? (
+                  <p className={styles.support} role="alert">
+                    The CSV export could not be completed. Try again.
+                  </p>
+                ) : null}
+              </SectionCard>
+            ) : null}
+
+            <SectionCard compact title="Work shortcuts">
+              <div className={styles.shortcuts}>
+                <Button variant="secondary" size="compact" onClick={openTasks}>
+                  <DsIcon name="tasks" size={16} />
+                  Open Tasks
+                  <strong className="ds-numeric">
+                    {formatFullNumber(data.openTaskCount)}
+                  </strong>
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  onClick={openNotifications}
+                >
+                  <DsIcon name="notification" size={16} />
+                  Unread Notifications
+                  <strong className="ds-numeric">
+                    {formatFullNumber(data.unreadNotificationCount)}
+                  </strong>
+                </Button>
+              </div>
             </SectionCard>
-          ) : null}
+          </div>
         </div>
       </>
     );
