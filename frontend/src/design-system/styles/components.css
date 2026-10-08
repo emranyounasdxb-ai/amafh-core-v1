@@ -1051,6 +1051,7 @@
 .ds-table__sort,
 .ds-table__heading {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   gap: var(--ds-space-4);
   min-height: 0;
@@ -1061,6 +1062,16 @@
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+
+.ds-table__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-table__sort > [aria-hidden] {
+  flex: 0 0 auto;
 }
 
 .ds-table__heading {
@@ -1097,8 +1108,8 @@
 
 .ds-table[data-column-layout="true"] {
   table-layout: fixed;
-  width: var(--ds-table-layout-width);
-  min-width: var(--ds-table-layout-width);
+  width: max(100%, var(--ds-table-layout-width));
+  min-width: var(--ds-table-min-width);
 }
 
 .ds-table__th--layout {

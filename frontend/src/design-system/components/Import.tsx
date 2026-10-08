@@ -5,6 +5,7 @@ import { Dialog } from "./Dialog";
 import { IconButton } from "./IconButton";
 import { StatusBadge, type StatusTone } from "./StatusBadge";
 import { cx } from "../lib/cx";
+import { DataTable } from "./DataTable";
 
 export type ImportPhase =
   | "select"
@@ -154,31 +155,33 @@ export function ImportPreviewTable({
   };
   return (
     <div className="ds-import-preview">
-      <table>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
-            ))}
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              {row.values.map((value, index) => (
-                <td key={`${row.id}-${index}`}>{value}</td>
-              ))}
-              <td>
+      <DataTable
+        ariaLabel="Import preview"
+        tableId="import-preview"
+        stackOnNarrow={false}
+        rows={rows}
+        rowKey={(row) => row.id}
+        columns={[
+          ...columns.map((column, index) => ({
+            key: `value-${index}`,
+            header: column,
+            render: (row: ImportPreviewRow) => row.values[index],
+          })),
+          {
+            key: "status",
+            header: "Status",
+            width: "240px",
+            render: (row: ImportPreviewRow) => (
+              <div>
                 <StatusBadge tone={tone[row.status]}>{row.status}</StatusBadge>
                 {row.message ? (
                   <p className="ds-field__hint">{row.message}</p>
                 ) : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

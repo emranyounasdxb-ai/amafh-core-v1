@@ -3,6 +3,7 @@ import {
   Button,
   CompactDate,
   DatePicker,
+  DataTable,
   Dialog,
   FormField,
   InlineNotice,
@@ -98,6 +99,46 @@ export function HolidayEntryDialog({
       setBusy(false);
     }
   };
+  const renderField = (
+    row: (typeof rows)[number],
+    field: (typeof fields)[number][0],
+    label: string,
+  ) => {
+    const index = rows.findIndex((entry) => entry.key === row.key);
+    const id = `holiday-${row.key}-${field}`;
+    const fieldError = errors[`rows.${index}.${field}`];
+    return (
+      <FormField
+        label={label}
+        htmlFor={id}
+        required
+        error={fieldError?.join(" ")}
+      >
+        {field === "startDate" || field === "endDate" ? (
+          <DatePicker
+            id={id}
+            value={row.values[field]}
+            compact
+            required
+            disabled={busy}
+            invalid={Boolean(fieldError)}
+            onChange={(value) => update(row.key, field, value)}
+          />
+        ) : (
+          <TextInput
+            id={id}
+            compact
+            required
+            disabled={busy}
+            invalid={Boolean(fieldError)}
+            maxLength={field === "name" ? 200 : 1000}
+            value={row.values[field]}
+            onChange={(event) => update(row.key, field, event.target.value)}
+          />
+        )}
+      </FormField>
+    );
+  };
   return (
     <Dialog
       open
@@ -137,74 +178,54 @@ export function HolidayEntryDialog({
             {errors.rows.join(" ")}
           </p>
         ) : null}
-        <div
-          role="table"
-          aria-label="Holiday entry rows"
-          className={styles.table}
-        >
-          {bulk ? (
-            <div role="row" className={styles.head}>
-              {fields.map(([field, label]) => (
-                <span role="columnheader" key={field}>
-                  {label}
-                </span>
-              ))}
-              <span role="columnheader">Actions</span>
-            </div>
-          ) : null}
-          {rows.map((row, index) => (
-            <div
-              role="row"
-              aria-label={`Holiday row ${index + 1}`}
-              key={row.key}
-              className={bulk ? styles.row : styles.single}
-            >
-              {fields.map(([field, label]) => {
-                const id = `holiday-${row.key}-${field}`,
-                  fieldError = errors[`rows.${index}.${field}`];
-                return (
-                  <div role="cell" key={field}>
-                    <FormField
-                      label={label}
-                      htmlFor={id}
-                      required
-                      error={fieldError?.join(" ")}
-                    >
-                      {field === "startDate" || field === "endDate" ? (
-                        <DatePicker
-                          id={id}
-                          value={row.values[field]}
-                          compact
-                          required
-                          disabled={busy}
-                          invalid={Boolean(fieldError)}
-                          onChange={(value) => update(row.key, field, value)}
-                        />
-                      ) : (
-                        <TextInput
-                          id={id}
-                          compact
-                          required
-                          disabled={busy}
-                          invalid={Boolean(fieldError)}
-                          maxLength={field === "name" ? 200 : 1000}
-                          value={row.values[field]}
-                          onChange={(event) =>
-                            update(row.key, field, event.target.value)
-                          }
-                        />
-                      )}
-                    </FormField>
-                  </div>
-                );
-              })}
-              {bulk ? (
-                <div role="cell" className={styles.rowActions}>
+        {bulk ? (
+          <DataTable
+            tableId="holiday-entry"
+            ariaLabel="Holiday entry rows"
+            className={styles.entryTable}
+            rows={rows}
+            rowKey={(row) => String(row.key)}
+            columns={[
+              ...fields.map(([field, label]) => ({
+                key: field,
+                header: label,
+                width:
+                  field === "startDate" || field === "endDate"
+                    ? "190px"
+                    : field === "name"
+                      ? "200px"
+                      : "220px",
+                minWidth:
+                  field === "startDate" || field === "endDate" ? 190 : 96,
+                render: (row: (typeof rows)[number]) => (
+                  <>
+                    {renderField(row, field, label)}
+                    {field === "name" &&
+                    errors[
+                      `rows.${rows.findIndex((entry) => entry.key === row.key)}`
+                    ] ? (
+                      <p className={styles.error} role="alert">
+                        Row{" "}
+                        {rows.findIndex((entry) => entry.key === row.key) + 1}:{" "}
+                        {errors[
+                          `rows.${rows.findIndex((entry) => entry.key === row.key)}`
+                        ].join(" ")}
+                      </p>
+                    ) : null}
+                  </>
+                ),
+              })),
+              {
+                key: "actions",
+                header: "Actions",
+                width: "96px",
+                fixed: true,
+                render: (row) => (
                   <Button
                     size="compact"
                     variant="ghost"
                     disabled={busy}
-                    aria-label={`Remove holiday row ${index + 1}`}
+                    aria-label={`Remove holiday row ${rows.findIndex((entry) => entry.key === row.key) + 1}`}
                     onClick={() => {
                       changed();
                       setRows((current) =>
@@ -214,16 +235,22 @@ export function HolidayEntryDialog({
                   >
                     Remove
                   </Button>
-                </div>
-              ) : null}
-              {errors[`rows.${index}`] ? (
-                <p className={styles.rowError} role="alert">
-                  Row {index + 1}: {errors[`rows.${index}`].join(" ")}
-                </p>
-              ) : null}
-            </div>
-          ))}
-        </div>
+                ),
+              },
+            ]}
+          />
+        ) : (
+          <div className={styles.single}>
+            {fields.map(([field, label]) => (
+              <div key={field}>{renderField(rows[0], field, label)}</div>
+            ))}
+            {errors["rows.0"] ? (
+              <p className={styles.error} role="alert">
+                Row 1: {errors["rows.0"].join(" ")}
+              </p>
+            ) : null}
+          </div>
+        )}
         {bulk ? (
           <Button
             size="compact"
@@ -253,40 +280,34 @@ export function HolidayEntryDialog({
               All dates below will be saved together. Editing any row requires a
               new review.
             </p>
-            <div role="table" aria-label="Expanded holiday dates review">
-              <div role="row" className={styles.reviewHead}>
-                {[
-                  "Source row",
-                  "Date",
-                  "Holiday name",
-                  "Official reference",
-                ].map((label) => (
-                  <span role="columnheader" key={label}>
-                    {label}
-                  </span>
-                ))}
-              </div>
-              {review.map((day) => (
-                <div
-                  role="row"
-                  className={styles.reviewRow}
-                  key={`${day.row}-${day.holidayDate}`}
-                >
-                  <span role="cell" data-label="Source row">
-                    {day.row}
-                  </span>
-                  <span role="cell" data-label="Date">
-                    <CompactDate value={day.holidayDate} />
-                  </span>
-                  <span role="cell" data-label="Holiday name">
-                    {day.name}
-                  </span>
-                  <span role="cell" data-label="Official reference">
-                    {day.sourceReference}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <DataTable
+              tableId="holiday-date-review"
+              ariaLabel="Expanded holiday dates review"
+              className={styles.reviewTable}
+              rows={review}
+              rowKey={(day) => `${day.row}-${day.holidayDate}`}
+              columns={[
+                {
+                  key: "row",
+                  header: "Source row",
+                  width: "96px",
+                  kind: "number",
+                },
+                {
+                  key: "holidayDate",
+                  header: "Date",
+                  width: "140px",
+                  kind: "date",
+                  render: (day) => <CompactDate value={day.holidayDate} />,
+                },
+                { key: "name", header: "Holiday name", width: "220px" },
+                {
+                  key: "sourceReference",
+                  header: "Official reference",
+                  width: "300px",
+                },
+              ]}
+            />
           </section>
         ) : null}
       </form>

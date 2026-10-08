@@ -1,5 +1,10 @@
 export type SavedColumn = { key: string; width: number; manual?: boolean };
-export type LayoutColumn = { key: string; width?: number; fixed?: boolean };
+export type LayoutColumn = {
+  key: string;
+  width?: number;
+  minWidth?: number;
+  fixed?: boolean;
+};
 
 export const MIN_WIDTH = 96;
 export const MAX_WIDTH = 480;
@@ -57,13 +62,17 @@ export function reconcileColumns<T extends LayoutColumn>(
       })
       .map((entry) => ({
         ...allowed.get(entry.key)!,
-        width: boundedWidth(entry.width),
+        width: boundedWidth(
+          Math.max(entry.width, allowed.get(entry.key)?.minWidth ?? MIN_WIDTH),
+        ),
       })),
     ...columns
       .filter((column) => !column.fixed && !seen.has(column.key))
       .map((column) => ({
         ...column,
-        width: boundedWidth(column.width ?? DEFAULT_WIDTH),
+        width: boundedWidth(
+          Math.max(column.width ?? DEFAULT_WIDTH, column.minWidth ?? MIN_WIDTH),
+        ),
       })),
   ];
   return columns.map((column) =>

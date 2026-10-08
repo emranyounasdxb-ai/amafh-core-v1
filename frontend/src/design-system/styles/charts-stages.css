@@ -479,18 +479,18 @@
   border-radius: var(--ds-radius-control);
 }
 
-.ds-import-preview table {
-  width: 100%;
-  border-collapse: collapse;
+.ds-import-preview .ds-table__check {
+  vertical-align: middle;
 }
 
-.ds-import-preview th,
-.ds-import-preview td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--ds-border);
-  text-align: start;
-  font-size: var(--ds-support-size);
-  vertical-align: top;
+.ds-import-preview .ds-table td {
+  height: auto;
+  max-height: none;
+  white-space: normal;
+}
+
+.ds-import-preview .ds-table-wrap {
+  border: 0;
 }
 
 .ds-export-status {

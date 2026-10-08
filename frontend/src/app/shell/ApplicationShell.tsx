@@ -168,7 +168,7 @@ export function ApplicationShell() {
   );
 
   return (
-    <DesignSystemRoot>
+    <DesignSystemRoot tablePreferenceScope={session.employeeId}>
       <ToastProvider>
         <div className={`ds-app-shell ${styles.shell}`}>
           <header className={styles.topbar}>

@@ -1,5 +1,7 @@
 import {
   useEffect,
+  useContext,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -21,6 +23,8 @@ import {
 import { EmptyState } from "./EmptyState";
 import { LoadingState } from "./LoadingState";
 import { CheckboxDropdown } from "./TreeSelect";
+import { TablePreferenceScope, useColumnLayout } from "../lib/useColumnLayout";
+import { renderedColumnWidths } from "../../shared/table/columnLayoutState";
 
 export type DataTableAlign = TableAlign;
 export type DataTableColumnKind = TableColumnKind;
@@ -33,6 +37,7 @@ export type DataTableColumn<T> = {
   kind?: DataTableColumnKind;
   numeric?: boolean;
   width?: string;
+  minWidth?: number;
   sortable?: boolean;
   fixed?: boolean;
   render?: (row: T) => ReactNode;
@@ -53,21 +58,23 @@ type HeaderPointer = {
   mode: "pending" | "resize" | "reorder";
 };
 
-function columnWidthPx(width?: string, kind?: DataTableColumnKind): number {
+function columnWidthPx(
+  width?: string,
+  kind?: DataTableColumnKind,
+  minWidth = 0,
+): number {
   const parsed = Number.parseInt(width ?? "", 10);
   const base = Number.isFinite(parsed) ? parsed : 160;
-  return Math.max(kindMinWidth(kind), base);
+  return Math.max(kindMinWidth(kind), minWidth, base);
 }
 
 function columnKeyFromPoint(x: number, y: number): string | null {
-  const header = document
-    .elementFromPoint(x, y)
-    ?.closest("[data-column-key]");
+  const header = document.elementFromPoint(x, y)?.closest("[data-column-key]");
   return header?.getAttribute("data-column-key") ?? null;
 }
 
 export function DataTable<T>({
-  columns,
+  columns: suppliedColumns,
   rows,
   rowKey,
   sort,
@@ -87,6 +94,7 @@ export function DataTable<T>({
   rowSelectLabel,
   onColumnResize,
   onColumnReorder,
+  tableId,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -108,14 +116,59 @@ export function DataTable<T>({
   rowSelectLabel?: (row: T) => string;
   onColumnResize?: (key: string, width: number) => void;
   onColumnReorder?: (fromKey: string, toKey: string) => void;
+  tableId?: string;
 }) {
+  const preferenceScope = useContext(TablePreferenceScope);
+  const automaticLayout =
+    preferenceScope !== null && !onColumnResize && !onColumnReorder;
+  const preferences = useColumnLayout(
+    automaticLayout
+      ? `amafh:table-layout:v1:${preferenceScope}:table:${tableId ?? ariaLabel}`
+      : null,
+    suppliedColumns.map((column) => ({
+      ...column,
+      width: columnWidthPx(column.width, column.kind, column.minWidth),
+      minWidth: Math.max(kindMinWidth(column.kind), column.minWidth ?? 0),
+      fixed: column.fixed ?? column.key === "actions",
+    })),
+  );
+  const columns = automaticLayout
+    ? preferences.columns.map((column) => ({
+        ...column,
+        width: `${column.width}px`,
+      }))
+    : suppliedColumns;
+  const resizeColumn =
+    onColumnResize ?? (automaticLayout ? preferences.resize : undefined);
+  const reorderColumn =
+    onColumnReorder ?? (automaticLayout ? preferences.move : undefined);
+  const wrap = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(0);
+  useLayoutEffect(() => {
+    const node = wrap.current;
+    if (!node) return;
+    const measure = () => {
+      const style = getComputedStyle(node);
+      setAvailableWidth(
+        node.getBoundingClientRect().width -
+          parseFloat(style.borderLeftWidth) -
+          parseFloat(style.borderRightWidth) -
+          parseFloat(style.paddingLeft) -
+          parseFloat(style.paddingRight),
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const headerPointer = useRef<HeaderPointer | null>(null);
   const ignoreSortClick = useRef(false);
   const textSelection = useRef("");
   const [dragged, setDragged] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
-  const layoutEnabled = Boolean(onColumnResize || onColumnReorder);
+  const layoutEnabled = Boolean(resizeColumn || reorderColumn);
 
   useEffect(
     () => () => {
@@ -126,11 +179,15 @@ export function DataTable<T>({
   );
 
   if (error) {
-    return <div className={cx("ds-table-wrap", className)}>{error}</div>;
+    return (
+      <div ref={wrap} className={cx("ds-table-wrap", className)}>
+        {error}
+      </div>
+    );
   }
   if (loading && !rows.length) {
     return (
-      <div className={cx("ds-table-wrap", className)}>
+      <div ref={wrap} className={cx("ds-table-wrap", className)}>
         <LoadingState />
       </div>
     );
@@ -145,14 +202,36 @@ export function DataTable<T>({
   const totalWidth =
     selectionWidth +
     columns.reduce(
-      (sum, column) => sum + columnWidthPx(column.width, column.kind),
+      (sum, column) =>
+        sum + columnWidthPx(column.width, column.kind, column.minWidth),
       0,
     );
+  const preferredWidths = columns.map((column) =>
+    columnWidthPx(column.width, column.kind, column.minWidth),
+  );
+  const fixedWidth = columns.reduce(
+    (sum, column, index) => sum + (column.fixed ? preferredWidths[index] : 0),
+    0,
+  );
+  const flexibleWidths = renderedColumnWidths(
+    preferredWidths.filter((_, index) => !columns[index].fixed),
+    availableWidth - selectionWidth - fixedWidth,
+  );
+  let flexibleIndex = 0;
+  const displayWidths = preferredWidths.map((width, index) =>
+    columns[index].fixed ? width : flexibleWidths[flexibleIndex++],
+  );
+  const displayWidth =
+    selectionWidth + displayWidths.reduce((sum, width) => sum + width, 0);
 
-  const finishHeaderPointer = (event: PointerEvent<HTMLElement>) => {
+  const finishHeaderPointer = (
+    event: PointerEvent<HTMLElement>,
+    cancelled = false,
+  ) => {
     const pointer = headerPointer.current;
     headerPointer.current = null;
-    document.body.style.userSelect = textSelection.current;
+    if (pointer && pointer.mode !== "pending")
+      document.body.style.userSelect = textSelection.current;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -161,11 +240,11 @@ export function DataTable<T>({
       event.stopPropagation();
       return;
     }
-    if (pointer?.mode === "reorder") {
+    if (pointer?.mode === "reorder" && !cancelled) {
       const target = columnKeyFromPoint(event.clientX, event.clientY);
       if (target && target !== pointer.key) {
         ignoreSortClick.current = true;
-        onColumnReorder?.(pointer.key, target);
+        reorderColumn?.(pointer.key, target);
         const label =
           columns.find((column) => column.key === pointer.key)?.header ??
           pointer.key;
@@ -178,10 +257,11 @@ export function DataTable<T>({
 
   return (
     <div
+      ref={wrap}
       className={cx(
         "ds-table-wrap",
         density === "compact" && "ds-table-wrap--compact",
-        stackOnNarrow && "ds-table-wrap--stack",
+        stackOnNarrow && !layoutEnabled && "ds-table-wrap--stack",
         className,
       )}
     >
@@ -194,26 +274,20 @@ export function DataTable<T>({
         className="ds-table"
         aria-label={ariaLabel}
         aria-busy={loading}
-        data-column-layout={layoutEnabled || undefined}
+        data-column-layout="true"
         style={
-          layoutEnabled
-            ? ({
-                "--ds-table-layout-width": `${totalWidth}px`,
-              } as CSSProperties)
-            : undefined
+          {
+            "--ds-table-layout-width": `${displayWidth}px`,
+            "--ds-table-min-width": `${totalWidth}px`,
+          } as CSSProperties
         }
       >
-        {layoutEnabled ? (
-          <colgroup>
-            {selectable ? <col style={{ width: selectionWidth }} /> : null}
-            {columns.map((column) => (
-              <col
-                key={column.key}
-                style={{ width: columnWidthPx(column.width, column.kind) }}
-              />
-            ))}
-          </colgroup>
-        ) : null}
+        <colgroup>
+          {selectable ? <col style={{ width: selectionWidth }} /> : null}
+          {columns.map((column, index) => (
+            <col key={column.key} style={{ width: displayWidths[index] }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             {selectable ? (
@@ -231,10 +305,14 @@ export function DataTable<T>({
               </th>
             ) : null}
             {columns.map((column) => {
-              const width = columnWidthPx(column.width, column.kind);
+              const width = columnWidthPx(
+                column.width,
+                column.kind,
+                column.minWidth,
+              );
               const align = resolveTableAlign(column);
-              const canResize = Boolean(onColumnResize) && !column.fixed;
-              const canReorder = Boolean(onColumnReorder) && !column.fixed;
+              const canResize = Boolean(resizeColumn) && !column.fixed;
+              const canReorder = Boolean(reorderColumn) && !column.fixed;
               const canSort = Boolean(column.sortable && onSort);
               return (
                 <th
@@ -288,6 +366,7 @@ export function DataTable<T>({
                             Math.abs(event.clientX - pointer.x) >= 6
                           ) {
                             pointer.mode = "reorder";
+                            ignoreSortClick.current = true;
                             textSelection.current =
                               document.body.style.userSelect;
                             document.body.style.userSelect = "none";
@@ -308,8 +387,16 @@ export function DataTable<T>({
                         }
                       : undefined
                   }
-                  onPointerUp={canReorder ? finishHeaderPointer : undefined}
-                  onPointerCancel={canReorder ? finishHeaderPointer : undefined}
+                  onPointerUp={
+                    canReorder
+                      ? (event) => finishHeaderPointer(event)
+                      : undefined
+                  }
+                  onPointerCancel={
+                    canReorder
+                      ? (event) => finishHeaderPointer(event, true)
+                      : undefined
+                  }
                 >
                   {canSort ? (
                     <button
@@ -327,7 +414,9 @@ export function DataTable<T>({
                         onSort?.(column.key);
                       }}
                     >
-                      {column.header}
+                      <span className="ds-table__label" title={column.header}>
+                        {column.header}
+                      </span>
                       <span aria-hidden="true">
                         {sort?.key === column.key
                           ? sort.direction === "asc"
@@ -337,7 +426,11 @@ export function DataTable<T>({
                       </span>
                     </button>
                   ) : (
-                    <span className="ds-table__heading">{column.header}</span>
+                    <span className="ds-table__heading">
+                      <span className="ds-table__label" title={column.header}>
+                        {column.header}
+                      </span>
+                    </span>
                   )}
                   {canResize ? (
                     <span
@@ -347,7 +440,11 @@ export function DataTable<T>({
                       data-ds-row-interactive
                       aria-orientation="vertical"
                       aria-label={`Resize ${column.header} column`}
-                      aria-valuemin={96}
+                      aria-valuemin={Math.max(
+                        96,
+                        kindMinWidth(column.kind),
+                        column.minWidth ?? 0,
+                      )}
                       aria-valuenow={width}
                       onPointerDown={(event) => {
                         event.preventDefault();
@@ -371,13 +468,19 @@ export function DataTable<T>({
                           return;
                         }
                         event.stopPropagation();
-                        onColumnResize?.(
+                        resizeColumn?.(
                           column.key,
-                          pointer.width + event.clientX - pointer.x,
+                          Math.max(
+                            column.minWidth ?? 0,
+                            kindMinWidth(column.kind),
+                            pointer.width + event.clientX - pointer.x,
+                          ),
                         );
                       }}
-                      onPointerUp={finishHeaderPointer}
-                      onPointerCancel={finishHeaderPointer}
+                      onPointerUp={(event) => finishHeaderPointer(event)}
+                      onPointerCancel={(event) =>
+                        finishHeaderPointer(event, true)
+                      }
                       onKeyDown={(event) => {
                         if (
                           event.key !== "ArrowLeft" &&
@@ -387,11 +490,15 @@ export function DataTable<T>({
                         }
                         event.preventDefault();
                         event.stopPropagation();
-                        onColumnResize?.(
+                        resizeColumn?.(
                           column.key,
-                          width +
-                            (event.key === "ArrowRight" ? 1 : -1) *
-                              (event.shiftKey ? 24 : 12),
+                          Math.max(
+                            column.minWidth ?? 0,
+                            kindMinWidth(column.kind),
+                            width +
+                              (event.key === "ArrowRight" ? 1 : -1) *
+                                (event.shiftKey ? 24 : 12),
+                          ),
                         );
                         setAnnouncement(`${column.header} column resized`);
                       }}
