@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Button,
   ConfirmationDialog,
@@ -7,6 +7,7 @@ import {
   InlineNotice,
   LoadingState,
   PermissionDeniedState,
+  PageHeader,
   StatusBadge,
   StickyActionBar,
   Switch,
@@ -17,7 +18,7 @@ import {
 import { ApiFailure } from "../../../app/api/http";
 import { useResource } from "../../../app/api/useResource";
 import { useSession } from "../../../app/session/useSession";
-import { Info } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import {
   permissionCounts,
   savedGrant,
@@ -64,7 +65,7 @@ function changeSummary(
   );
 }
 
-export function PermissionSettings() {
+export function PermissionSettings({ onBack }: { onBack?: () => void } = {}) {
   const { api } = useSession();
   const resource = useResource<PermissionConfiguration>(
     "/permission-configuration",
@@ -96,28 +97,66 @@ export function PermissionSettings() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
+  const frame = (body: ReactNode) => (
+    <div className={layout.page}>
+      <PageHeader
+        className={layout.header}
+        title="User Types and permissions"
+        subtitle="Actions and data scopes for each User Type"
+        onBack={onBack}
+        backLabel="Settings"
+        actions={
+          config ? (
+            <details className={layout.rules}>
+              <summary>
+                <Info size={14} aria-hidden="true" /> Permission rules
+              </summary>
+              <div className={layout.rulesBody}>
+                <p className={styles.support}>
+                  These rules are enforced by the server and cannot be changed
+                  here.
+                </p>
+                <dl>
+                  {config?.restrictions.map((item) => (
+                    <div key={item.title}>
+                      <dt>{item.title}</dt>
+                      <dd>{item.description}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </details>
+          ) : undefined
+        }
+      />
+      {body}
+    </div>
+  );
+
   if (resource.denied)
-    return (
-      <PermissionDeniedState description="User Type permissions are outside your authorized access." />
+    return frame(
+      <PermissionDeniedState description="User Type permissions are outside your authorized access." />,
     );
   if (!config)
-    return resource.error ? (
-      <ErrorState
-        description="User Type permissions could not be loaded."
-        retry={resource.reload}
-      />
-    ) : (
-      <LoadingState
-        title="Loading permissions"
-        description="Retrieving User Types and their saved permissions…"
-      />
+    return frame(
+      resource.error ? (
+        <ErrorState
+          description="User Type permissions could not be loaded."
+          retry={resource.reload}
+        />
+      ) : (
+        <LoadingState
+          title="Loading permissions"
+          description="Retrieving User Types and their saved permissions…"
+        />
+      ),
     );
   if (userTypes.length === 0)
-    return (
+    return frame(
       <EmptyState
         title="No User Types"
         description="No approved User Types are available."
-      />
+      />,
     );
 
   const chooseType = (id: string) => {
@@ -186,9 +225,17 @@ export function PermissionSettings() {
 
   const accessCell = (item: PermissionItem) => {
     if (item.state === "fixed")
-      return <StatusBadge tone="brand">Always granted</StatusBadge>;
+      return (
+        <span
+          className={layout.granted}
+          role="img"
+          aria-label="Granted (fixed)"
+        >
+          <Check size={16} aria-hidden="true" />
+        </span>
+      );
     if (item.state === "unavailable")
-      return <StatusBadge>Not permitted</StatusBadge>;
+      return <span className={layout.prohibited}>Not permitted</span>;
     const value = current(item);
     const changed = value !== savedGrant(item);
     const badge = changed ? (
@@ -222,7 +269,10 @@ export function PermissionSettings() {
             <span className={styles.srOnly}>
               {item.module}: {item.action}.{" "}
             </span>
-            {badge}
+            <span className={styles.srOnly}>
+              {value ? "Granted" : "Not granted"}
+              {changed ? ", unsaved change" : ""}
+            </span>
           </>
         }
       />
@@ -247,35 +297,19 @@ export function PermissionSettings() {
     if (item.reason && !(selected?.name === "Owner" && item.state === "fixed"))
       reasons.set(item.reason, (reasons.get(item.reason) ?? 0) + 1);
   }
-  const employees = selected
-    ? `${formatFullNumber(selected.employeeCount)} ${
-        selected.employeeCount === 1 ? "employee" : "employees"
-      }`
-    : "";
+  const employees =
+    selected &&
+    typeof selected.employeeCount === "number" &&
+    Number.isFinite(selected.employeeCount) &&
+    selected.employeeCount >= 0
+      ? `${formatFullNumber(selected.employeeCount)} ${selected.employeeCount === 1 ? "employee" : "employees"}`
+      : "Employee count unavailable";
   const changed = selected?.lastChangedAt
     ? `Last changed ${formatDubaiTimestamp(selected.lastChangedAt)} by ${selected.lastChangedBy ?? "Unavailable"}`
     : "Not changed since setup";
 
-  return (
-    <div className={`${styles.panel} ${layout.page}`}>
-      <details className={layout.rules}>
-        <summary>
-          <Info size={14} aria-hidden="true" /> Permission rules
-        </summary>
-        <div className={layout.rulesBody}>
-          <p className={styles.support}>
-            These rules are enforced by the server and cannot be changed here.
-          </p>
-          <dl>
-            {config.restrictions.map((item) => (
-              <div key={item.title}>
-                <dt>{item.title}</dt>
-                <dd>{item.description}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </details>
+  return frame(
+    <div className={styles.panel}>
       {!config.canManage ? (
         <InlineNotice tone="info" title="View only">
           Only the Owner can change User Type permissions.
@@ -311,6 +345,11 @@ export function PermissionSettings() {
               </button>
             ))}
           </div>
+          {selected ? (
+            <footer className={layout.typeFooter}>
+              <p title={changed}>{employees}</p>
+            </footer>
+          ) : null}
         </section>
         <div
           className={`${layout.stage} ${selected ? layout.modulesOpen : ""}`}
@@ -341,7 +380,7 @@ export function PermissionSettings() {
                 </div>
               </dl>
               <p className={styles.support}>
-                Listing a module does not grant access.
+                Module visibility does not grant access.
                 {dirty ? " Counts include unsaved changes." : ""}
               </p>
               <div className={layout.choices} aria-label="Modules">
@@ -358,9 +397,6 @@ export function PermissionSettings() {
                   </button>
                 ))}
               </div>
-              <p className={styles.support}>
-                {employees} · {changed}
-              </p>
             </section>
           ) : null}
         </div>
@@ -385,16 +421,17 @@ export function PermissionSettings() {
                   switches.
                 </p>
               )}
-              <div className={layout.scope}>
-                <strong>Record scope</strong>
-                <p>
+              <div className={layout.metadata}>
+                <p className={layout.scope}>
+                  <strong>Record scope:</strong>{" "}
                   {scopes.length
                     ? scopes.join(" · ")
                     : "No permitted actions in this module."}
+                  {scopes.length > 1
+                    ? " Scope is shown beside each applicable action."
+                    : ""}
                 </p>
-                {scopes.length > 1 ? (
-                  <p>Scope is shown beside each applicable action.</p>
-                ) : null}
+                <span className={layout.accessHeading}>Access</span>
               </div>
               <ul className={layout.actions}>
                 {actions.map((item) => (
@@ -490,6 +527,6 @@ export function PermissionSettings() {
           setNotice(null);
         }}
       />
-    </div>
+    </div>,
   );
 }

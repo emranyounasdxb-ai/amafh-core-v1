@@ -9,6 +9,7 @@ import {
 import { useSession } from "../../../app/session/useSession";
 import { FinancialRulesPanel } from "../../finance/live/RulesView";
 import { AuditLog } from "../AuditLog";
+import { PermissionSettings } from "./PermissionSettings";
 import { SettingsSectionContent } from "./settingsSections";
 import { authorizedSettings, type SettingsSection } from "./settingsRegistry";
 import styles from "./SettingsPage.module.css";
@@ -41,6 +42,13 @@ export function SettingsPage({
             description="This setting is unavailable or outside your authorized access."
           />
         </div>
+      </PageContainer>
+    );
+
+  if (requested?.id === "designations")
+    return (
+      <PageContainer>
+        <PermissionSettings onBack={only ? undefined : () => open()} />
       </PageContainer>
     );
 
