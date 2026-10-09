@@ -70,6 +70,7 @@ import {
   type EmployeeListRecord,
 } from "./employeePresentation";
 import styles from "./EmployeesPage.module.css";
+import { EmployeeImportDialog } from "./EmployeeImportDialog";
 import { ResponsiveFilterPanel } from "../../../shared/filters/ResponsiveFilterPanel";
 
 type Department = NamedRecord & { branch_id?: string };
@@ -175,6 +176,7 @@ export function EmployeesPage({ open }: { open: (id: string) => void }) {
   }, [employeeId, filters, page, pageSize, search, sort]);
   const [refresh, setRefresh] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [command, setCommand] = useState<{
     kind: EmployeeCommandKind;
     id: string;
@@ -468,6 +470,7 @@ export function EmployeesPage({ open }: { open: (id: string) => void }) {
       ? commandDetail.data
       : undefined;
   const saved = (message: string) => {
+    setImporting(false);
     setCommand(null);
     setCreating(false);
     setNotice(message);
@@ -512,6 +515,15 @@ export function EmployeesPage({ open }: { open: (id: string) => void }) {
                   disabled={!selection.selectedCount}
                   onClick={() => void selection.exportCsv()}
                 />
+              ) : null}
+              {mayWrite ? (
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  onClick={() => setImporting(true)}
+                >
+                  Import Employees
+                </Button>
               ) : null}
               {mayWrite ? (
                 <Button size="compact" onClick={() => setCreating(true)}>
@@ -726,6 +738,12 @@ export function EmployeesPage({ open }: { open: (id: string) => void }) {
         )}
       </div>
 
+      {importing ? (
+        <EmployeeImportDialog
+          onClose={() => setImporting(false)}
+          onSaved={saved}
+        />
+      ) : null}
       {creating ? (
         <CommandFormDialog
           command={createEmployeeCommand(session.designation === "Owner")}

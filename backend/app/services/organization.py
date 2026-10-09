@@ -113,7 +113,10 @@ async def create_master(session: AsyncSession, actor: Actor, table, values: dict
     }
 
 
-async def create_employee(session: AsyncSession, actor: Actor, item: EmployeeCreate) -> dict:
+async def validate_employee_creation(
+    session: AsyncSession, actor: Actor, item: EmployeeCreate, employee_id: UUID
+) -> None:
+    """Shared individual/bulk rules; does not allocate codes or write records."""
     require(actor, "employee.write")
     if item.gender not in {"Male", "Female"} or item.maritalStatus not in {"Single", "Married"}:
         raise ApiError(422, "INVALID_EMPLOYEE", "Invalid employee option")
@@ -128,7 +131,6 @@ async def create_employee(session: AsyncSession, actor: Actor, item: EmployeeCre
     require_owner_for_privileged_account(actor, designation)
     if designation == "Owner":
         raise ApiError(403, "FORBIDDEN", "Owner enrollment requires the local command")
-    employee_id = uuid4()
     await validate_manager(
         session,
         employee_id,
@@ -137,6 +139,13 @@ async def create_employee(session: AsyncSession, actor: Actor, item: EmployeeCre
         item.departmentId,
         item.designationId,
     )
+
+
+async def create_employee(
+    session: AsyncSession, actor: Actor, item: EmployeeCreate, *, commit: bool = True
+) -> dict:
+    employee_id = uuid4()
+    await validate_employee_creation(session, actor, item, employee_id)
     values = dict(
         id=employee_id,
         system_employee_code=await new_system_employee_code(session),
@@ -177,7 +186,8 @@ async def create_employee(session: AsyncSession, actor: Actor, item: EmployeeCre
             entity_id=employee_id,
             after={"status": "Pending Setup", "designationId": str(item.designationId)},
         )
-        await session.commit()
+        if commit:
+            await session.commit()
     except Exception:
         await session.rollback()
         raise

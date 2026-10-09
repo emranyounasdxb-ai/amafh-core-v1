@@ -10,7 +10,8 @@ MULTIPART_OVERHEAD_BYTES = 65_536
 MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES
 UPLOAD_PATH = re.compile(
     r"/api/v1/(?:attendance/imports|case-imports/bank-stage(?:/validations)?|"
-    r"branding/profile-banner|employees/[^/]+/(?:media/[^/]+|documents)|"
+    r"branding/profile-banner|employees/import/(?:validate|confirm)|"
+    r"employees/[^/]+/(?:media/[^/]+|documents)|"
     r"employee-documents/[^/]+/versions|catalog/[^/]+/[^/]+/image)/?\Z"
 )
 

@@ -2,7 +2,8 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Header, Query, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import case, func, select
 
 from app.api.dependencies import ActorDep, CsrfActor, Db
@@ -34,10 +35,11 @@ from app.schemas.organization import (
     TeamMemberChange,
     UserCreate,
 )
-from app.services import account_access, employee_profile, organization_hierarchy
+from app.services import account_access, employee_csv, employee_profile, organization_hierarchy
 from app.services import organization as service
 from app.services import teams as team_service
 from app.services.auth import lock_active
+from app.services.case_csv import read_upload
 
 router = APIRouter(tags=["organization"])
 
@@ -288,6 +290,41 @@ async def get_employee_label(employee_id: UUID, actor: ActorDep, db: Db):
     if row is None:
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
     return _label(row)
+
+
+@router.get("/employees/import/template")
+async def employee_import_template(actor: ActorDep):
+    require(actor, "employee.write")
+    return Response(
+        employee_csv.template(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="employee-template.csv"'},
+    )
+
+
+@router.get("/employees/import/references")
+async def employee_import_references(actor: ActorDep, db: Db):
+    return await employee_csv.reference_data(db, actor)
+
+
+@router.post("/employees/import/validate")
+async def validate_employee_import(actor: CsrfActor, db: Db, file: UploadFile):
+    require(actor, "employee.write")
+    content, _, _ = await read_upload(file)
+    result, _ = await employee_csv.validate(db, actor, content)
+    return result
+
+
+@router.post("/employees/import/confirm", status_code=201)
+async def confirm_employee_import(
+    actor: CsrfActor,
+    db: Db,
+    file: UploadFile,
+    idempotency_key: str = Header(alias="Idempotency-Key"),
+):
+    require(actor, "employee.write")
+    content, digest, _ = await read_upload(file)
+    return await employee_csv.apply(db, actor, content, digest, idempotency_key)
 
 
 @router.get("/employees/{employee_id}")

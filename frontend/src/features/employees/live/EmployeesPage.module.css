@@ -50,3 +50,25 @@
   min-width: 0;
   max-width: 100%;
 }
+
+.importBody {
+  display: grid;
+  gap: var(--ds-space-12);
+  min-width: 0;
+}
+
+.importTable {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.importReferences,
+.importErrors {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.importErrors {
+  margin: 0;
+  padding-inline-start: 16px;
+}
