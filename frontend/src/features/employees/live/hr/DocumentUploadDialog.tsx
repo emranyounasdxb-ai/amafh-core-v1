@@ -5,6 +5,7 @@ import {
   DatePicker,
   Dialog,
   DropdownSelect,
+  EmiratesIdInput,
   FileUpload,
   FormField,
   FormLayout,
@@ -233,13 +234,22 @@ export function DocumentUploadDialog({
             required={required(type.numberMode)}
             error={errors.documentNumber}
           >
-            <TextInput
-              id="employee-document-number"
-              maxLength={100}
-              value={values.documentNumber}
-              onChange={(event) => set("documentNumber", event.target.value)}
-              invalid={Boolean(errors.documentNumber)}
-            />
+            {type.code === "emirates_id" ? (
+              <EmiratesIdInput
+                id="employee-document-number"
+                value={values.documentNumber}
+                onValueChange={(value) => set("documentNumber", value)}
+                invalid={Boolean(errors.documentNumber)}
+              />
+            ) : (
+              <TextInput
+                id="employee-document-number"
+                maxLength={100}
+                value={values.documentNumber}
+                onChange={(event) => set("documentNumber", event.target.value)}
+                invalid={Boolean(errors.documentNumber)}
+              />
+            )}
           </FormField>
         ) : null}
         {type && shown(type.issueDateMode) ? (

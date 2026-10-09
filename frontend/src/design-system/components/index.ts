@@ -272,6 +272,7 @@ export { Tabs } from "./Tabs";
 export type { TabItem } from "./Tabs";
 export { TextArea } from "./TextArea";
 export { TextInput } from "./TextInput";
+export { EmiratesIdInput } from "./EmiratesIdInput";
 export { Timeline } from "./Timeline";
 export type { TimelineItem } from "./Timeline";
 export { ToastProvider, useToast } from "./Toast";

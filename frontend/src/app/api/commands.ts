@@ -46,7 +46,7 @@ export type Field = {
   choiceContext?: { key: string; from: string };
   clearOnChange?: string[];
   section?: string;
-  control?: "nationality";
+  control?: "nationality" | "emiratesId";
   hint?: string;
   /** Explicitly clear an optional nullable field instead of omitting it. */
   emptyAsNull?: boolean;

@@ -4,6 +4,7 @@ import {
   Checkbox,
   Dialog,
   DropdownSelect,
+  EmiratesIdInput,
   FormField,
   FormSection,
   InfoField,
@@ -655,13 +656,11 @@ export function CaseCreateForm({
                           fieldError === "emiratesId" ? fieldMessage : undefined
                         }
                       >
-                        <TextInput
+                        <EmiratesIdInput
                           id="case-create-eid"
                           compact
                           value={form.emiratesId}
-                          onChange={(event) =>
-                            patch({ emiratesId: event.target.value })
-                          }
+                          onValueChange={(value) => patch({ emiratesId: value })}
                           invalid={fieldError === "emiratesId"}
                         />
                       </FormField>

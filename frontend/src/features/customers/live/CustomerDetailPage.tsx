@@ -6,6 +6,7 @@ import {
   Dialog,
   EmptyState,
   EmptyValue,
+  EmiratesIdInput,
   MonetaryAmount,
   ErrorState,
   FormField,
@@ -385,11 +386,11 @@ export function CustomerDetailPage({
           {individual ? (
             <>
               <FormField label="Emirates ID" htmlFor="customer-eid">
-                <TextInput
+                <EmiratesIdInput
                   id="customer-eid"
                   compact
                   value={emiratesId}
-                  onChange={(event) => setEmiratesId(event.target.value)}
+                  onValueChange={setEmiratesId}
                 />
               </FormField>
               <FormField label="Passport Number" htmlFor="customer-passport">

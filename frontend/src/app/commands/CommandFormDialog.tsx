@@ -14,6 +14,7 @@ import {
   DateTimePicker,
   Dialog,
   DropdownSelect,
+  EmiratesIdInput,
   FormField,
   FormLayout,
   FormSection,
@@ -725,6 +726,25 @@ export function CommandFormDialog({
 
   function renderField(field: Field) {
     const invalid = fields[field.key]?.join(" ");
+    if (field.control === "emiratesId") {
+      return (
+        <FormField
+          key={field.key}
+          label={field.label}
+          htmlFor={field.key}
+          required={field.required}
+          error={invalid}
+        >
+          <EmiratesIdInput
+            id={field.key}
+            required={field.required}
+            value={String(values[field.key] ?? "")}
+            onValueChange={(value) => change(field.key, value)}
+            invalid={Boolean(invalid)}
+          />
+        </FormField>
+      );
+    }
     if (field.control === "nationality") {
       return (
         <FormField

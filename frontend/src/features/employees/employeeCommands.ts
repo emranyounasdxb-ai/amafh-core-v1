@@ -86,6 +86,7 @@ export const profileFields: Field[] = [
   {
     key: "emiratesIdNumber",
     label: "Emirates ID",
+    control: "emiratesId",
     section: "Identity documents",
   },
 ];
