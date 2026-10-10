@@ -36,6 +36,7 @@ export function EmployeeAccessSection({
   employeeStatus,
   employeeDesignation,
   account,
+  embedded = false,
   onChanged,
 }: {
   employeeId: string;
@@ -44,6 +45,7 @@ export function EmployeeAccessSection({
   employeeStatus: string;
   employeeDesignation: string | null;
   account: EmployeeAccountState | null | undefined;
+  embedded?: boolean;
   onChanged: () => void;
 }) {
   const { api, session } = useSession();
@@ -206,8 +208,8 @@ export function EmployeeAccessSection({
     enable: "Enable access",
   };
 
-  return (
-    <SectionCard compact title="System access">
+  const content = (
+    <>
       <Stack>
         <InfoGrid>
           <InfoField
@@ -304,6 +306,16 @@ export function EmployeeAccessSection({
           ) : null}
         </Stack>
       </DestructiveConfirmationDialog>
+    </>
+  );
+  return embedded ? (
+    <section aria-label="System access">
+      <h3>System access</h3>
+      {content}
+    </section>
+  ) : (
+    <SectionCard compact title="System access">
+      {content}
     </SectionCard>
   );
 }

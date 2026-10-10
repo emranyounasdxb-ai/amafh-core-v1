@@ -20,3 +20,39 @@
   gap: var(--ds-space-8);
   min-width: 0;
 }
+
+.sectionStack {
+  gap: var(--ds-space-8);
+}
+
+.empty {
+  margin: 0;
+  color: var(--ds-text-muted);
+  font-size: var(--ds-body-size);
+  line-height: var(--ds-body-line);
+  font-weight: 400;
+}
+
+.warningDetails {
+  margin-top: var(--ds-space-4);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.warningDetails summary {
+  width: fit-content;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.warningDetails summary:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
+.warningList {
+  display: grid;
+  gap: var(--ds-space-4);
+  margin: var(--ds-space-4) 0 0;
+  padding-inline-start: var(--ds-space-20);
+}

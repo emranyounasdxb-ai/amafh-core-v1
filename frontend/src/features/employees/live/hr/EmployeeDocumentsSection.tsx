@@ -5,7 +5,6 @@ import {
   CompactDateTime,
   DataTable,
   Dialog,
-  EmptyState,
   EmptyValue,
   ErrorState,
   InfoField,
@@ -286,7 +285,7 @@ export function EmployeeDocumentsSection({
         ) : undefined
       }
     >
-      <div className={styles.stack}>
+      <div className={`${styles.stack} ${styles.sectionStack}`}>
         {notice ? (
           <InlineNotice tone="success" title="Saved">
             {notice}
@@ -321,9 +320,19 @@ export function EmployeeDocumentsSection({
               </InfoGrid>
             ) : null}
             {missing.length ? (
-              <InlineNotice tone="warning" title="Required documents missing">
-                {missing.map((item) => item.typeName).join(", ")}. Missing
-                documents do not block activation.
+              <InlineNotice
+                tone="warning"
+                title={`Required documents missing (${missing.length})`}
+              >
+                Missing documents do not block activation.
+                <details className={styles.warningDetails}>
+                  <summary>View details</summary>
+                  <ul className={styles.warningList}>
+                    {missing.map((item) => (
+                      <li key={item.typeId}>{item.typeName}</li>
+                    ))}
+                  </ul>
+                </details>
               </InlineNotice>
             ) : null}
             {data.documents.length ? (
@@ -336,10 +345,9 @@ export function EmployeeDocumentsSection({
                 rowKey={(row) => row.seriesId}
               />
             ) : (
-              <EmptyState
-                title="No documents"
-                description="No documents have been uploaded for this employee."
-              />
+              <p className={styles.empty}>
+                No documents have been uploaded for this employee.
+              </p>
             )}
           </>
         ) : null}

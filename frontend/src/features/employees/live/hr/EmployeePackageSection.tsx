@@ -4,7 +4,6 @@ import {
   CompactDate,
   CompactDateTime,
   DataTable,
-  EmptyState,
   EmptyValue,
   ErrorState,
   InfoField,
@@ -238,10 +237,9 @@ export function EmployeePackageSection({
       ) : resource.error && !data ? (
         <ErrorState description={resource.error} retry={resource.reload} />
       ) : !rows.length ? (
-        <EmptyState
-          title="No package recorded"
-          description="No salary package version has been recorded for this employee."
-        />
+        <p className={styles.empty}>
+          No salary package has been recorded for this employee.
+        </p>
       ) : (
         <>
           {current ? (

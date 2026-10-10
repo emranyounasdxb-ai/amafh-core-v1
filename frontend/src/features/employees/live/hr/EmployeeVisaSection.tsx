@@ -4,7 +4,6 @@ import {
   CompactDate,
   CompactDateTime,
   DataTable,
-  EmptyState,
   EmptyValue,
   ErrorState,
   InfoField,
@@ -394,7 +393,7 @@ export function EmployeeVisaSection({
         ) : undefined
       }
     >
-      <div className={styles.stack}>
+      <div className={`${styles.stack} ${styles.sectionStack}`}>
         {notice ? (
           <InlineNotice tone="success" title="Saved">
             {notice}
@@ -529,10 +528,9 @@ export function EmployeeVisaSection({
             {timeline.length ? <Timeline compact items={timeline} /> : null}
           </>
         ) : (
-          <EmptyState
-            title="No current visa record"
-            description="No current visa or work permit record exists for this employee."
-          />
+          <p className={styles.empty}>
+            No current visa or work permit record exists for this employee.
+          </p>
         )}
         {data?.history.length ? (
           <DataTable

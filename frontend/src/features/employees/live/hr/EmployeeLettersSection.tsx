@@ -1,10 +1,9 @@
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import {
   Button,
   CompactDateTime,
   ConfirmationDialog,
   DataTable,
-  EmptyState,
   EmptyValue,
   ErrorState,
   InfoField,
@@ -330,7 +329,7 @@ export function EmployeeLettersSection({
         ) : undefined
       }
     >
-      <div className={styles.stack}>
+      <div className={`${styles.stack} ${styles.sectionStack}`}>
         {notice ? (
           <InlineNotice tone="success" title="Saved">
             {notice}
@@ -348,13 +347,22 @@ export function EmployeeLettersSection({
         ) : data ? (
           <>
             {blocked.length ? (
-              <InlineNotice tone="warning" title="Official issuance blocked">
-                {blocked.map((kind, index) => (
-                  <Fragment key={kind.documentType}>
-                    {index ? <br /> : null}
-                    {kind.label}: {kind.issuanceBlockers.join("; ")}
-                  </Fragment>
-                ))}
+              <InlineNotice
+                tone="warning"
+                title={`Official issuance blocked (${blocked.length} document types)`}
+              >
+                Resolve the existing restrictions before issuing these
+                documents.
+                <details className={styles.warningDetails}>
+                  <summary>View details</summary>
+                  <ul className={styles.warningList}>
+                    {blocked.map((kind) => (
+                      <li key={kind.documentType}>
+                        {kind.label}: {kind.issuanceBlockers.join("; ")}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               </InlineNotice>
             ) : null}
             {!eligible.length ? (
@@ -373,10 +381,9 @@ export function EmployeeLettersSection({
                 rowKey={(item) => item.id}
               />
             ) : (
-              <EmptyState
-                title="No letters or certificates"
-                description="No letter or certificate has been prepared for this employee."
-              />
+              <p className={styles.empty}>
+                No letter or certificate has been prepared for this employee.
+              </p>
             )}
           </>
         ) : null}
