@@ -37,6 +37,7 @@ export type AccountAccessStatus = "Not Provisioned" | "Active" | "Disabled";
 
 export type EmployeeAccountState = {
   id: string;
+  loginEmail?: string | null;
   accessStatus: AccountAccessStatus | string;
   locked: boolean;
 };

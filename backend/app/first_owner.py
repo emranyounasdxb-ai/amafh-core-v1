@@ -38,7 +38,7 @@ async def run() -> None:
             companyEmployeeCode=input("Company Employee Code: "),
             fullName=input("Full Name: "),
             mobile=input("Mobile: "),
-            personalEmail=input("Email (used to sign in): "),
+            personalEmail=input("Personal email: "),
             nationality=input("Nationality ISO alpha-2: "),
             gender=input("Gender (Male/Female): "),
             maritalStatus=input("Marital Status (Single/Married): "),
@@ -47,9 +47,12 @@ async def run() -> None:
             emiratesIdNumber=input("Emirates ID Number (blank if absent): ") or None,
             designationId=owner_id,
         )
-        _, code, link = await enroll(session, item)
+        email = input("Official/Login email (used to sign in): ")
+        _, code, link = await enroll(session, item, email)
     print(f"System Employee Code: {code}")
-    print(f"Sign-in email: {str(item.personalEmail).lower()}")
+    from app.services.login_email import validate
+
+    print(f"Sign-in email: {validate(email)}")
     print(f"One-time setup link (expires in 24 hours): {link}")
 
 

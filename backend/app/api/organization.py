@@ -30,6 +30,7 @@ from app.schemas.organization import (
     DepartmentCreate,
     EmployeeCreate,
     EmployeeProfileUpdate,
+    LoginEmailUpdate,
     NamedCreate,
     TeamCreate,
     TeamMemberChange,
@@ -379,6 +380,7 @@ async def get_employee(employee_id: UUID, actor: ActorDep, db: Db):
                         user_accounts.c.id,
                         user_accounts.c.access_status,
                         user_accounts.c.locked_at,
+                        user_accounts.c.login_email,
                     ).where(user_accounts.c.employee_id == employee_id)
                 )
             )
@@ -390,6 +392,7 @@ async def get_employee(employee_id: UUID, actor: ActorDep, db: Db):
                 "id": str(account["id"]),
                 "accessStatus": account["access_status"],
                 "locked": lock_active(account["locked_at"], utcnow()),
+                "loginEmail": account["login_email"],
             }
             if account
             else None
@@ -473,6 +476,7 @@ async def list_users(
             user_accounts.c.employee_id,
             user_accounts.c.access_status,
             user_accounts.c.locked_at,
+            user_accounts.c.login_email,
         )
         .order_by(user_accounts.c.id)
         .offset((page - 1) * pageSize)
@@ -484,6 +488,7 @@ async def list_users(
             "employeeId": str(row["employee_id"]),
             "accessStatus": row["access_status"],
             "locked": lock_active(row["locked_at"], utcnow()),
+            "loginEmail": row["login_email"],
         }
         for row in result.mappings()
     ]
@@ -501,6 +506,7 @@ async def get_user(account_id: UUID, actor: ActorDep, db: Db):
                     user_accounts.c.employee_id,
                     user_accounts.c.access_status,
                     user_accounts.c.locked_at,
+                    user_accounts.c.login_email,
                 ).where(user_accounts.c.id == account_id)
             )
         )
@@ -514,12 +520,21 @@ async def get_user(account_id: UUID, actor: ActorDep, db: Db):
         "employeeId": str(row["employee_id"]),
         "accessStatus": row["access_status"],
         "locked": lock_active(row["locked_at"], utcnow()),
+        "loginEmail": row["login_email"],
     }
 
 
 @router.post("/users", status_code=201)
 async def provision_user(item: UserCreate, actor: CsrfActor, db: Db):
-    return {"id": str(await account_access.provision_account(db, actor, item.employeeId))}
+    account_id, link = await account_access.provision_account(
+        db, actor, item.employeeId, item.loginEmail
+    )
+    return {"id": str(account_id), "link": link}
+
+
+@router.patch("/users/{account_id}/login-email", status_code=204)
+async def configure_login_email(account_id: UUID, item: LoginEmailUpdate, actor: CsrfActor, db: Db):
+    await account_access.configure_login_email(db, actor, account_id, item.loginEmail)
 
 
 @router.post("/users/{account_id}/disable", status_code=204)

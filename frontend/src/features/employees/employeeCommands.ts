@@ -143,7 +143,7 @@ export function assignmentCommand(
 
 export function profileCommand(
   employeeId: string,
-  canChangeLoginEmail = true,
+  canChangePersonalEmail = true,
 ): Command {
   return {
     title: "Edit profile",
@@ -151,7 +151,7 @@ export function profileCommand(
     method: "PATCH",
     submitLabel: "Save profile",
     imageUpload: { kind: "employee", label: "Profile photo" },
-    fields: canChangeLoginEmail
+    fields: canChangePersonalEmail
       ? profileFields
       : profileFields.filter((field) => field.key !== "personalEmail"),
   };

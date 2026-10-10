@@ -96,23 +96,23 @@ export function SignIn() {
                 title={heading}
                 subtitle={
                   completed
-                    ? "Password saved. Sign in with your work email and new password."
+                    ? "Password saved. Sign in with your Official/Login email and new password."
                     : notice ||
                       (kind
                         ? "Use 12–128 characters with uppercase, lowercase, a number and a special character."
-                        : "Enter your work email and password to continue.")
+                        : "Enter your Official/Login email and password to continue.")
                 }
               />
               <form onSubmit={submit} className={styles.form}>
                 {(!kind || completed) && (
-                  <FormField label="Email address" htmlFor={emailId}>
+                  <FormField label="Official/Login email" htmlFor={emailId}>
                     <TextInput
                       id={emailId}
                       type="email"
                       autoComplete="username"
                       autoCapitalize="none"
                       spellCheck={false}
-                      placeholder="Enter your work email"
+                      placeholder="Enter your Official/Login email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}

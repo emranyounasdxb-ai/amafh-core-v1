@@ -335,6 +335,7 @@ user_accounts = Table(
         unique=True,
     ),
     Column("access_status", String(20), nullable=False, server_default="Not Provisioned"),
+    Column("login_email", String(254)),
     Column("password_hash", Text),
     Column("failed_attempts", Integer, nullable=False, server_default="0"),
     Column("locked_at", DateTime(timezone=True)),
@@ -342,6 +343,17 @@ user_accounts = Table(
     updated_at(),
     CheckConstraint("access_status IN ('Not Provisioned','Active','Disabled')"),
     CheckConstraint("failed_attempts >= 0"),
+    CheckConstraint(
+        "login_email IS NULL OR (login_email = lower(btrim(login_email)) "
+        "AND login_email ~ '^[^@[:space:]]+@[^@[:space:]]+$')",
+        name="ck_user_login_email_normalized",
+    ),
+    Index(
+        "uq_user_login_email_enabled",
+        "login_email",
+        unique=True,
+        postgresql_where=text("access_status <> 'Disabled' AND login_email IS NOT NULL"),
+    ),
 )
 password_tokens = Table(
     "password_tokens",

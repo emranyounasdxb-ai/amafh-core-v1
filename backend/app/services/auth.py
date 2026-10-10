@@ -264,7 +264,9 @@ async def logout(session: AsyncSession, actor: Actor) -> None:
     await session.commit()
 
 
-async def generate_link(session: AsyncSession, actor: Actor, employee_id: UUID, kind: str) -> str:
+async def generate_link(
+    session: AsyncSession, actor: Actor, employee_id: UUID, kind: str, *, commit: bool = True
+) -> str:
     if kind == "setup":
         require(actor, "password.setup")
     elif kind == "reset":
@@ -295,6 +297,13 @@ async def generate_link(session: AsyncSession, actor: Actor, employee_id: UUID, 
     ):
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
     require_owner_for_privileged_account(actor, account["target_designation"])
+    if not account["login_email"]:
+        raise ApiError(
+            422,
+            "LOGIN_EMAIL_REQUIRED",
+            "Configure Official/Login email first",
+            {"loginEmail": ["Official/Login email is required."]},
+        )
     if kind == "reset" and lock_active(account["locked_at"], utcnow()):
         require(actor, "password.locked_reset")
     if kind == "setup" and account["access_status"] != "Not Provisioned":
@@ -332,7 +341,8 @@ async def generate_link(session: AsyncSession, actor: Actor, employee_id: UUID, 
         entity_type="user_account",
         entity_id=account["id"],
     )
-    await session.commit()
+    if commit:
+        await session.commit()
     return f"{str(settings().public_origin).rstrip('/')}/{kind}-password?token={raw}"
 
 
@@ -371,6 +381,7 @@ async def complete_link(session: AsyncSession, raw_token: str, password: str, ki
         raise ApiError(400, "INVALID_LINK", "Link invalid or expired")
     if (
         not account
+        or not account["login_email"]
         or account["status"] == "Offboarded"
         or account["access_status"] == "Disabled"
         or not _valid_account_scope(

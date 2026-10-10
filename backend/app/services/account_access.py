@@ -18,8 +18,11 @@ from app.services.privileged_access import (
 )
 
 
-async def provision_account(session: AsyncSession, actor: Actor, employee_id: UUID) -> UUID:
+async def provision_account(
+    session: AsyncSession, actor: Actor, employee_id: UUID, email: str
+) -> tuple[UUID, str]:
     require(actor, "access.write")
+    email = login_email.validate(email)
     row = (
         (
             await session.execute(
@@ -39,11 +42,14 @@ async def provision_account(session: AsyncSession, actor: Actor, employee_id: UU
         select(user_accounts.c.id).where(user_accounts.c.employee_id == employee_id)
     ):
         raise ApiError(409, "CONFLICT", "Account already exists")
-    await login_email.guard_unique(session, row["personal_email"], employee_id)
+    await login_email.guard_unique(session, email, employee_id)
     account_id = uuid4()
     await session.execute(
         user_accounts.insert().values(
-            id=account_id, employee_id=employee_id, access_status="Not Provisioned"
+            id=account_id,
+            employee_id=employee_id,
+            access_status="Not Provisioned",
+            login_email=email,
         )
     )
     await audit.record(
@@ -54,8 +60,15 @@ async def provision_account(session: AsyncSession, actor: Actor, employee_id: UU
         entity_type="user_account",
         entity_id=account_id,
     )
-    await session.commit()
-    return account_id
+    from app.services.auth import generate_link
+
+    try:
+        link = await generate_link(session, actor, employee_id, "setup", commit=False)
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    return account_id, link
 
 
 async def disable_account(session: AsyncSession, actor: Actor, account_id: UUID) -> None:
@@ -124,7 +137,7 @@ async def enable_account(session: AsyncSession, actor: Actor, account_id: UUID) 
                     employees.c.status,
                     employees.c.branch_id,
                     employees.c.department_id,
-                    employees.c.personal_email,
+                    user_accounts.c.login_email,
                     designations.c.name.label("designation"),
                 )
                 .join(employees, user_accounts.c.employee_id == employees.c.id)
@@ -143,7 +156,14 @@ async def enable_account(session: AsyncSession, actor: Actor, account_id: UUID) 
         raise ApiError(422, "INCOMPLETE_EMPLOYEE", "Employee is not eligible for access")
     if row["access_status"] != "Disabled":
         raise ApiError(409, "CONFLICT", "Account is not disabled")
-    await login_email.guard_unique(session, row["personal_email"], row["employee_id"])
+    if not row["login_email"]:
+        raise ApiError(
+            422,
+            "LOGIN_EMAIL_REQUIRED",
+            "Configure Official/Login email first",
+            {"loginEmail": ["Official/Login email is required."]},
+        )
+    await login_email.guard_unique(session, row["login_email"], row["employee_id"])
     await session.execute(
         update(user_accounts)
         .where(user_accounts.c.id == account_id)
@@ -165,3 +185,68 @@ async def enable_account(session: AsyncSession, actor: Actor, account_id: UUID) 
         after={"accessStatus": "Not Provisioned"},
     )
     await session.commit()
+
+
+async def configure_login_email(
+    session: AsyncSession, actor: Actor, account_id: UUID, email: str
+) -> None:
+    require(actor, "access.write")
+    email = login_email.validate(email)
+    await lock_account_employee(session, account_id)
+    row = (
+        (
+            await session.execute(
+                select(user_accounts, designations.c.name.label("designation"))
+                .join(employees, user_accounts.c.employee_id == employees.c.id)
+                .join(designations, employees.c.designation_id == designations.c.id)
+                .where(user_accounts.c.id == account_id)
+                .with_for_update(of=user_accounts)
+            )
+        )
+        .mappings()
+        .first()
+    )
+    if not row:
+        raise ApiError(404, "NOT_FOUND", "Record unavailable")
+    require_owner_for_privileged_account(actor, row["designation"])
+    await save_login_email(session, row, email, actor.employee_id)
+    await session.commit()
+
+
+async def save_login_email(session: AsyncSession, account, email: str, actor_id: UUID | None):
+    """Shared by authorized API and explicit host transition; never changes access state."""
+    email = login_email.validate(email)
+    if account["login_email"] == email:
+        return
+    if account["access_status"] != "Disabled":
+        await login_email.guard_unique(session, email, account["employee_id"])
+    from app.db.organization import password_tokens, sessions
+
+    now = utcnow()
+    await session.execute(
+        update(user_accounts).where(user_accounts.c.id == account["id"]).values(login_email=email)
+    )
+    await session.execute(
+        update(sessions)
+        .where(sessions.c.account_id == account["id"], sessions.c.invalidated_at.is_(None))
+        .values(invalidated_at=now)
+    )
+    await session.execute(
+        update(password_tokens)
+        .where(
+            password_tokens.c.account_id == account["id"],
+            password_tokens.c.used_at.is_(None),
+            password_tokens.c.invalidated_at.is_(None),
+        )
+        .values(invalidated_at=now)
+    )
+    await audit.record(
+        session,
+        actor=actor_id,
+        action="user.login_email_changed",
+        module="users",
+        entity_type="user_account",
+        entity_id=account["id"],
+        before={"loginEmail": account["login_email"]},
+        after={"loginEmail": email},
+    )

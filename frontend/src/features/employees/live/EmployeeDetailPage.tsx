@@ -357,6 +357,7 @@ export function EmployeeDetailPage({
     <EmployeeAccessSection
       employeeId={employee.id}
       employeeName={name}
+      personalEmail={employee.personalEmail}
       employeeCode={code}
       employeeStatus={employee.status}
       employeeDesignation={employee.designation}

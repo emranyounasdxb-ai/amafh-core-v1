@@ -9,8 +9,8 @@ from app.db.organization import designations, employees, user_accounts
 
 
 def stored_email():
-    """Also matches rows saved before emails were trimmed and lowercased on write."""
-    return func.lower(func.btrim(employees.c.personal_email))
+    """Only the explicitly configured, account-owned login identifier."""
+    return func.lower(func.btrim(user_accounts.c.login_email))
 
 
 def account_query():
@@ -36,7 +36,7 @@ def account_query():
 
 
 async def by_email(session: AsyncSession, email: str):
-    """Every account whose employee email matches; the caller must reject ambiguity."""
+    """Every matching account; the caller must reject ambiguity."""
     result = await session.execute(
         account_query().where(stored_email() == email).order_by(user_accounts.c.id)
     )

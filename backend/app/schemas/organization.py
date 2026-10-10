@@ -133,3 +133,22 @@ class TeamLeaderReassignment(BaseModel):
 
 class UserCreate(BaseModel):
     employeeId: UUID
+    loginEmail: str = Field(min_length=1, max_length=254)
+
+    @field_validator("loginEmail")
+    @classmethod
+    def valid_login_email(cls, value: str) -> str:
+        from app.services.login_email import validate
+
+        return validate(value)
+
+
+class LoginEmailUpdate(BaseModel):
+    loginEmail: str = Field(min_length=1, max_length=254)
+
+    @field_validator("loginEmail")
+    @classmethod
+    def valid_login_email(cls, value: str) -> str:
+        from app.services.login_email import validate
+
+        return validate(value)

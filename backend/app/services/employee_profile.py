@@ -6,11 +6,10 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
-from app.db.organization import designations, employees, user_accounts
+from app.db.organization import designations, employees
 from app.errors import ApiError
 from app.policies import Actor, require
 from app.schemas.organization import EmployeeProfileUpdate
-from app.services import login_email
 from app.services.privileged_access import require_owner_for_privileged_account
 
 FIELD_MAP = {
@@ -58,13 +57,6 @@ async def update_profile(
             select(designations.c.name).where(designations.c.id == row["designation_id"])
         )
         require_owner_for_privileged_account(actor, target_role)
-    if "personal_email" in values and await session.scalar(
-        select(user_accounts.c.id).where(
-            user_accounts.c.employee_id == employee_id,
-            user_accounts.c.access_status != "Disabled",
-        )
-    ):
-        await login_email.guard_unique(session, values["personal_email"], employee_id)
     before = {field: row[FIELD_MAP[field]] for field in sorted(fields)}
     after = {field: values[FIELD_MAP[field]] for field in sorted(fields)}
     await session.execute(update(employees).where(employees.c.id == employee_id).values(**values))

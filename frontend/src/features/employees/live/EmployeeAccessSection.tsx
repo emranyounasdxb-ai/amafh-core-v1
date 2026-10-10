@@ -3,6 +3,7 @@ import {
   Button,
   CopyButton,
   DestructiveConfirmationDialog,
+  Dialog,
   EmptyValue,
   FormField,
   InfoField,
@@ -20,7 +21,7 @@ import { useSession } from "../../../app/session/useSession";
 import type { EmployeeAccountState } from "./employeePresentation";
 
 type AccessAction =
-  "code" | "provision" | "setup" | "reset" | "disable" | "enable";
+  "code" | "provision" | "email" | "setup" | "reset" | "disable" | "enable";
 
 const STATE_LABELS: Record<string, { label: string; tone: StatusTone }> = {
   none: { label: "Not provisioned", tone: "neutral" },
@@ -32,6 +33,7 @@ const STATE_LABELS: Record<string, { label: string; tone: StatusTone }> = {
 export function EmployeeAccessSection({
   employeeId,
   employeeName,
+  personalEmail,
   employeeCode,
   employeeStatus,
   employeeDesignation,
@@ -41,6 +43,7 @@ export function EmployeeAccessSection({
 }: {
   employeeId: string;
   employeeName: string;
+  personalEmail: string | null;
   employeeCode: string;
   employeeStatus: string;
   employeeDesignation: string | null;
@@ -56,6 +59,10 @@ export function EmployeeAccessSection({
   const [busy, setBusy] = useState<AccessAction | null>(null);
   const [confirmDisable, setConfirmDisable] = useState(false);
   const [disableError, setDisableError] = useState("");
+  const [emailDialog, setEmailDialog] = useState<"provision" | "email" | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [emailReviewed, setEmailReviewed] = useState(false);
   const designation = session?.designation;
   const manage = designation === "Owner" || designation === "HR";
   const privilegedTarget =
@@ -91,13 +98,6 @@ export function EmployeeAccessSection({
             )
           ).systemEmployeeCode,
         );
-      } else if (action === "provision") {
-        await api.request("/users", {
-          method: "POST",
-          body: JSON.stringify({ employeeId }),
-        });
-        setSuccess("Account action saved by the server.");
-        onChanged();
       } else {
         if (!account) throw new Error("Access has not been provisioned.");
         await api.request(
@@ -111,6 +111,44 @@ export function EmployeeAccessSection({
       setError(
         failure instanceof Error ? failure.message : "Account action failed",
       );
+    } finally {
+      setBusy(null);
+    }
+  };
+  const openEmail = (mode: "provision" | "email") => {
+    setLoginEmail(mode === "email" ? account?.loginEmail ?? "" : "");
+    setEmailError("");
+    setEmailReviewed(false);
+    setEmailDialog(mode);
+  };
+  const saveEmail = async () => {
+    if (busy || !emailDialog) return;
+    setBusy(emailDialog);
+    setEmailError("");
+    setLink("");
+    setSuccess("");
+    try {
+      if (emailDialog === "provision") {
+        const result = await api.request<{ id: string; link: string }>("/users", {
+          method: "POST",
+          body: JSON.stringify({ employeeId, loginEmail: loginEmail.trim() }),
+        });
+        setLink(result.link);
+      } else {
+        if (!account) throw new Error("Account unavailable.");
+        await api.request(`/users/${encodeURIComponent(account.id)}/login-email`, {
+          method: "PATCH",
+          body: JSON.stringify({ loginEmail: loginEmail.trim() }),
+        });
+      }
+      setEmailDialog(null);
+      setSuccess("Official/Login email saved by the server.");
+      onChanged();
+    } catch (failure) {
+      setEmailReviewed(false);
+      setEmailError(failure instanceof ApiFailure
+        ? failure.fieldErrors.loginEmail?.join(" ") || failure.message
+        : "Official/Login email could not be saved. Please retry.");
     } finally {
       setBusy(null);
     }
@@ -156,7 +194,8 @@ export function EmployeeAccessSection({
       variant="secondary"
       loading={busy === key}
       disabled={Boolean(busy)}
-      onClick={() => (key === "disable" ? openDisable() : void run(key))}
+      onClick={() => key === "disable" ? openDisable()
+        : key === "provision" || key === "email" ? openEmail(key) : void run(key)}
     >
       {label}
     </Button>
@@ -199,9 +238,11 @@ export function EmployeeAccessSection({
   }
   if (privilegedTarget && designation !== "Owner" && !actions.length)
     guidance = "Only the Owner can manage this account.";
+  if (account && manageTarget) actions.push("email");
   const labels: Record<AccessAction, string> = {
     code: "Show System Employee Code",
     provision: "Provision access",
+    email: account?.loginEmail ? "Change Login email" : "Configure Login email",
     setup: "Generate setup link",
     reset: "Generate reset link",
     disable: "Disable access",
@@ -212,6 +253,7 @@ export function EmployeeAccessSection({
     <>
       <Stack>
         <InfoGrid>
+          {account ? <InfoField label="Official/Login email" value={account.loginEmail || "Not configured"} /> : null}
           <InfoField
             label="Account status"
             value={
@@ -269,6 +311,48 @@ export function EmployeeAccessSection({
           </InlineNotice>
         ) : null}
       </Stack>
+      <Dialog
+        open={emailDialog !== null}
+        title={emailDialog === "provision" ? "Provision access" : "Configure Official/Login email"}
+        size="md"
+        busy={Boolean(busy)}
+        onClose={() => { if (!busy) setEmailDialog(null); }}
+        footer={<RecordActions>
+          <Button variant="secondary" disabled={Boolean(busy)} onClick={() => setEmailDialog(null)}>Cancel</Button>
+          <Button type="submit" form="employee-login-email" loading={busy === emailDialog}>
+            {emailReviewed ? emailDialog === "provision" ? "Confirm provision access" : "Confirm Login email" : "Review"}
+          </Button>
+        </RecordActions>}
+      >
+        <form id="employee-login-email" onSubmit={(event) => {
+          event.preventDefault();
+          if (emailReviewed) void saveEmail();
+          else { setLoginEmail(loginEmail.trim()); setEmailReviewed(true); }
+        }}>
+          <Stack>
+            <InfoGrid>
+              <InfoField label="Employee" value={employeeName} />
+              <InfoField label="Personal email" value={personalEmail || <EmptyValue />} />
+            </InfoGrid>
+            <FormField label="Official/Login email" htmlFor="employee-login-email-input"
+              required error={emailError || undefined} hint="This email will be used to sign in.">
+              <TextInput id="employee-login-email-input" compact type="email" required maxLength={254}
+                invalid={Boolean(emailError)}
+                aria-describedby={emailError ? "employee-login-email-input-error" : "employee-login-email-input-hint"}
+                value={loginEmail} disabled={Boolean(busy)} readOnly={emailReviewed}
+                onChange={(event) => { setLoginEmail(event.target.value); setEmailError(""); }} />
+            </FormField>
+            {emailReviewed ? <>
+              <InlineNotice tone="info" title="Confirm account identity">
+                {emailDialog === "provision"
+                  ? "This creates application access and a one-use password setup link. Share the link manually."
+                  : "Changing the Login email signs out existing sessions and invalidates outstanding setup/reset links. The password, permissions and account status are preserved. An unchanged email has no effect."}
+              </InlineNotice>
+              <Button variant="secondary" disabled={Boolean(busy)} onClick={() => setEmailReviewed(false)}>Edit email</Button>
+            </> : null}
+          </Stack>
+        </form>
+      </Dialog>
       <DestructiveConfirmationDialog
         open={confirmDisable}
         title="Disable system access"
