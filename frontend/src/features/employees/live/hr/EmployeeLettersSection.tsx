@@ -347,12 +347,14 @@ export function EmployeeLettersSection({
         ) : data ? (
           <>
             {blocked.length ? (
-              <InlineNotice
-                tone="warning"
-                title={`Official issuance blocked (${blocked.length} document types)`}
-              >
-                Resolve the existing restrictions before issuing these
-                documents.
+              <div>
+                <InlineNotice
+                  tone="warning"
+                  title={`Official issuance blocked (${blocked.length} document types)`}
+                >
+                  Resolve the existing restrictions before issuing these
+                  documents.
+                </InlineNotice>
                 <details className={styles.warningDetails}>
                   <summary>View details</summary>
                   <ul className={styles.warningList}>
@@ -363,7 +365,7 @@ export function EmployeeLettersSection({
                     ))}
                   </ul>
                 </details>
-              </InlineNotice>
+              </div>
             ) : null}
             {!eligible.length ? (
               <InlineNotice tone="info" title="Not eligible">

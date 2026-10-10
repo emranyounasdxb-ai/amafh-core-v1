@@ -320,11 +320,13 @@ export function EmployeeDocumentsSection({
               </InfoGrid>
             ) : null}
             {missing.length ? (
-              <InlineNotice
-                tone="warning"
-                title={`Required documents missing (${missing.length})`}
-              >
-                Missing documents do not block activation.
+              <div>
+                <InlineNotice
+                  tone="warning"
+                  title={`Required documents missing (${missing.length})`}
+                >
+                  Missing documents do not block activation.
+                </InlineNotice>
                 <details className={styles.warningDetails}>
                   <summary>View details</summary>
                   <ul className={styles.warningList}>
@@ -333,7 +335,7 @@ export function EmployeeDocumentsSection({
                     ))}
                   </ul>
                 </details>
-              </InlineNotice>
+              </div>
             ) : null}
             {data.documents.length ? (
               <DataTable
