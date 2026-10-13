@@ -10,6 +10,7 @@ import {
 } from "../router/useAppRoute";
 import { useSession } from "../session/useSession";
 import { SignIn } from "../session/SignIn";
+import { passwordLinkKind } from "../session/passwordLink";
 import { sidebarActiveId, sidebarGroups } from "../navigation/sidebarGroups";
 import { NotificationBell } from "../../features/notifications/NotificationBell";
 import {
@@ -107,7 +108,8 @@ export function ApplicationShell() {
     );
   }
 
-  if (!session || !identity) return <SignIn />;
+  // Token-authorized forms must also be reachable with an unrelated session.
+  if (passwordLinkKind() || !session || !identity) return <SignIn />;
 
   const activeId = sidebarActiveId(
     page,

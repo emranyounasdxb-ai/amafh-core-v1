@@ -14,6 +14,7 @@ import { createFormTokenStore } from "./formToken";
 import { MEDIA_UPDATED } from "../api/recordImages";
 import { clearSharedReads } from "../api/sharedRead";
 import { clearSessionSnapshots } from "../api/resourceSnapshots";
+import { passwordLinkKind } from "./passwordLink";
 
 const AUTH_BOUNDARY = "amafh-core:authentication-boundary";
 
@@ -62,7 +63,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       identityRef.current = null;
       csrf.set(null);
       setSession(null);
-      setEpoch((value) => value + 1);
       setLoading(false);
       setExpired(code === "SESSION_EXPIRED");
       setNotice(
@@ -70,8 +70,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           ? "Please sign in again to restore your secure form token."
           : "",
       );
-      window.history.replaceState(null, "", "/");
-      window.dispatchEvent(new PopStateEvent("popstate"));
+      // A password link is a public token operation. Clear the old session,
+      // but keep its route, in-memory token and form through auth boundaries.
+      if (!passwordLinkKind()) {
+        setEpoch((value) => value + 1);
+        window.history.replaceState(null, "", "/");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
     },
     [api, csrf],
   );

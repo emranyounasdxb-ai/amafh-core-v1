@@ -2,10 +2,15 @@
 let token: string | null = null;
 let linkPath: string | null = null;
 
+export function passwordLinkKind() {
+  if (window.location.pathname === "/setup-password") return "setup";
+  if (window.location.pathname === "/reset-password") return "reset";
+  return null;
+}
+
 export function capturePasswordLink() {
   const url = new URL(window.location.href);
-  const isLink = ["/setup-password", "/reset-password"].includes(url.pathname);
-  if (!isLink) {
+  if (!passwordLinkKind()) {
     clearPasswordLink();
     return;
   }

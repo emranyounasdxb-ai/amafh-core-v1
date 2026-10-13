@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import {
   Button,
   DesignSystemRoot,
@@ -10,10 +10,20 @@ import {
 } from "../../design-system";
 import { useSession } from "./useSession";
 import styles from "./SignIn.module.css";
-import { clearPasswordLink, passwordLinkToken } from "./passwordLink";
+import {
+  clearPasswordLink,
+  passwordLinkKind,
+  passwordLinkToken,
+} from "./passwordLink";
+import { ApiClient, ApiFailure } from "../api/http";
 
 export function SignIn() {
-  const { signIn, notice, api, expired, dismissExpiry } = useSession();
+  const { signIn, notice, expired, dismissExpiry, refreshSession } =
+    useSession();
+  // Redemption is authorized by the link, not the current account. Session
+  // refresh/sign-out in this or another tab must not abort this public command.
+  const [linkApi] = useState(() => new ApiClient(() => null));
+  useEffect(() => () => linkApi.invalidateSession(), [linkApi]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,26 +31,31 @@ export function SignIn() {
   const [completed, setCompleted] = useState(false);
   const emailId = useId();
   const passwordId = useId();
-  const kind =
-    window.location.pathname === "/setup-password"
-      ? "setup"
-      : window.location.pathname === "/reset-password"
-        ? "reset"
-        : null;
+  const kind = passwordLinkKind();
+  const token = passwordLinkToken();
+  const linkProblem =
+    kind && (!token || token.length < 30 || token.length > 128)
+      ? "This password link is missing or invalid. Reopen the complete link supplied to you, or ask your system administrator for a new link."
+      : "";
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (linkProblem) return;
     setBusy(true);
     setError("");
     try {
-      if (kind && !completed) {
-        await api.request(`/auth/${kind}`, {
+      if (kind) {
+        await linkApi.request(`/auth/${kind}`, {
           method: "POST",
           body: JSON.stringify({
-            token: passwordLinkToken(),
+            token,
             password,
           }),
         });
         clearPasswordLink();
+        dismissExpiry();
+        // The server revokes only the target account's sessions. Recheck the
+        // current identity without logging in as, or switching to, that target.
+        refreshSession();
         window.history.replaceState(null, "", "/");
         window.dispatchEvent(new PopStateEvent("popstate"));
         setCompleted(true);
@@ -48,9 +63,13 @@ export function SignIn() {
       setPassword("");
     } catch (failure) {
       setError(
-        failure instanceof Error
-          ? failure.message
-          : "Unable to sign in. Please retry.",
+        failure instanceof ApiFailure && failure.code === "INVALID_LINK"
+          ? "This password link is invalid or no longer available. It may have expired, already been used, or been replaced or revoked. Ask your system administrator for a new link."
+          : failure instanceof Error
+            ? failure.message
+            : kind
+              ? "Unable to save your password. Please retry."
+              : "Unable to sign in. Please retry.",
       );
     } finally {
       setBusy(false);
@@ -59,10 +78,12 @@ export function SignIn() {
   const showExpiry = expired && !kind;
   const heading = showExpiry
     ? "Session expired"
-    : kind && !completed
-      ? "Set your password"
+    : kind
+      ? kind === "reset"
+        ? "Reset your password"
+        : "Set your password"
       : "Sign in";
-  const submitLabel = kind && !completed ? "Save password" : "Sign in";
+  const submitLabel = kind ? "Save password" : "Sign in";
   return (
     <DesignSystemRoot className={styles.root}>
       <main className={styles.page} aria-label={heading}>
@@ -95,16 +116,16 @@ export function SignIn() {
                 className={styles.heading}
                 title={heading}
                 subtitle={
-                  completed
-                    ? "Password saved. Sign in with your Official/Login email and new password."
-                    : notice ||
-                      (kind
-                        ? "Use 12–128 characters with uppercase, lowercase, a number and a special character."
-                        : "Enter your Official/Login email and password to continue.")
+                  kind
+                    ? "Use 12–128 characters with uppercase, lowercase, a number and a special character."
+                    : completed
+                      ? "Password saved. Sign in with your Official/Login email and new password."
+                      : notice ||
+                        "Enter your Official/Login email and password to continue."
                 }
               />
               <form onSubmit={submit} className={styles.form}>
-                {(!kind || completed) && (
+                {!kind && (
                   <FormField label="Official/Login email" htmlFor={emailId}>
                     <TextInput
                       id={emailId}
@@ -124,24 +145,25 @@ export function SignIn() {
                     id={passwordId}
                     type="password"
                     placeholder="Enter your password"
-                    autoComplete={
-                      kind && !completed ? "new-password" : "current-password"
-                    }
+                    autoComplete={kind ? "new-password" : "current-password"}
                     required
-                    minLength={kind && !completed ? 12 : undefined}
+                    minLength={kind ? 12 : undefined}
                     maxLength={128}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </FormField>
-                {error ? (
-                  <InlineNotice tone="error">{error}</InlineNotice>
+                {linkProblem || error ? (
+                  <InlineNotice tone="error">
+                    {linkProblem || error}
+                  </InlineNotice>
                 ) : null}
                 <Button
                   type="submit"
                   size="large"
                   className={styles.submit}
                   loading={busy}
+                  disabled={Boolean(linkProblem)}
                   aria-label={busy ? "Please wait…" : undefined}
                 >
                   {submitLabel}
