@@ -85,6 +85,11 @@ async def csrf(actor: CsrfActor, db: Db):
     return {"csrfToken": await auth.rotate_csrf(db, actor)}
 
 
+@router.post("/activity", status_code=204)
+async def activity(actor: CsrfActor, db: Db):
+    await auth.record_activity(db, actor)
+
+
 @router.post("/logout", status_code=204)
 async def logout(response: Response, actor: CsrfActor, db: Db):
     await auth.logout(db, actor)

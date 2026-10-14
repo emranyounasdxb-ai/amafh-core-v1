@@ -6,9 +6,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.attendance import csv_import_batches, csv_import_row_results
+from app.db.cases import cases
 from app.db.organization import employees
 from app.errors import ApiError
 from app.policies import Actor
+from app.repositories.case_scope import case_access
 
 
 def _has_csv(actor: Actor) -> bool:
@@ -44,6 +46,40 @@ def _row_public(row) -> dict:
         "status": row["status"],
         "errorCode": row["error_code"],
         "errorDetail": row["error_detail"],
+    }
+
+
+async def scoped_result(session: AsyncSession, actor: Actor, result: dict) -> dict:
+    """Redact retained/cached metadata without changing its historical snapshot."""
+    rows = result.get("rowResults")
+    if not rows:
+        return result
+    identifiers = {
+        row["internalCaseId"]
+        for row in rows
+        if isinstance(row.get("internalCaseId"), str) and row.get("errorCode") != "CASE_UNAVAILABLE"
+    }
+    allowed = (
+        set(
+            (
+                await session.execute(
+                    select(cases.c.internal_case_id).where(
+                        cases.c.internal_case_id.in_(identifiers), case_access(actor)
+                    )
+                )
+            ).scalars()
+        )
+        if identifiers
+        else set()
+    )
+    return {
+        **result,
+        "rowResults": [
+            dict(row)
+            if row.get("errorCode") != "CASE_UNAVAILABLE" and row.get("internalCaseId") in allowed
+            else {**row, "internalCaseId": None, "productLabel": None, "currentStage": None}
+            for row in rows
+        ],
     }
 
 
@@ -102,8 +138,10 @@ async def detail(session: AsyncSession, actor: Actor, batch_id: UUID) -> dict:
         .mappings()
         .all()
     )
-    return _batch_public(
-        batch, rows, await _uploader_name(session, batch["uploaded_by_employee_id"])
+    return await scoped_result(
+        session,
+        actor,
+        _batch_public(batch, rows, await _uploader_name(session, batch["uploaded_by_employee_id"])),
     )
 
 

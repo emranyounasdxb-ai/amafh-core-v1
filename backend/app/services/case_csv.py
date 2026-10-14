@@ -17,7 +17,7 @@ from app.db.organization import designations, employees
 from app.errors import ApiError
 from app.normalization import identifier
 from app.policies import Actor, require
-from app.services import finance_completion
+from app.services import case_import_reads, case_processing_scope, finance_completion
 from app.services.case_corrections import FINAL
 from app.services.idempotency import claim, complete
 from app.services.notification_events import notify
@@ -153,6 +153,7 @@ async def _product_names(session: AsyncSession) -> dict:
 
 
 async def _validate_rows(session: AsyncSession, actor: Actor, rows):
+    await case_processing_scope.lock_assignment(session, actor)
     errors = []
     resolved = []
     contexts = {}
@@ -180,7 +181,7 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
         by_number[number] = case
     for row_number, number, stage_name, remark in rows:
         case = by_number[number]
-        contexts[row_number] = _context(row_number, number, stage_name, remark, case, products)
+        contexts[row_number] = _context(row_number, number, stage_name, remark)
         if case is None:
             errors.append(
                 {"rowNumber": row_number, "code": "CASE_UNAVAILABLE", "message": "Case unavailable"}
@@ -192,17 +193,17 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
             )
             continue
         if actor.designation == "Coordinator" and not (
-            case["coordinator_employee_id"] == actor.employee_id
-            or (
-                case["owner_transfer_previous_status"] is None
-                and case["branch_id"] == actor.branch_id
-                and case["department_id"] == actor.department_id
+            case_processing_scope.current_scope(actor, case)
+            and (
+                case["coordinator_employee_id"] == actor.employee_id
+                or case["owner_transfer_previous_status"] is None
             )
         ):
             errors.append(
                 {"rowNumber": row_number, "code": "CASE_UNAVAILABLE", "message": "Case unavailable"}
             )
             continue
+        contexts[row_number] = _context(row_number, number, stage_name, remark, case, products)
         if case["owner_transfer_previous_status"] is not None:
             errors.append(
                 {
@@ -303,20 +304,28 @@ async def _notify_final(session: AsyncSession, case: dict, status: str) -> None:
         )
 
 
-async def _has_blocking_upload(session: AsyncSession, digest: str) -> bool:
+async def _has_blocking_upload(session: AsyncSession, digest: str, actor: Actor) -> bool:
     prior = (
         await session.execute(
-            select(csv_import_batches.c.id, csv_import_batches.c.status).where(
+            select(
+                csv_import_batches.c.id,
+                csv_import_batches.c.status,
+                csv_import_batches.c.uploaded_by_employee_id,
+            ).where(
                 csv_import_batches.c.kind == "bank_stage",
                 csv_import_batches.c.content_hash == digest,
             )
         )
     ).all()
-    for batch_id, status in prior:
+    for batch_id, status, uploader in prior:
         if status == "Validated":
             continue
         if status != "Rejected":
             return True
+        # A denied attempt is evidence for its uploader, not a global reservation.
+        # Other uploaders must still pass current validation before applying bytes.
+        if uploader != actor.employee_id:
+            continue
         codes = (
             (
                 await session.execute(
@@ -464,9 +473,9 @@ async def import_stages(
         record_id, replay = await claim(session, actor, "case.csv", key, {"sha256": digest})
         if replay is not None:
             await session.rollback()
-            return replay
+            return await case_import_reads.scoped_result(session, actor, replay)
         await _lock_hash(session, digest)
-        if await _has_blocking_upload(session, digest):
+        if await _has_blocking_upload(session, digest, actor):
             raise ApiError(409, "DUPLICATE_UPLOAD", "CSV has already been processed")
         rows, errors, resolved, contexts = await _evaluate(
             session, actor, content, digest, too_large
@@ -546,9 +555,9 @@ async def validate_stages(
         )
         if replay is not None:
             await session.rollback()
-            return replay
+            return await case_import_reads.scoped_result(session, actor, replay)
         await _lock_hash(session, digest)
-        if await _has_blocking_upload(session, digest):
+        if await _has_blocking_upload(session, digest, actor):
             raise ApiError(409, "DUPLICATE_UPLOAD", "CSV has already been processed")
         rows, errors, resolved, contexts = await _evaluate(
             session, actor, content, digest, too_large
@@ -597,8 +606,6 @@ async def validate_stages(
             },
             context={"caseIds": []},
         )
-        from app.services import case_import_reads
-
         result = await case_import_reads.detail(session, actor, batch_id)
         await complete(session, record_id, 200, result)
         await session.commit()
@@ -621,7 +628,7 @@ async def apply_validated_batch(
         )
         if replay is not None:
             await session.rollback()
-            return replay
+            return await case_import_reads.scoped_result(session, actor, replay)
         batch = (
             (
                 await session.execute(
@@ -645,7 +652,7 @@ async def apply_validated_batch(
             raise ApiError(409, "BATCH_INVALID", "This batch cannot be imported")
         digest = batch["content_hash"]
         await _lock_hash(session, digest)
-        if await _has_blocking_upload(session, digest):
+        if await _has_blocking_upload(session, digest, actor):
             raise ApiError(409, "DUPLICATE_UPLOAD", "CSV has already been processed")
         stored = (
             (
@@ -716,8 +723,6 @@ async def apply_validated_batch(
                 },
                 context={"caseIds": []},
             )
-            from app.services import case_import_reads
-
             result = await case_import_reads.detail(session, actor, batch_id)
             await complete(session, record_id, 200, result)
             await session.commit()
@@ -756,8 +761,6 @@ async def apply_validated_batch(
             },
             context={"caseIds": [str(case["id"]) for _, case, _, _ in resolved]},
         )
-        from app.services import case_import_reads
-
         result = await case_import_reads.detail(session, actor, batch_id)
         await complete(session, record_id, 200, result)
         await session.commit()

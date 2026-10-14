@@ -220,9 +220,6 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
         )
         await session.commit()
         raise ApiError(401, "AUTH_REQUIRED", "Authentication required")
-    await session.execute(
-        update(sessions).where(sessions.c.id == session_row["id"]).values(last_active_at=now)
-    )
     grants = await permission_rows.actor_grants(session, row["designation"])
     await session.commit()
     return Actor(
@@ -236,6 +233,24 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
         session_row["csrf_hash"],
         grants,
     )
+
+
+async def record_activity(session: AsyncSession, actor: Actor) -> None:
+    now = utcnow()
+    renewed = await session.scalar(
+        update(sessions)
+        .where(
+            sessions.c.id == actor.session_id,
+            sessions.c.invalidated_at.is_(None),
+            sessions.c.last_active_at > now - timedelta(seconds=settings().session_idle_seconds),
+        )
+        .values(last_active_at=now)
+        .returning(sessions.c.id)
+    )
+    if renewed is None:
+        await session.rollback()
+        raise ApiError(401, "SESSION_EXPIRED", "Session expired")
+    await session.commit()
 
 
 async def rotate_csrf(session: AsyncSession, actor: Actor) -> str:

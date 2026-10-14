@@ -10,6 +10,7 @@ from app.db.organization import employees, team_leader_history, team_memberships
 from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
+from app.services import performance_budget
 from app.services.performance_aggregate import summarize
 from app.services.performance_math import DUBAI
 from app.services.performance_metrics import derive, derive_with_denominator
@@ -35,6 +36,7 @@ async def own(session: AsyncSession, actor: Actor, filters: PerformanceFilters) 
     return await detail(session, actor, actor.employee_id, filters)
 
 
+@performance_budget.bounded
 async def detail(
     session: AsyncSession,
     actor: Actor,
@@ -51,6 +53,7 @@ def _month_start(day: date, back: int) -> date:
     return date(index // 12, index % 12 + 1, 1)
 
 
+@performance_budget.bounded
 async def trend(
     session: AsyncSession,
     actor: Actor,
@@ -96,6 +99,7 @@ async def trend(
     return {"employeeId": employee_id, "startDate": start, "endDate": end, "items": items}
 
 
+@performance_budget.bounded
 async def employees_page(
     session: AsyncSession,
     actor: Actor,
@@ -138,6 +142,7 @@ async def employees_page(
             .mappings()
             .all()
         )
+        performance_budget.preflight(population, filters, session=session, scope=scope)
         summary = summarize(
             [
                 await derive_with_denominator(session, scope, dict(row), filters)
@@ -174,6 +179,7 @@ async def employees_page(
     }
 
 
+@performance_budget.bounded
 async def team_detail(
     session: AsyncSession,
     actor: Actor,
@@ -239,6 +245,7 @@ async def team_detail(
         .mappings()
         .all()
     )
+    performance_budget.preflight(rows, scoped, session=session, scope=scope)
     all_metrics = [await derive_with_denominator(session, scope, dict(row), scoped) for row in rows]
     items = [item for item, _ in all_metrics]
     if sort in METRIC_SORTS:
@@ -254,6 +261,7 @@ async def team_detail(
     }
 
 
+@performance_budget.bounded
 async def comparison(
     session: AsyncSession,
     actor: Actor,
@@ -297,6 +305,7 @@ async def comparison(
     if sort and direction == "desc":
         groups = list(reversed(groups))
     items = []
+    plans = []
     for group_id, name in groups:
         group_filters = filters.model_copy(
             update={
@@ -309,6 +318,14 @@ async def comparison(
             .mappings()
             .all()
         )
+        plans.append((group_id, name, group_filters, employee_rows))
+    performance_budget.check(
+        sum(
+            performance_budget.planned_cost(rows, scoped, session=session, scope=scope)
+            for _, _, scoped, rows in plans
+        )
+    )
+    for group_id, name, group_filters, employee_rows in plans:
         metrics = [
             await derive_with_denominator(session, scope, dict(employee), group_filters)
             for employee in employee_rows

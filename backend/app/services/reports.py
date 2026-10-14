@@ -12,7 +12,13 @@ from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
 from app.schemas.reports import ReportFilters
-from app.services import asset_reads, attendance_reads, coordinator_workload, performance_rankings
+from app.services import (
+    asset_reads,
+    attendance_reads,
+    coordinator_workload,
+    performance_budget,
+    performance_rankings,
+)
 from app.services.performance_math import DUBAI
 from app.services.performance_metrics import derive
 from app.services.performance_records import preload
@@ -52,6 +58,7 @@ def _scalar(value) -> str | int | bool | None:
     raise ValueError("Report column is not scalar")
 
 
+@performance_budget.bounded
 async def _performance(
     session: AsyncSession,
     actor: Actor,
@@ -138,6 +145,7 @@ async def _performance(
         .mappings()
         .all()
     )
+    performance_budget.preflight(rows, current, session=session, scope=scope)
     owned_cache = "performance_records_cache" not in session.info
     if owned_cache:
         session.info["performance_records_cache"] = {}

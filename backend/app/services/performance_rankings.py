@@ -22,6 +22,7 @@ from app.db.performance import ranking_confirmations
 from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
+from app.services import performance_budget
 from app.services.department_products import department_products
 from app.services.performance_math import DUBAI, assignment_on, target_on
 from app.services.performance_metrics import derive
@@ -120,6 +121,7 @@ def _context(filters: PerformanceFilters) -> tuple[str, dict]:
     return hashlib.sha256(encoded.encode()).hexdigest(), values
 
 
+@performance_budget.bounded
 async def _ranked(
     session: AsyncSession,
     actor: Actor,
@@ -155,6 +157,7 @@ async def _ranked(
         .mappings()
         .all()
     )
+    performance_budget.preflight(rows, filters, session=session, scope=scope)
     ranked = []
     for employee in rows:
         metrics = await derive(session, scope, dict(employee), filters)

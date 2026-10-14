@@ -1,5 +1,6 @@
 """Allowlisted permanent audit events, kept in command transactions."""
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,6 +49,7 @@ async def record(
     before: dict | None = None,
     after: dict | None = None,
     context: dict | None = None,
+    occurred_at: datetime | None = None,
 ) -> None:
     # Callers pass only approved business values. Authentication secrets are never accepted here.
     await session.execute(
@@ -57,7 +59,7 @@ async def record(
             module=module,
             entity_type=entity_type,
             entity_id=str(entity_id) if entity_id else None,
-            occurred_at=utcnow(),
+            occurred_at=occurred_at if occurred_at is not None else utcnow(),
             before_values=_safe_values(before),
             after_values=_safe_values(after),
             context=_safe_values(context) or {},

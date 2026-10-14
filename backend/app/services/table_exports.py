@@ -26,6 +26,7 @@ from app.db.organization import (
 from app.db.session import session_factory
 from app.errors import ApiError
 from app.policies import EMPLOYEE_SCOPE, MD, OWNER, Actor
+from app.services import performance_budget
 from app.services.audit_exports import record_labels
 from app.services.report_exports import (
     CSV_ROWS,
@@ -207,6 +208,7 @@ def _stale() -> ApiError:
     )
 
 
+@performance_budget.bounded
 async def _collect(
     request: Request,
     spec: TableSpec,

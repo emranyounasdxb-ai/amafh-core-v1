@@ -9,7 +9,13 @@ from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
 from app.schemas.reports import ReportFilters
-from app.services import coordinator_workload, dashboard, performance_reads, reports
+from app.services import (
+    coordinator_workload,
+    dashboard,
+    performance_budget,
+    performance_reads,
+    reports,
+)
 from app.services.performance_math import DUBAI
 from app.services.performance_scope import resolve
 
@@ -25,12 +31,14 @@ def _months(start: date, end: date) -> list[tuple[date, date]]:
     return months
 
 
+@performance_budget.bounded
 async def read(session: AsyncSession, actor: Actor, filters: ReportFilters) -> dict:
     start, end = reports.interval(filters)
     if end > datetime.now(DUBAI).date():
         raise ApiError(422, "DASHBOARD_DATE_INVALID", "Future Dashboard date is unavailable")
     if actor.designation not in dashboard.PERFORMANCE_ROLES:
         raise ApiError(403, "FORBIDDEN", "Access denied")
+    performance_budget.monthly(start, end, 1 if filters.productCode else 2)
     session.info["performance_records_cache"] = {}
     session.info["performance_metrics_cache"] = {}
     session.info["holiday_calendar_cache"] = {}
@@ -44,8 +52,8 @@ async def read(session: AsyncSession, actor: Actor, filters: ReportFilters) -> d
             productCode=filters.productCode,
             bankId=filters.bankId,
         )
-        if actor.designation in dashboard.REPORT_ROLES:
-            await dashboard.preload_visible_performance(session, actor, base)
+        if actor.designation in dashboard.REPORT_ROLES | {"Team Leader"}:
+            await dashboard.preload_visible_performance(session, actor, base, monthly=True)
         team_id = None
         if actor.designation == "Team Leader":
             team_id = (await resolve(session, actor, base)).team_id

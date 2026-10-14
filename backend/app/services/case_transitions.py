@@ -18,6 +18,7 @@ from app.db.organization import designations, employees
 from app.errors import ApiError
 from app.normalization import identifier
 from app.policies import Actor, require
+from app.services import case_processing_scope
 from app.services.idempotency import claim, complete
 from app.services.notification_events import notify
 from app.services.pipelines import _valid_stage_set
@@ -167,6 +168,7 @@ async def book(
     if not bank_number:
         raise ApiError(422, "BANK_CASE_NUMBER_REQUIRED", "Bank Case Number is required")
     try:
+        await case_processing_scope.lock_assignment(session, actor)
         record_id, replay = await claim(
             session,
             actor,
@@ -180,9 +182,9 @@ async def book(
         row = await _locked_case(session, case_id)
         if row["administratively_voided_at"] is not None:
             raise ApiError(409, "CASE_VOIDED", "Case is administratively voided")
-        if (
-            actor.designation == "Coordinator"
-            and row["coordinator_employee_id"] != actor.employee_id
+        if actor.designation == "Coordinator" and (
+            row["coordinator_employee_id"] != actor.employee_id
+            or not case_processing_scope.current_scope(actor, row)
         ):
             raise ApiError(404, "NOT_FOUND", "Record unavailable")
         if row["current_status"] != "Approved" or row["bank_case_number"] is not None:

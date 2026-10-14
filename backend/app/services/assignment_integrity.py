@@ -60,7 +60,10 @@ async def validate_manager(
                 select(employees, designations.c.name.label("role"))
                 .join(designations, employees.c.designation_id == designations.c.id)
                 .where(employees.c.id == manager_id)
-                .with_for_update(of=employees)
+                # Assignment/status mutators acquire FOR UPDATE before changes.
+                # A reference lock blocks those commands while staying compatible
+                # with Case creation's non-key placement locks.
+                .with_for_update(read=True, key_share=True, of=employees)
             )
         )
         .mappings()

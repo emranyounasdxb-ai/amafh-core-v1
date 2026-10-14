@@ -77,11 +77,47 @@ def case_access(actor: Actor) -> ColumnElement[bool]:
     return or_(visible_case(actor), own) if "case.read" in actor.grants else own
 
 
-async def can_own_for_creator(session: AsyncSession, actor: Actor, owner_id) -> bool:
+async def can_own_for_creator(
+    session: AsyncSession, actor: Actor, owner_id, *, lock: bool = False
+) -> bool:
     if owner_id == actor.employee_id:
         return True
     if actor.designation != "Team Leader":
         return False
+    if lock:
+        # The owner employee is locked by the caller. Team lifecycle commands
+        # acquire the team before its membership; retain that order here too.
+        team_id = await session.scalar(
+            select(teams.c.id)
+            .where(
+                teams.c.active.is_(True),
+                teams.c.leader_employee_id == actor.employee_id,
+                teams.c.branch_id == actor.branch_id,
+                teams.c.department_id == actor.department_id,
+                exists(
+                    select(team_memberships.c.id).where(
+                        team_memberships.c.team_id == teams.c.id,
+                        team_memberships.c.employee_id == owner_id,
+                        team_memberships.c.end_date.is_(None),
+                    )
+                ),
+            )
+            .with_for_update(read=True, of=teams)
+        )
+        if team_id is None:
+            return False
+        # A membership revoker can run without an employee or team lock.
+        # This fresh statement observes a revocation committed while we waited.
+        membership_id = await session.scalar(
+            select(team_memberships.c.id)
+            .where(
+                team_memberships.c.team_id == team_id,
+                team_memberships.c.employee_id == owner_id,
+                team_memberships.c.end_date.is_(None),
+            )
+            .with_for_update(read=True, of=team_memberships)
+        )
+        return membership_id is not None
     row = await session.scalar(
         select(team_memberships.c.id)
         .select_from(team_memberships.join(teams, team_memberships.c.team_id == teams.c.id))

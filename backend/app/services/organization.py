@@ -248,6 +248,7 @@ async def change_assignment(
         if old["reporting_manager_id"]
         else None,
     }
+    assignment_changed_at = utcnow()
     try:
         await reconcile_teams(
             session, actor, employee_id, item.branchId, item.departmentId, new_role, old["status"]
@@ -290,6 +291,7 @@ async def change_assignment(
             entity_type="employee",
             entity_id=employee_id,
             before=before,
+            occurred_at=assignment_changed_at,
             after={
                 "branchId": str(item.branchId),
                 "departmentId": str(item.departmentId),

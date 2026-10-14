@@ -35,6 +35,8 @@ async def _employee(
         and not (kind == "avatar" and actor.designation in {"Owner", "HR"})
     ):
         raise ApiError(403, "FORBIDDEN", "Access denied")
+    if write and actor.employee_id != employee_id:
+        require(actor, "employee.write")
     query = select(employees).where(employees.c.id == employee_id)
     if write:
         query = query.with_for_update()

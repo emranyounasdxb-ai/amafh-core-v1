@@ -1,6 +1,6 @@
 """Coordinator handling counts and non-identifying peer comparison."""
 
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -12,7 +12,9 @@ from app.db.organization import assignment_history, designations, employees
 from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
-from app.services.performance_math import DUBAI, assignment_on, dubai_date
+from app.services import performance_budget
+from app.services.assignment_activity import assignment_at, changes_for
+from app.services.performance_math import DUBAI, dubai_date
 from app.services.performance_scope import MANAGEMENT_ROLES, resolve
 from app.services.public_row_sort import sort_rows
 from app.whole_numbers import whole_text
@@ -96,12 +98,13 @@ async def _candidate(
         ):
             continue
         if row["assignment_start_date"] <= end and (
-            row["assignment_end_date"] is None or row["assignment_end_date"] > start
+            row["assignment_end_date"] is None or row["assignment_end_date"] >= start
         ):
             return True
     return False
 
 
+@performance_budget.bounded
 async def _metric(
     session: AsyncSession,
     actor: Actor,
@@ -115,13 +118,16 @@ async def _metric(
     end = filters.endDate or datetime.now(DUBAI).date()
     if start > end or end > datetime.now(DUBAI).date():
         raise ApiError(422, "PERFORMANCE_DATE_INVALID", "Date range is unavailable")
+    performance_budget.charge(performance_budget.cost(employee, filters))
     assignments = await _assignments(session, employee)
+    assignment_changes = (await changes_for(session, [employee["id"]])).get(employee["id"], [])
     coordinator_id = await _coordinator_id(session)
 
-    def allowed(day: date) -> bool:
+    def allowed(when: datetime) -> bool:
+        day = dubai_date(when)
         if not start <= day <= end:
             return False
-        assignment = assignment_on(assignments, day)
+        assignment = assignment_at(assignments, assignment_changes, when)
         if assignment is None or assignment["designation_id"] != coordinator_id:
             return False
         if filters.teamId is not None or (
@@ -138,7 +144,9 @@ async def _metric(
                     or assignment["department_id"] == filters.departmentId
                 )
             )
-        return scope.activity_allowed(employee["id"], day, assignments, [], [], filters)
+        return scope.activity_allowed(
+            employee["id"], when, assignments, [], [], filters, assignment_changes
+        )
 
     approvals = (
         (
@@ -162,16 +170,16 @@ async def _metric(
         .mappings()
         .all()
     )
-    handled = {row["case_id"] for row in approvals if allowed(dubai_date(row["approved_at"]))}
+    handled = {row["case_id"] for row in approvals if allowed(row["approved_at"])}
     booked = {
         row["case_id"]
         for row in stage_events
-        if row["status"] == "Booked" and (allowed(dubai_date(row["occurred_at"])))
+        if row["status"] == "Booked" and allowed(row["occurred_at"])
     }
     updated = {
         row["case_id"]
         for row in stage_events
-        if row["csv_import_batch_id"] is not None and allowed(dubai_date(row["occurred_at"]))
+        if row["csv_import_batch_id"] is not None and allowed(row["occurred_at"])
     }
     if filters.productCode is not None or filters.bankId is not None:
         product_rows = await session.execute(
@@ -197,6 +205,7 @@ async def _metric(
     }
 
 
+@performance_budget.bounded
 async def workload(
     session: AsyncSession,
     actor: Actor,
@@ -228,8 +237,8 @@ async def workload(
     coordinator_id = await _coordinator_id(session)
     if not await _candidate(session, actor, dict(employee), filters, coordinator_id):
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
-    own = await _metric(session, actor, dict(employee), filters, finance_report=finance_report)
     if actor.designation != "Coordinator":
+        own = await _metric(session, actor, dict(employee), filters, finance_report=finance_report)
         return {"employeeId": str(target_id), **own}
     peers = (
         (
@@ -250,11 +259,14 @@ async def workload(
         .mappings()
         .all()
     )
-    peer_counts = [
-        await _metric(session, actor, dict(peer), filters)
+    eligible_peers = [
+        peer
         for peer in peers
         if await _candidate(session, actor, dict(peer), filters, coordinator_id)
     ]
+    performance_budget.preflight([employee, *eligible_peers], filters)
+    own = await _metric(session, actor, dict(employee), filters, finance_report=finance_report)
+    peer_counts = [await _metric(session, actor, dict(peer), filters) for peer in eligible_peers]
     averages = {}
     for key in ("handledCases", "submittedBookedCases", "stageUpdatedCases"):
         average = (
@@ -284,6 +296,7 @@ async def own_monthly_metric(
     return await _metric(session, actor, dict(employee), filters)
 
 
+@performance_budget.bounded
 async def list_workload(
     session: AsyncSession,
     actor: Actor,
@@ -334,6 +347,7 @@ async def list_workload(
     selected = (
         eligible if sort in workload_sorts else eligible[(page - 1) * page_size : page * page_size]
     )
+    performance_budget.preflight(selected, filters)
     items = [
         await workload(session, actor, row["id"], filters, finance_report=finance_report)
         for row in selected

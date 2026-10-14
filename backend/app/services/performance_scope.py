@@ -1,7 +1,7 @@
 """Server-owned Performance visibility and historical activity boundaries."""
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -17,6 +17,7 @@ from app.db.organization import (
 from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
+from app.services.assignment_activity import assignment_at
 from app.services.performance_math import DUBAI, assignment_on, team_on
 
 PERFORMANCE_ROLES = {"Sales Manager", "Coordinator", "Team Leader", "Sales Executive"}
@@ -32,13 +33,19 @@ class PerformanceScope:
     def activity_allowed(
         self,
         employee_id: UUID,
-        day: date,
+        day: date | datetime,
         assignment_rows: list[dict],
         membership_rows: list[dict],
         leader_rows: list[dict],
         filters: PerformanceFilters,
+        assignment_changes: list[dict] | None = None,
     ) -> bool:
-        assignment = assignment_on(assignment_rows, day)
+        assignment = (
+            assignment_at(assignment_rows, assignment_changes or [], day)
+            if isinstance(day, datetime)
+            else assignment_on(assignment_rows, day)
+        )
+        day = day.astimezone(DUBAI).date() if isinstance(day, datetime) else day
         if assignment is None:
             return False
         if filters.branchId is not None and assignment["branch_id"] != filters.branchId:
@@ -136,7 +143,7 @@ async def visible_employee_ids(session: AsyncSession, scope: PerformanceScope) -
 
 
 def _overlaps(start: date, end: date, row_start: date, row_end: date | None) -> bool:
-    return row_start <= end and (row_end is None or row_end > start)
+    return row_start <= end and (row_end is None or row_end >= start)
 
 
 def _population_relevant(
@@ -173,7 +180,7 @@ def _population_relevant(
         overlap_start = max(start, assignment["assignment_start_date"])
         overlap_end = min(
             end,
-            assignment["assignment_end_date"] - timedelta(days=1)
+            assignment["assignment_end_date"]
             if assignment["assignment_end_date"] is not None
             else end,
         )

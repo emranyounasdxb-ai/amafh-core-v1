@@ -123,18 +123,33 @@ async def _configuration(session: AsyncSession, item: CaseCreate, on) -> tuple[s
 async def _owner_assignment(session: AsyncSession, actor: Actor, owner_id):
     if not await can_own_for_creator(session, actor, owner_id):
         raise ApiError(403, "OWNER_OUT_OF_SCOPE", "Case Owner is unavailable")
-    row = (
+    # Freeze both placements before team locks. Non-key locks allow notification
+    # foreign-key checks while still blocking transfers and offboarding.
+    rows = (
         (
             await session.execute(
                 select(employees, designations.c.name.label("role"))
                 .join(designations, employees.c.designation_id == designations.c.id)
-                .where(employees.c.id == owner_id)
-                .with_for_update()
+                .where(employees.c.id.in_({owner_id, actor.employee_id}))
+                .order_by(employees.c.id)
+                .with_for_update(of=employees, key_share=True)
             )
         )
         .mappings()
-        .one_or_none()
+        .all()
     )
+    row = next((value for value in rows if value["id"] == owner_id), None)
+    creator = next((value for value in rows if value["id"] == actor.employee_id), None)
+    if owner_id != actor.employee_id and (
+        creator is None
+        or creator["status"] != "Active"
+        or creator["role"] != actor.designation
+        or creator["branch_id"] != actor.branch_id
+        or creator["department_id"] != actor.department_id
+    ):
+        raise ApiError(403, "OWNER_OUT_OF_SCOPE", "Case Owner is unavailable")
+    if not await can_own_for_creator(session, actor, owner_id, lock=True):
+        raise ApiError(403, "OWNER_OUT_OF_SCOPE", "Case Owner is unavailable")
     if row is None or row["status"] != "Active":
         raise ApiError(422, "INVALID_CASE_OWNER", "Case Owner is unavailable")
     missing = [
@@ -153,7 +168,11 @@ async def _owner_assignment(session: AsyncSession, actor: Actor, owner_id):
     if (
         actor.designation == "Team Leader"
         and owner_id != actor.employee_id
-        and row["role"] != "Sales Executive"
+        and (
+            row["role"] != "Sales Executive"
+            or row["branch_id"] != actor.branch_id
+            or row["department_id"] != actor.department_id
+        )
     ):
         raise ApiError(403, "OWNER_OUT_OF_SCOPE", "Case Owner is unavailable")
     await _require_sales_manager(session, row["branch_id"], row["department_id"])

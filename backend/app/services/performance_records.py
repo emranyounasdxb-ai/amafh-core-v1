@@ -1,6 +1,7 @@
 """Read retained source facts for one employee's derived performance."""
 
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -21,6 +22,7 @@ from app.db.organization import (
     team_leader_history,
     team_memberships,
 )
+from app.services.assignment_activity import changes_for
 from app.services.department_products import department_products
 
 
@@ -38,6 +40,7 @@ class PerformanceRecords:
     product_codes: dict[UUID, str]
     department_products: dict[UUID, str]
     expected_stage_days: dict[tuple[UUID, str], int]
+    assignment_changes: list[dict] = dataclass_field(default_factory=list)
 
 
 def _group(rows: list[dict], key: str) -> dict[UUID, list[dict]]:
@@ -63,6 +66,7 @@ async def preload(session: AsyncSession, people: list[dict]) -> dict[UUID, Perfo
     if not pending:
         return cache
     ids = list(pending)
+    assignment_changes = await changes_for(session, ids)
 
     async def rows(statement) -> list[dict]:
         return [dict(row) for row in (await session.execute(statement)).mappings()]
@@ -185,5 +189,6 @@ async def preload(session: AsyncSession, people: list[dict]) -> dict[UUID, Perfo
             product_codes,
             classified,
             expected_stage_days,
+            assignment_changes.get(employee_id, []),
         )
     return cache

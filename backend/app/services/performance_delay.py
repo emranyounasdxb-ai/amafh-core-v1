@@ -7,9 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.performance import uae_holiday_year_certifications, uae_public_holidays
+from app.services import performance_budget
 from app.services.performance_math import dubai_date, working_days_elapsed
 
 
+@performance_budget.bounded
 async def count_delayed(
     session: AsyncSession,
     candidates: list[tuple[UUID, date, int]],
@@ -17,6 +19,9 @@ async def count_delayed(
 ) -> tuple[int | None, str]:
     if not candidates:
         return 0, "Available"
+    performance_budget.charge(
+        sum(performance_budget.span(start, as_of) for _, start, _ in candidates)
+    )
     earliest = min(start for _, start, _ in candidates)
     years = set(range(earliest.year, as_of.year + 1))
     key = tuple(sorted(years))

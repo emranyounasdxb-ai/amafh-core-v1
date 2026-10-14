@@ -15,6 +15,7 @@ import { MEDIA_UPDATED } from "../api/recordImages";
 import { clearSharedReads } from "../api/sharedRead";
 import { clearSessionSnapshots } from "../api/resourceSnapshots";
 import { passwordLinkKind } from "./passwordLink";
+import { watchHumanActivity } from "./humanActivity";
 
 const AUTH_BOUNDARY = "amafh-core:authentication-boundary";
 
@@ -161,6 +162,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [api, csrf]);
   const signedIn = session !== null;
+  useEffect(() => {
+    if (signedIn) return watchHumanActivity(api);
+  }, [api, signedIn]);
   useEffect(() => {
     if (!signedIn) return;
     const onVisible = () => {

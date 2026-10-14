@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.errors import ApiError
 from app.schemas.performance import PerformanceFilters
+from app.services import performance_budget
+from app.services.assignment_activity import assignment_at
 from app.services.performance_delay import count_delayed, stage_start
 from app.services.performance_math import (
     DUBAI,
@@ -49,7 +51,7 @@ def _in_range(day: date, start: date, end: date) -> bool:
 def _allowed(
     scope: PerformanceScope,
     employee_id: UUID,
-    day: date,
+    day: date | datetime,
     records: PerformanceRecords,
     filters: PerformanceFilters,
 ) -> bool:
@@ -60,9 +62,11 @@ def _allowed(
         records.memberships,
         records.leaderships,
         filters,
+        records.assignment_changes,
     )
 
 
+@performance_budget.bounded
 async def derive_with_denominator(
     session: AsyncSession,
     scope: PerformanceScope,
@@ -72,22 +76,14 @@ async def derive_with_denominator(
     cache: dict[tuple, tuple[dict, dict[str, Decimal]]] | None = session.info.get(
         "performance_metrics_cache"
     )
-    key = (
-        scope.actor.employee_id,
-        scope.actor.designation,
-        scope.actor.branch_id,
-        scope.actor.department_id,
-        scope.team_id,
-        scope.finance_report,
-        employee["id"],
-        filters.model_dump_json(),
-    )
+    key = performance_budget.metric_key(scope, employee["id"], filters)
     if cache is not None and key in cache:
         return cache[key]
     start = filters.startDate or employee["date_of_joining"]
     end = filters.endDate or datetime.now(DUBAI).date()
     if end > datetime.now(DUBAI).date() or start > end:
         raise ApiError(422, "PERFORMANCE_DATE_INVALID", "Date range is unavailable")
+    performance_budget.charge(performance_budget.cost(employee, filters))
     records = await load(session, employee)
     employee_id = employee["id"]
     counts: dict[str, set[UUID]] = {
@@ -110,7 +106,7 @@ async def derive_with_denominator(
         if (
             case["created_by_employee_id"] == employee_id
             and _in_range(created_day, start, end)
-            and (_allowed(scope, employee_id, created_day, records, filters))
+            and (_allowed(scope, employee_id, case["created_at"], records, filters))
         ):
             counts["created"].add(case_id)
         owner_rows = records.ownership.get(case_id, [])
@@ -125,7 +121,7 @@ async def derive_with_denominator(
                 != employee_id
             ):
                 continue
-            if _allowed(scope, employee_id, day, records, filters):
+            if _allowed(scope, employee_id, event["occurred_at"], records, filters):
                 counts["booked" if status == "Booked" else "rejected"].add(case_id)
         if created_day > end or (
             case["administratively_voided_at"] is not None
@@ -135,7 +131,7 @@ async def derive_with_denominator(
         as_of = datetime.combine(end, time.max, tzinfo=DUBAI)
         if _owner_at(owner_rows, as_of, case["owner_employee_id"]) != employee_id:
             continue
-        if not _allowed(scope, employee_id, end, records, filters):
+        if not _allowed(scope, employee_id, as_of, records, filters):
             continue
         status = _status_at(events, end, case["current_status"])
         if status in {"Completed", "Rejected"}:
@@ -162,7 +158,7 @@ async def derive_with_denominator(
         if filters.bankId is not None and case_banks.get(result["case_id"]) != filters.bankId:
             continue
         if not _in_range(day, start, end) or not _allowed(
-            scope, employee_id, day, records, filters
+            scope, employee_id, result["completed_at"], records, filters
         ):
             continue
         value = result["cc_points"] if product == "CC" else result["pf_amount_aed"]
@@ -171,7 +167,9 @@ async def derive_with_denominator(
         amount = Decimal(value)
         achieved[product] += amount
         counts["completed"].add(result["case_id"])
-        assignment = assignment_on(records.assignments, day)
+        assignment = assignment_at(
+            records.assignments, records.assignment_changes, result["completed_at"]
+        )
         if (
             assignment is not None
             and records.department_products.get(assignment["department_id"]) == product
