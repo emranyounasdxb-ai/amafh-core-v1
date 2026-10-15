@@ -121,6 +121,8 @@ def charge(units: int) -> None:
 def monthly(start: date, end: date, product_count: int, population: int = 1) -> None:
     days = span(start, end)
     months = (end.year - start.year) * 12 + end.month - start.month + 1
-    if months * product_count * max(1, population) > MAX_MONTHLY_CALLS:
+    # Each month/product invokes one aggregate read, not one read per employee.
+    # Population still contributes to the independent employee-day work bound.
+    if months * product_count > MAX_MONTHLY_CALLS:
         reject()
     check(days * product_count * population)
