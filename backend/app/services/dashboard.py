@@ -6,7 +6,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.operations import notifications
-from app.db.organization import employees
 from app.db.tasks import tasks
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
@@ -14,7 +13,7 @@ from app.schemas.reports import ReportFilters
 from app.services import performance_budget, performance_rankings, performance_reads, reports
 from app.services.performance_math import DUBAI
 from app.services.performance_records import preload
-from app.services.performance_scope import filtered_employee_ids, resolve
+from app.services.performance_scope import employee_rows, filtered_employee_ids, resolve
 from app.services.task_policy import ACTIVE, visible_task
 
 MANAGEMENT = {"Owner", "Managing Director"}
@@ -24,7 +23,7 @@ PERFORMANCE_ROLES = REPORT_ROLES | {"Team Leader", "Sales Executive", "Coordinat
 
 @performance_budget.bounded
 async def read(session: AsyncSession, actor: Actor, filters: ReportFilters) -> dict:
-    """Cache retained source facts only for this read; never across transactions."""
+    """Retain source facts only for this read, never across requests."""
     session.info["performance_records_cache"] = {}
     session.info["performance_metrics_cache"] = {}
     session.info["holiday_calendar_cache"] = {}
@@ -42,18 +41,14 @@ async def preload_visible_performance(
     scope = await resolve(session, actor, filters, finance_report=actor.designation == "Finance")
     visible = await filtered_employee_ids(session, scope, filters)
     if visible:
-        rows = (
-            (await session.execute(select(employees).where(employees.c.id.in_(visible))))
-            .mappings()
-            .all()
-        )
+        rows = await employee_rows(session, visible)
         if monthly:
             assert filters.startDate is not None and filters.endDate is not None
             performance_budget.monthly(
                 filters.startDate, filters.endDate, 1 if filters.productCode else 2, len(rows)
             )
         performance_budget.preflight(rows, filters)
-        await preload(session, [dict(row) for row in rows])
+        await preload(session, rows, filters)
 
 
 async def _read(session: AsyncSession, actor: Actor, filters: ReportFilters) -> dict:

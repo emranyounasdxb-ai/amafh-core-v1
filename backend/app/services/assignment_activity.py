@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.operations import audit_events
-from app.services.performance_math import assignment_on, dubai_date
+from app.db.query_sets import text_set
+from app.services.performance_math import dubai_date
 
 FIELDS = {
     "branch_id": "branchId",
@@ -24,7 +25,7 @@ async def changes_for(session: AsyncSession, employee_ids: list[UUID]) -> dict[U
             select(audit_events).where(
                 audit_events.c.action == "employee.assignment_changed",
                 audit_events.c.entity_type == "employee",
-                audit_events.c.entity_id.in_([str(value) for value in employee_ids]),
+                text_set(audit_events.c.entity_id, [str(value) for value in employee_ids]),
             )
         )
     ).mappings():
@@ -136,4 +137,4 @@ def assignment_at(rows: list[dict], changes: list[dict], when: datetime) -> dict
         if row["assignment_start_date"] <= day
         and (row["assignment_end_date"] is None or day < row["assignment_end_date"])
     ]
-    return assignment_on(rows, day) if len(matches) <= 1 else None
+    return matches[0] if len(matches) == 1 else None

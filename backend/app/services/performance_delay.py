@@ -16,11 +16,15 @@ async def count_delayed(
     session: AsyncSession,
     candidates: list[tuple[UUID, date, int]],
     as_of: date,
+    *,
+    weights: list[int] | None = None,
 ) -> tuple[int | None, str]:
     if not candidates:
         return 0, "Available"
+    weights = weights if weights is not None else [1] * len(candidates)
+    weighted = list(zip(candidates, weights, strict=True))
     performance_budget.charge(
-        sum(performance_budget.span(start, as_of) for _, start, _ in candidates)
+        sum(performance_budget.span(start, as_of) * weight for (_, start, _), weight in weighted)
     )
     earliest = min(start for _, start, _ in candidates)
     years = set(range(earliest.year, as_of.year + 1))
@@ -54,7 +58,9 @@ async def count_delayed(
     if years - certified:
         return None, "Holiday calendar unavailable"
     return sum(
-        working_days_elapsed(start, as_of, holidays) > expected for _, start, expected in candidates
+        weight
+        for (_, start, expected), weight in weighted
+        if working_days_elapsed(start, as_of, holidays) > expected
     ), "Available"
 
 

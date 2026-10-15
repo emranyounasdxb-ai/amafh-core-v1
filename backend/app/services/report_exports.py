@@ -3,13 +3,16 @@
 import csv
 import io
 import re
+from asyncio import AbstractEventLoop, get_running_loop
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
+from weakref import WeakKeyDictionary
 
-import arabic_reshaper
-from bidi.algorithm import get_display
+import arabic_reshaper  # type: ignore[import-untyped]
+from anyio import CapacityLimiter, to_thread
+from bidi.algorithm import get_display  # type: ignore[import-untyped]
 from reportlab.lib.pagesizes import A4, landscape  # type: ignore[import-untyped]
 from reportlab.pdfbase import pdfmetrics  # type: ignore[import-untyped]
 from reportlab.pdfbase.ttfonts import TTFont  # type: ignore[import-untyped]
@@ -25,6 +28,7 @@ from app.policies import MD, OWNER, Actor
 from app.repositories.employee_scope import employee_query
 from app.schemas.reports import ReportFilters
 from app.services.performance_math import DUBAI
+from app.services.performance_records import release_read_connection
 from app.services.reports import read
 from app.services.table_export_spec import ExportColumn, report_columns
 
@@ -36,6 +40,7 @@ PDF_FONT = "AMAFH-DejaVuSans"
 PDF_FONT_PATH = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "DejaVuSans.ttf"
 UNAVAILABLE = "Unavailable"
 LABEL_CHUNK = 5_000
+_render_limiters: WeakKeyDictionary[AbstractEventLoop, CapacityLimiter] = WeakKeyDictionary()
 ACRONYMS = {"csv", "pdf", "aed", "cc", "pf", "hr", "md"}
 COMPANY_ORGANIZATION = {OWNER, MD, "HR", "Finance"}
 FILTER_LABELS = {
@@ -327,7 +332,13 @@ def _font() -> None:
 
 def _visual_text(value: str) -> str:
     font = pdfmetrics.getFont(PDF_FONT)
-    visual = get_display(arabic_reshaper.reshape(value), base_dir="L")
+    # Printable ASCII has no Arabic joining or RTL direction changes. Control
+    # characters and every non-ASCII string keep the original shaping path.
+    visual = (
+        value
+        if value.isascii() and value.isprintable()
+        else get_display(arabic_reshaper.reshape(value), base_dir="L")
+    )
     if any(ord(char) not in font.face.charToGlyph for char in visual):
         raise ApiError(
             422, "EXPORT_GLYPH_UNAVAILABLE", "PDF text contains an unsupported character"
@@ -376,7 +387,13 @@ def _pdf_text(value) -> str:
     return "".join(" " if ord(char) < 32 else char for char in raw).strip()
 
 
-def _wrap(value: str, width: float, font_size: int = 8) -> list[str]:
+def _wrap(
+    value: str,
+    width: float,
+    font_size: int = 8,
+    *,
+    character_widths: dict[str, float] | None = None,
+) -> list[str]:
     if not value:
         return [""]
     lines = []
@@ -385,7 +402,11 @@ def _wrap(value: str, width: float, font_size: int = 8) -> list[str]:
         used = 0.0
         end = 0
         for char in remaining:
-            char_width = pdfmetrics.stringWidth(char, PDF_FONT, font_size)
+            char_width = character_widths.get(char) if character_widths is not None else None
+            if char_width is None:
+                char_width = pdfmetrics.stringWidth(char, PDF_FONT, font_size)
+                if character_widths is not None:
+                    character_widths[char] = char_width
             if used + char_width > width:
                 break
             used += char_width
@@ -419,14 +440,17 @@ def render_pdf(result: dict, actor_name: str, employee_code: str) -> bytes:
     ]
     per_page = int((height - 100) // 11)
     lines = []
+    # Both dictionaries exist only for this document and its fixed 8pt font.
+    character_widths: dict[str, float] = {}
+    visual_lines: dict[str, str] = {}
     for entry in context:
-        lines.extend(_wrap(_pdf_text(entry), line_width))
+        lines.extend(_wrap(_pdf_text(entry), line_width, character_widths=character_widths))
     lines.append("")
     for item in result["items"]:
         lines.append("")
         for column in result["columns"]:
             entry = f"{column['heading']}: {_pdf_text(item[column['key']])}"
-            lines.extend(_wrap(entry, line_width))
+            lines.extend(_wrap(entry, line_width, character_widths=character_widths))
     pages = [lines[index : index + per_page] for index in range(0, len(lines), per_page)] or [[]]
     if len(pages) > PDF_PAGES:
         raise ExportLimitError(
@@ -439,14 +463,20 @@ def render_pdf(result: dict, actor_name: str, employee_code: str) -> bytes:
     output = io.BytesIO()
     pdf = canvas.Canvas(output, pagesize=(width, height), pageCompression=1)
     pdf.setTitle(result["title"])
+
+    def visual(line: str) -> str:
+        if line not in visual_lines:
+            visual_lines[line] = _visual_text(line)
+        return visual_lines[line]
+
     for page_number, page_lines in enumerate(pages, 1):
         pdf.setFont(PDF_FONT, 8)
         y = height - 42
         for line in page_lines:
-            pdf.drawString(40, y, _visual_text(line))
+            pdf.drawString(40, y, visual(line))
             y -= 11
         pdf.setFont(PDF_FONT, 8)
-        pdf.drawString(40, 28, _visual_text("Confidential — Internal Use Only"))
+        pdf.drawString(40, 28, visual("Confidential — Internal Use Only"))
         pdf.drawRightString(width - 40, 28, f"Page {page_number} of {len(pages)}")
         pdf.showPage()
     pdf.save()
@@ -460,6 +490,23 @@ def render_pdf(result: dict, actor_name: str, employee_code: str) -> bytes:
             MAX_BYTES,
         )
     return data
+
+
+async def render_bytes(
+    format: str, result: dict, actor_name: str = "", employee_code: str = ""
+) -> bytes:
+    """Render retained, authorized values off the request loop, one document at a time.
+
+    The worker receives no session or actor object. Limiting work also bounds PDF
+    memory/font use; separate loop-local limiters keep isolated tests independent.
+    """
+    loop = get_running_loop()
+    limiter = _render_limiters.get(loop)
+    if limiter is None:
+        limiter = _render_limiters[loop] = CapacityLimiter(1)
+    if format == "csv":
+        return await to_thread.run_sync(render_csv, result, limiter=limiter)
+    return await to_thread.run_sync(render_pdf, result, actor_name, employee_code, limiter=limiter)
 
 
 async def export(
@@ -519,13 +566,15 @@ async def export(
     try:
         readable = await readable_report(session, actor, result)
         if format == "csv":
-            data = render_csv(readable)
+            await release_read_connection(session)
+            data = await render_bytes(format, readable)
             media = "text/csv; charset=utf-8"
         else:
             code = await session.scalar(
                 select(employees.c.system_employee_code).where(employees.c.id == actor.employee_id)
             )
-            data = render_pdf(readable, actor.display_name, code or "")
+            await release_read_connection(session)
+            data = await render_bytes(format, readable, actor.display_name, code or "")
             media = "application/pdf"
     except ApiError as error:
         await record(

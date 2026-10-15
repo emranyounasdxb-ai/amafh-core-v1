@@ -7,6 +7,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.organization import employees, team_leader_history, team_memberships, teams
+from app.db.query_sets import uuid_set
 from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
@@ -14,6 +15,7 @@ from app.services import performance_budget
 from app.services.performance_aggregate import summarize
 from app.services.performance_math import DUBAI
 from app.services.performance_metrics import derive, derive_with_denominator
+from app.services.performance_records import preload
 from app.services.performance_scope import (
     MANAGEMENT_ROLES,
     filtered_employee_ids,
@@ -119,7 +121,7 @@ async def employees_page(
             (
                 await session.scalars(
                     select(employees.c.id).where(
-                        employees.c.id.in_(ids),
+                        uuid_set(employees.c.id, ids),
                         or_(
                             employees.c.full_name.ilike(term),
                             employees.c.system_employee_code.ilike(term),
@@ -138,11 +140,12 @@ async def employees_page(
         session.info["performance_metrics_cache"] = {}
     try:
         population = (
-            (await session.execute(select(employees).where(employees.c.id.in_(ids))))
+            (await session.execute(select(employees).where(uuid_set(employees.c.id, ids))))
             .mappings()
             .all()
         )
         performance_budget.preflight(population, filters, session=session, scope=scope)
+        await preload(session, [dict(row) for row in population], filters)
         summary = summarize(
             [
                 await derive_with_denominator(session, scope, dict(row), filters)
@@ -233,7 +236,7 @@ async def team_detail(
         (
             await session.execute(
                 select(employees)
-                .where(employees.c.id.in_(ids))
+                .where(uuid_set(employees.c.id, ids))
                 .order_by(
                     (employees.c.full_name if sort else employees.c.id).asc()
                     if direction == "asc"
@@ -246,6 +249,7 @@ async def team_detail(
         .all()
     )
     performance_budget.preflight(rows, scoped, session=session, scope=scope)
+    await preload(session, [dict(row) for row in rows], filters)
     all_metrics = [await derive_with_denominator(session, scope, dict(row), scoped) for row in rows]
     items = [item for item, _ in all_metrics]
     if sort in METRIC_SORTS:
@@ -301,7 +305,23 @@ async def comparison(
             query = query.where(departments.c.id == filters.departmentId)
         if filters.branchId is not None:
             query = query.where(departments.c.branch_id == filters.branchId)
-    groups = (await session.execute(query)).all()
+    # Product variants of one bounded read reuse the same group and row results;
+    # the cache is dropped when that read ends.
+    cache = session.info.get("performance_comparison_cache")
+    groups_key = (
+        group_by,
+        actor.designation == "Sales Manager",
+        actor.branch_id,
+        actor.department_id,
+        filters.branchId,
+        filters.departmentId,
+    )
+    if cache is not None and groups_key in cache:
+        groups = list(cache[groups_key])
+    else:
+        groups = list((await session.execute(query)).all())
+        if cache is not None:
+            cache[groups_key] = tuple(groups)
     if sort and direction == "desc":
         groups = list(reversed(groups))
     items = []
@@ -313,11 +333,21 @@ async def comparison(
             }
         )
         employee_ids = await filtered_employee_ids(session, scope, group_filters)
-        employee_rows = (
-            (await session.execute(select(employees).where(employees.c.id.in_(employee_ids))))
-            .mappings()
-            .all()
-        )
+        rows_key = ("rows", frozenset(employee_ids))
+        if cache is not None and rows_key in cache:
+            employee_rows = cache[rows_key]
+        else:
+            employee_rows = tuple(
+                (
+                    await session.execute(
+                        select(employees).where(uuid_set(employees.c.id, employee_ids))
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            if cache is not None:
+                cache[rows_key] = employee_rows
         plans.append((group_id, name, group_filters, employee_rows))
     performance_budget.check(
         sum(
@@ -326,6 +356,7 @@ async def comparison(
         )
     )
     for group_id, name, group_filters, employee_rows in plans:
+        await preload(session, [dict(row) for row in employee_rows], group_filters)
         metrics = [
             await derive_with_denominator(session, scope, dict(employee), group_filters)
             for employee in employee_rows

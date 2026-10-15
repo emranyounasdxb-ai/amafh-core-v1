@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.organization import employees
+from app.db.query_sets import uuid_set
 from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
@@ -22,7 +23,7 @@ from app.services import (
 from app.services.performance_math import DUBAI
 from app.services.performance_metrics import derive
 from app.services.performance_records import preload
-from app.services.performance_scope import filtered_employee_ids, resolve
+from app.services.performance_scope import employee_rows, filtered_employee_ids, resolve
 from app.services.public_row_sort import sort_rows
 from app.services.report_catalog import CATALOG, authorize
 from app.services.report_finance import finance_report
@@ -125,32 +126,30 @@ async def _performance(
         ids = [employee_id for employee_id in ids if employee_id == filters.employeeId]
     if max_rows is not None and len(ids) > max_rows:
         return [], len(ids), {}
-    rows = (
-        (
-            await session.execute(
-                select(employees)
-                .where(employees.c.id.in_(ids))
-                .order_by(
-                    (
+    if sort == "employeeName":
+        rows = [
+            dict(row)
+            for row in (
+                await session.execute(
+                    select(employees)
+                    .where(uuid_set(employees.c.id, ids))
+                    .order_by(
                         employees.c.full_name.asc()
                         if direction == "asc"
-                        else employees.c.full_name.desc()
+                        else employees.c.full_name.desc(),
+                        employees.c.id,
                     )
-                    if sort == "employeeName"
-                    else employees.c.id,
-                    employees.c.id,
                 )
-            )
-        )
-        .mappings()
-        .all()
-    )
+            ).mappings()
+        ]
+    else:
+        rows = await employee_rows(session, ids)
     performance_budget.preflight(rows, current, session=session, scope=scope)
     owned_cache = "performance_records_cache" not in session.info
     if owned_cache:
         session.info["performance_records_cache"] = {}
     try:
-        await preload(session, [dict(row) for row in rows])
+        await preload(session, [dict(row) for row in rows], current)
         all_metrics = [await derive(session, scope, dict(row), current) for row in rows]
     finally:
         if owned_cache:

@@ -19,9 +19,8 @@ from app.db.organization import (
     user_accounts,
 )
 from app.errors import ApiError
-from app.policies import Actor, require
+from app.policies import Actor, effective_grants, require
 from app.repositories import identity
-from app.repositories import permissions as permission_rows
 from app.security import (
     DUMMY_PASSWORD_HASH,
     MAX_PASSWORD_LENGTH,
@@ -190,8 +189,7 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
     if not raw_session:
         raise ApiError(401, "AUTH_REQUIRED", "Authentication required")
     digest = token_digest(raw_session)
-    result = await session.execute(select(sessions).where(sessions.c.token_hash == digest))
-    session_row = result.mappings().first()
+    session_row = await identity.session_snapshot(session, digest)
     if not session_row:
         raise ApiError(401, "AUTH_REQUIRED", "Authentication required")
     if session_row["invalidated_at"]:
@@ -207,9 +205,11 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
         )
         await session.commit()
         raise ApiError(401, "SESSION_EXPIRED", "Session expired")
-    row = await identity.by_account_id(session, session_row["account_id"])
+    row = session_row
     if (
-        not row
+        row["account_id"] is None
+        or row["employee_id"] is None
+        or row["designation"] is None
         or row["access_status"] != "Active"
         or row["employee_status"] != "Active"
         or (row["designation"] != "Owner" and lock_active(row["locked_at"], now))
@@ -220,8 +220,9 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
         )
         await session.commit()
         raise ApiError(401, "AUTH_REQUIRED", "Authentication required")
-    grants = await permission_rows.actor_grants(session, row["designation"])
-    await session.commit()
+    grants = effective_grants(row["designation"], set(row["configured_grants"] or []))
+    # The successful check wrote nothing. Keeping its read-only transaction lets the
+    # route reuse this connection instead of returning it and checking out again.
     return Actor(
         row["account_id"],
         row["employee_id"],

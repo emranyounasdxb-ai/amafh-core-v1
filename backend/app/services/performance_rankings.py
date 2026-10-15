@@ -19,6 +19,7 @@ from app.db.organization import (
     team_memberships,
 )
 from app.db.performance import ranking_confirmations
+from app.db.query_sets import uuid_set
 from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
@@ -26,7 +27,13 @@ from app.services import performance_budget
 from app.services.department_products import department_products
 from app.services.performance_math import DUBAI, assignment_on, target_on
 from app.services.performance_metrics import derive
-from app.services.performance_scope import MANAGEMENT_ROLES, resolve, visible_employee_ids
+from app.services.performance_records import preload
+from app.services.performance_scope import (
+    MANAGEMENT_ROLES,
+    employee_rows,
+    resolve,
+    visible_employee_ids,
+)
 from app.services.public_row_sort import sort_rows
 
 
@@ -54,26 +61,30 @@ async def _candidate_count(
     if not ids:
         return 0
     employee_rows = (
-        (await session.execute(select(employees).where(employees.c.id.in_(ids)))).mappings().all()
+        (await session.execute(select(employees).where(uuid_set(employees.c.id, ids))))
+        .mappings()
+        .all()
     )
     histories: dict[UUID, list[dict]] = {employee_id: [] for employee_id in ids}
     for row in (
         await session.execute(
-            select(assignment_history).where(assignment_history.c.employee_id.in_(ids))
+            select(assignment_history).where(uuid_set(assignment_history.c.employee_id, ids))
         )
     ).mappings():
         histories[row["employee_id"]].append(dict(row))
     memberships: dict[UUID, list[dict]] = {employee_id: [] for employee_id in ids}
     for row in (
         await session.execute(
-            select(team_memberships).where(team_memberships.c.employee_id.in_(ids))
+            select(team_memberships).where(uuid_set(team_memberships.c.employee_id, ids))
         )
     ).mappings():
         memberships[row["employee_id"]].append(dict(row))
     leaderships: dict[UUID, list[dict]] = {employee_id: [] for employee_id in ids}
     for row in (
         await session.execute(
-            select(team_leader_history).where(team_leader_history.c.leader_employee_id.in_(ids))
+            select(team_leader_history).where(
+                uuid_set(team_leader_history.c.leader_employee_id, ids)
+            )
         )
     ).mappings():
         leaderships[row["leader_employee_id"]].append(dict(row))
@@ -144,20 +155,9 @@ async def _ranked(
     if actor.designation == "Team Leader" and filters.teamId != scope.team_id:
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
     ids = await visible_employee_ids(session, scope)
-    rows = (
-        (
-            await session.execute(
-                select(employees)
-                .where(employees.c.id.in_(ids))
-                .order_by(
-                    employees.c.id,
-                )
-            )
-        )
-        .mappings()
-        .all()
-    )
+    rows = await employee_rows(session, ids)
     performance_budget.preflight(rows, filters, session=session, scope=scope)
+    await preload(session, [dict(row) for row in rows], filters)
     ranked = []
     for employee in rows:
         metrics = await derive(session, scope, dict(employee), filters)

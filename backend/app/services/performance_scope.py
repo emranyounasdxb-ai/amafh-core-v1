@@ -14,6 +14,7 @@ from app.db.organization import (
     team_memberships,
     teams,
 )
+from app.db.query_sets import uuid_set
 from app.errors import ApiError
 from app.policies import Actor
 from app.schemas.performance import PerformanceFilters
@@ -39,12 +40,20 @@ class PerformanceScope:
         leader_rows: list[dict],
         filters: PerformanceFilters,
         assignment_changes: list[dict] | None = None,
+        assignment_cache: dict[date | datetime, dict | None] | None = None,
     ) -> bool:
-        assignment = (
-            assignment_at(assignment_rows, assignment_changes or [], day)
-            if isinstance(day, datetime)
-            else assignment_on(assignment_rows, day)
-        )
+        # Cache only the raw employee assignment at this exact instant/date.
+        # Actor and filter authorization below always runs for the current scope.
+        if assignment_cache is not None and day in assignment_cache:
+            assignment = assignment_cache[day]
+        else:
+            assignment = (
+                assignment_at(assignment_rows, assignment_changes or [], day)
+                if isinstance(day, datetime)
+                else assignment_on(assignment_rows, day)
+            )
+            if assignment_cache is not None:
+                assignment_cache[day] = assignment
         day = day.astimezone(DUBAI).date() if isinstance(day, datetime) else day
         if assignment is None:
             return False
@@ -57,13 +66,16 @@ class PerformanceScope:
             and assignment["designation_id"] != filters.designationId
         ):
             return False
-        membership = team_on(membership_rows, day)
-        leadership = team_on(leader_rows, day)
-        if filters.teamId is not None and not (
-            (membership is not None and membership["team_id"] == filters.teamId)
-            or (leadership is not None and leadership["team_id"] == filters.teamId)
-        ):
-            return False
+        membership = None
+        if filters.teamId is not None or self.actor.designation == "Team Leader":
+            membership = team_on(membership_rows, day)
+        if filters.teamId is not None:
+            leadership = team_on(leader_rows, day)
+            if not (
+                (membership is not None and membership["team_id"] == filters.teamId)
+                or (leadership is not None and leadership["team_id"] == filters.teamId)
+            ):
+                return False
         if self.actor.designation in MANAGEMENT_ROLES or self.finance_report:
             return True
         if self.actor.designation == "Sales Manager":
@@ -113,6 +125,27 @@ async def resolve(
 
 
 async def visible_employee_ids(session: AsyncSession, scope: PerformanceScope) -> list[UUID]:
+    # Inside one bounded read, every sub-read of the same resolved scope sees one
+    # population; the cache is dropped when that read ends.
+    actor = scope.actor
+    cache: dict[tuple, list[UUID]] | None = session.info.get("performance_visible_ids_cache")
+    key = (
+        actor.designation,
+        actor.employee_id,
+        actor.branch_id,
+        actor.department_id,
+        scope.team_id,
+        scope.finance_report,
+    )
+    if cache is not None and key in cache:
+        return list(cache[key])
+    visible = await _visible_employee_ids(session, scope)
+    if cache is not None:
+        cache[key] = list(visible)
+    return visible
+
+
+async def _visible_employee_ids(session: AsyncSession, scope: PerformanceScope) -> list[UUID]:
     actor = scope.actor
     if actor.designation in MANAGEMENT_ROLES or scope.finance_report:
         statement = select(employees.c.id)
@@ -220,33 +253,14 @@ async def filtered_employee_ids(
         and scope.actor.designation != "Team Leader"
     ):
         return visible
-    rows = {
-        row["id"]: dict(row)
-        for row in (
-            await session.execute(select(employees).where(employees.c.id.in_(visible)))
-        ).mappings()
-    }
-    assignments: dict[UUID, list[dict]] = {employee_id: [] for employee_id in visible}
-    for row in (
-        await session.execute(
-            select(assignment_history).where(assignment_history.c.employee_id.in_(visible))
-        )
-    ).mappings():
-        assignments[row["employee_id"]].append(dict(row))
-    memberships: dict[UUID, list[dict]] = {employee_id: [] for employee_id in visible}
-    for row in (
-        await session.execute(
-            select(team_memberships).where(team_memberships.c.employee_id.in_(visible))
-        )
-    ).mappings():
-        memberships[row["employee_id"]].append(dict(row))
-    leaderships: dict[UUID, list[dict]] = {employee_id: [] for employee_id in visible}
-    for row in (
-        await session.execute(
-            select(team_leader_history).where(team_leader_history.c.leader_employee_id.in_(visible))
-        )
-    ).mappings():
-        leaderships[row["leader_employee_id"]].append(dict(row))
+    cache = session.info.get("performance_population_cache")
+    key = tuple(visible)
+    facts = cache.get(key) if cache is not None else None
+    if facts is None:
+        facts = await _population_facts(session, visible)
+        if cache is not None:
+            cache[key] = facts
+    rows, assignments, memberships, leaderships = facts
     result = []
     for employee_id in visible:
         employee = rows[employee_id]
@@ -264,6 +278,54 @@ async def filtered_employee_ids(
         ):
             result.append(employee_id)
     return result
+
+
+async def employee_rows(session: AsyncSession, ids: list[UUID]) -> list[dict]:
+    """Raw employee rows in ID order for already authorized IDs.
+
+    Inside one bounded read, rows are shared between its sub-reads; callers still
+    resolve visible IDs and apply actor/filter policy freshly for every sub-read.
+    """
+    cache: dict[UUID, dict] | None = session.info.get("performance_employee_rows_cache")
+    unique = sorted(set(ids))
+    if cache is None or not all(employee_id in cache for employee_id in unique):
+        statement = select(employees).where(uuid_set(employees.c.id, unique))
+        fetched = (await session.execute(statement.order_by(employees.c.id))).mappings().all()
+        if cache is None:
+            return [dict(row) for row in fetched]
+        cache.update((row["id"], dict(row)) for row in fetched)
+        unique = [row["id"] for row in fetched]
+    return [dict(cache[employee_id]) for employee_id in unique]
+
+
+async def _population_facts(session: AsyncSession, visible: list[UUID]) -> tuple:
+    # The caller freshly resolves visible IDs and applies actor/filter policy.
+    # Only this read's raw rows are shared between repeated population filters.
+    rows = {row["id"]: row for row in await employee_rows(session, visible)}
+    assignments: dict[UUID, list[dict]] = {employee_id: [] for employee_id in visible}
+    for row in (
+        await session.execute(
+            select(assignment_history).where(uuid_set(assignment_history.c.employee_id, visible))
+        )
+    ).mappings():
+        assignments[row["employee_id"]].append(dict(row))
+    memberships: dict[UUID, list[dict]] = {employee_id: [] for employee_id in visible}
+    for row in (
+        await session.execute(
+            select(team_memberships).where(uuid_set(team_memberships.c.employee_id, visible))
+        )
+    ).mappings():
+        memberships[row["employee_id"]].append(dict(row))
+    leaderships: dict[UUID, list[dict]] = {employee_id: [] for employee_id in visible}
+    for row in (
+        await session.execute(
+            select(team_leader_history).where(
+                uuid_set(team_leader_history.c.leader_employee_id, visible)
+            )
+        )
+    ).mappings():
+        leaderships[row["leader_employee_id"]].append(dict(row))
+    return rows, assignments, memberships, leaderships
 
 
 async def require_employee(

@@ -12,6 +12,10 @@ amafhcore.com {
     handle @api {
         reverse_proxy backend:8000 {
             header_up X-Forwarded-For {client_ip}
+            # Retire idle upstream connections before uvicorn's 5s keep-alive timeout.
+            transport http {
+                keepalive 3s
+            }
         }
     }
     handle {

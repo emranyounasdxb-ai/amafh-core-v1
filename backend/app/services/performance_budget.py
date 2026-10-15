@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from functools import wraps
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.errors import ApiError
 from app.services.performance_math import DUBAI
 
@@ -26,9 +28,27 @@ def bounded[**P, T](function: Callable[P, Awaitable[T]]) -> Callable[P, Awaitabl
     @wraps(function)
     async def wrapped(*args: P.args, **kwargs: P.kwargs) -> T:
         token = _current.set(Budget()) if _current.get() is None else None
+        session = args[0] if args else kwargs.get("session")
+        owned_caches = []
+        if isinstance(session, AsyncSession):
+            for name in (
+                "performance_records_cache",
+                "performance_metrics_cache",
+                "holiday_calendar_cache",
+                "performance_population_cache",
+                "performance_employee_rows_cache",
+                "performance_visible_ids_cache",
+                "performance_comparison_cache",
+            ):
+                if name not in session.info:
+                    session.info[name] = {}
+                    owned_caches.append(name)
         try:
             return await function(*args, **kwargs)
         finally:
+            if isinstance(session, AsyncSession):
+                for name in owned_caches:
+                    session.info.pop(name, None)
             if token is not None:
                 _current.reset(token)
 
@@ -73,7 +93,8 @@ def metric_key(scope, employee_id, filters) -> tuple:
         scope.team_id,
         scope.finance_report,
         employee_id,
-        filters.model_dump_json(),
+        type(filters),
+        tuple(filters.__dict__.items()),
     )
 
 

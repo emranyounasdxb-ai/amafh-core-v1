@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.attendance import csv_import_batches, csv_import_row_results
 from app.db.cases import cases
 from app.db.organization import employees
+from app.db.query_sets import text_set
 from app.errors import ApiError
 from app.policies import Actor
 from app.repositories.case_scope import case_access
@@ -64,7 +65,7 @@ async def scoped_result(session: AsyncSession, actor: Actor, result: dict) -> di
             (
                 await session.execute(
                     select(cases.c.internal_case_id).where(
-                        cases.c.internal_case_id.in_(identifiers), case_access(actor)
+                        text_set(cases.c.internal_case_id, identifiers), case_access(actor)
                     )
                 )
             ).scalars()

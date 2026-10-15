@@ -3,17 +3,24 @@
 import csv
 import hashlib
 import io
+import json
 from uuid import uuid4
 
 from fastapi import UploadFile
-from sqlalchemy import func, select, update
+from sqlalchemy import DateTime, bindparam, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.db.base import utcnow
-from app.db.cases import case_lifecycle_history, case_stage_history, cases, product_types
+from app.db.cases import (
+    case_lifecycle_history,
+    case_stage_history,
+    cases,
+    product_types,
+)
 from app.db.operations import csv_import_batches, csv_import_row_results, notifications
 from app.db.organization import designations, employees
+from app.db.query_sets import text_set, uuid_set
 from app.errors import ApiError
 from app.normalization import identifier
 from app.policies import Actor, require
@@ -28,6 +35,7 @@ TEMPLATE = "Bank Case Number,Latest Stage,Bank Remarks\r\n"
 MAX_CSV_BYTES = 5_000_000
 MAX_DATA_ROWS = 5_000
 READ_CHUNK_BYTES = 64 * 1024
+INSERT_BATCH_ROWS = 512
 
 
 async def read_upload(file: UploadFile) -> tuple[bytes, str, bool]:
@@ -120,12 +128,20 @@ def _parse(content: bytes) -> tuple[list[tuple[int, str, str, str]], list[dict]]
             rows.append((line_number, number, stage, remark))
         if not rows and not errors:
             errors.append(
-                {"rowNumber": 2, "code": "EMPTY_FILE", "message": "At least one row is required"}
+                {
+                    "rowNumber": 2,
+                    "code": "EMPTY_FILE",
+                    "message": "At least one row is required",
+                }
             )
         return rows, errors
     except UnicodeDecodeError, csv.Error:
         return [], [
-            {"rowNumber": next_row, "code": "MALFORMED_CSV", "message": "Invalid UTF-8 CSV"}
+            {
+                "rowNumber": next_row,
+                "code": "MALFORMED_CSV",
+                "message": "Invalid UTF-8 CSV",
+            }
         ]
 
 
@@ -158,38 +174,44 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
     resolved = []
     contexts = {}
     products = await _product_names(session)
-    by_number = {}
-    for number in sorted({row[1] for row in rows}):
-        case = (
-            (
-                await session.execute(
-                    select(cases)
-                    .where(
-                        func.upper(
-                            func.regexp_replace(
-                                func.btrim(cases.c.bank_case_number), "[[:space:]]+", " ", "g"
-                            )
-                        )
-                        == number
-                    )
-                    .with_for_update()
-                )
+    numbers = sorted({row[1] for row in rows})
+    normalized_number = func.upper(
+        func.regexp_replace(func.btrim(cases.c.bank_case_number), "[[:space:]]+", " ", "g")
+    )
+    by_number = dict.fromkeys(numbers)
+    if numbers:
+        locked = (
+            await session.execute(
+                select(cases, normalized_number.label("_csv_number"))
+                .where(text_set(normalized_number, numbers))
+                .order_by(normalized_number, cases.c.id)
+                .with_for_update(of=cases)
             )
-            .mappings()
-            .one_or_none()
-        )
-        by_number[number] = case
+        ).mappings()
+        for row in locked:
+            by_number[row["_csv_number"]] = {
+                key: value for key, value in row.items() if key != "_csv_number"
+            }
+    pipeline_sets = {}
     for row_number, number, stage_name, remark in rows:
         case = by_number[number]
         contexts[row_number] = _context(row_number, number, stage_name, remark)
         if case is None:
             errors.append(
-                {"rowNumber": row_number, "code": "CASE_UNAVAILABLE", "message": "Case unavailable"}
+                {
+                    "rowNumber": row_number,
+                    "code": "CASE_UNAVAILABLE",
+                    "message": "Case unavailable",
+                }
             )
             continue
         if case["administratively_voided_at"] is not None:
             errors.append(
-                {"rowNumber": row_number, "code": "CASE_UNAVAILABLE", "message": "Case unavailable"}
+                {
+                    "rowNumber": row_number,
+                    "code": "CASE_UNAVAILABLE",
+                    "message": "Case unavailable",
+                }
             )
             continue
         if actor.designation == "Coordinator" and not (
@@ -200,7 +222,11 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
             )
         ):
             errors.append(
-                {"rowNumber": row_number, "code": "CASE_UNAVAILABLE", "message": "Case unavailable"}
+                {
+                    "rowNumber": row_number,
+                    "code": "CASE_UNAVAILABLE",
+                    "message": "Case unavailable",
+                }
             )
             continue
         contexts[row_number] = _context(row_number, number, stage_name, remark, case, products)
@@ -215,15 +241,26 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
             continue
         if case["current_status"] in FINAL:
             errors.append(
-                {"rowNumber": row_number, "code": "FINAL_LOCK", "message": "Case is final"}
+                {
+                    "rowNumber": row_number,
+                    "code": "FINAL_LOCK",
+                    "message": "Case is final",
+                }
             )
             continue
         if case["bank_case_number"] is None or case["pipeline_configuration_id"] is None:
             errors.append(
-                {"rowNumber": row_number, "code": "NOT_BOOKED", "message": "Case is not booked"}
+                {
+                    "rowNumber": row_number,
+                    "code": "NOT_BOOKED",
+                    "message": "Case is not booked",
+                }
             )
             continue
-        stages = await _valid_stage_set(session, case["pipeline_configuration_id"])
+        pipeline_id = case["pipeline_configuration_id"]
+        if pipeline_id not in pipeline_sets:
+            pipeline_sets[pipeline_id] = await _valid_stage_set(session, pipeline_id)
+        stages = pipeline_sets[pipeline_id]
         stage = next((item for item in stages if item["name"] == stage_name), None)
         if stage is None:
             errors.append(
@@ -241,6 +278,7 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
 async def _record_results(session, batch_id, rows, errors, valid, contexts, *, one_shot: bool):
     failures = {item["rowNumber"]: item for item in errors}
     numbers = sorted({row[0] for row in rows} | set(failures) | set(contexts))
+    values = []
     for number in numbers:
         failure = failures.get(number)
         context = contexts.get(number, {})
@@ -248,8 +286,8 @@ async def _record_results(session, batch_id, rows, errors, valid, contexts, *, o
             status = "Applied" if valid else ("Rejected" if failure else "Skipped")
         else:
             status = "Invalid" if failure else "Valid"
-        await session.execute(
-            csv_import_row_results.insert().values(
+        values.append(
+            dict(
                 id=uuid4(),
                 batch_id=batch_id,
                 row_number=number,
@@ -265,6 +303,16 @@ async def _record_results(session, batch_id, rows, errors, valid, contexts, *, o
                 remark=context.get("remark"),
             )
         )
+    if values:
+        await _insert_rows(session, csv_import_row_results, values)
+
+
+async def _insert_rows(session: AsyncSession, table, values: list[dict]) -> None:
+    # Explicit bounded VALUES statements avoid one protocol execution per row.
+    # UUIDs, field values and server defaults retain their original semantics;
+    # every chunk remains inside the caller's all-or-nothing transaction.
+    for offset in range(0, len(values), INSERT_BATCH_ROWS):
+        await session.execute(table.insert().values(values[offset : offset + INSERT_BATCH_ROWS]))
 
 
 async def _notify_final(session: AsyncSession, case: dict, status: str) -> None:
@@ -374,7 +422,11 @@ async def _evaluate(session, actor, content, digest, too_large):
                     if exc.code != "FINANCIAL_RULE_MISSING":
                         raise
                     errors.append(
-                        {"rowNumber": row_number, "code": exc.code, "message": exc.message}
+                        {
+                            "rowNumber": row_number,
+                            "code": exc.code,
+                            "message": exc.message,
+                        }
                     )
     for row_number, number, stage_name, remark in rows:
         contexts.setdefault(row_number, _context(row_number, number, stage_name, remark))
@@ -382,6 +434,11 @@ async def _evaluate(session, actor, content, digest, too_large):
 
 
 async def _apply_resolved(session, actor, batch_id, resolved, now):
+    if resolved and all(
+        not stage["is_final"] and stage["final_status"] is None for _, _, stage, _ in resolved
+    ):
+        await _apply_nonfinal_bulk(session, actor, batch_id, resolved, now)
+        return
     prepared = {}
     for _row_number, case, stage, _ in resolved:
         if stage["final_status"] == "Completed":
@@ -526,7 +583,10 @@ async def import_stages(
             context={"caseIds": [str(case["id"]) for _, case, _, _ in resolved] if valid else []},
         )
         result = _result(
-            batch_id, "Applied" if valid else "Rejected", len(resolved) if valid else 0, errors
+            batch_id,
+            "Applied" if valid else "Rejected",
+            len(resolved) if valid else 0,
+            errors,
         )
         await complete(session, record_id, 200, result)
         await session.commit()
@@ -688,7 +748,11 @@ async def apply_validated_batch(
                         if exc.code != "FINANCIAL_RULE_MISSING":
                             raise
                         errors.append(
-                            {"rowNumber": row_number, "code": exc.code, "message": exc.message}
+                            {
+                                "rowNumber": row_number,
+                                "code": exc.code,
+                                "message": exc.message,
+                            }
                         )
         if errors:
             failures = {item["rowNumber"]: item for item in errors}
@@ -728,12 +792,11 @@ async def apply_validated_batch(
             await session.commit()
             return result
         await _apply_resolved(session, actor, batch_id, resolved, now)
-        for row in stored:
-            await session.execute(
-                update(csv_import_row_results)
-                .where(csv_import_row_results.c.id == row["id"])
-                .values(status="Applied", error_code=None, error_detail=None)
-            )
+        await session.execute(
+            update(csv_import_row_results)
+            .where(uuid_set(csv_import_row_results.c.id, [row["id"] for row in stored]))
+            .values(status="Applied", error_code=None, error_detail=None)
+        )
         await session.execute(
             update(csv_import_batches)
             .where(csv_import_batches.c.id == batch_id)
@@ -768,3 +831,67 @@ async def apply_validated_batch(
     except Exception:
         await session.rollback()
         raise
+
+
+async def _apply_nonfinal_bulk(session, actor, batch_id, resolved, now):
+    # Only the non-financial path uses bulk statements. Validation already
+    # holds Coordinator assignment and all Case locks in canonical-number order.
+    updates = []
+    histories = []
+    lifecycles = []
+    notices = []
+    for _, case, stage, remark in resolved:
+        updates.append(dict(id=str(case["id"]), stage=stage["name"]))
+        histories.append(
+            dict(
+                id=uuid4(),
+                case_id=case["id"],
+                stage=stage["name"],
+                remark=remark,
+                status="Booked",
+                updated_by_employee_id=actor.employee_id,
+                csv_import_batch_id=batch_id,
+                occurred_at=now,
+            )
+        )
+        if case["current_status"] != "Booked":
+            lifecycles.append(
+                dict(
+                    id=uuid4(),
+                    case_id=case["id"],
+                    previous_status=case["current_status"],
+                    status="Booked",
+                    actor_employee_id=actor.employee_id,
+                    occurred_at=now,
+                    context={"csvImportBatchId": str(batch_id), "stage": stage["name"]},
+                )
+            )
+        for recipient in sorted(
+            {case["owner_employee_id"], case["created_by_employee_id"]}, key=str
+        ):
+            notices.append(
+                dict(
+                    id=uuid4(),
+                    recipient_employee_id=recipient,
+                    kind="case.stage_updated",
+                    case_id=case["id"],
+                    message=f"Case {case['internal_case_id']} stage updated",
+                )
+            )
+    # Validation owns every listed Case lock before this statement. Join only
+    # those exact IDs, preserving per-row stages and all database row guards.
+    # One bound JSON payload avoids 5,000 UPDATE protocol executions.
+    statement = text("""
+        UPDATE cases AS c
+        SET current_stage=source.stage, current_status='Booked',
+            finalized_at=NULL, updated_at=:updated_at
+        FROM jsonb_to_recordset(CAST(:updates AS jsonb)) AS source(id uuid, stage text)
+        WHERE c.id=source.id
+    """).bindparams(bindparam("updated_at", type_=DateTime(timezone=True)))
+    result = await session.execute(statement, {"updates": json.dumps(updates), "updated_at": now})
+    if result.rowcount != len(updates):
+        raise RuntimeError("CSV locked Case update count differs")
+    await _insert_rows(session, case_stage_history, histories)
+    if lifecycles:
+        await _insert_rows(session, case_lifecycle_history, lifecycles)
+    await _insert_rows(session, notifications, notices)
