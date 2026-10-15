@@ -229,9 +229,9 @@ export function periodLabel(start?: string, end?: string) {
 export function datePresets(): DateRangePreset[] {
   const today = dubaiTodayDateOnly();
   return [
+    { id: "today", label: "Today", range: { start: today, end: today } },
     { id: "month", label: "This month", range: { start: `${today.slice(0, 8)}01`, end: today } },
     { id: "30", label: "Last 30 days", range: { start: addDays(today, -29), end: today } },
-    { id: "90", label: "Last 90 days", range: { start: addDays(today, -89), end: today } },
     { id: "custom", label: "Custom", range: { start: "", end: "" } },
   ];
 }

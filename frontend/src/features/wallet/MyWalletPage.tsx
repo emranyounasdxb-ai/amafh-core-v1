@@ -30,7 +30,6 @@ import {
   StatusBadge,
   TruncatedText,
   UnavailableState,
-  addMonths,
   formatCompactDateRange,
   formatFullNumber,
   type AppliedFilter,
@@ -103,7 +102,6 @@ export function MyWalletPage({
       },
     },
   ].filter(Boolean) as AppliedFilter[];
-  const lastMonth = monthPeriod(addMonths(thisMonth.start, -1));
   const caseCell = (row: WalletTransaction) => {
     if (!row.caseReference) return <EmptyValue />;
     const caseId = row.caseId;
@@ -203,11 +201,6 @@ export function MyWalletPage({
                 id="my-wallet-period"
                 compact
                 compactRangeLabel
-                presets={[
-                  { id: "month", label: "This month", range: thisMonth },
-                  { id: "last-month", label: "Last month", range: lastMonth },
-                  { id: "custom", label: "Custom", range: { start: "", end: "" } },
-                ]}
                 value={period}
                 onChange={(next) => {
                   if (next.start && next.end)

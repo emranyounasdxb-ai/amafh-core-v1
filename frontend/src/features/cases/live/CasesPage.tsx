@@ -571,11 +571,8 @@ export function CasesPage({
         <DateRangePicker
           id="case-created"
           compact
-          months={1}
-          presets={[]}
           compactRangeLabel
           placement="bottom-end"
-          className={styles.datePopover}
           value={createdRange}
           onChange={(range) =>
             updateFilters({
