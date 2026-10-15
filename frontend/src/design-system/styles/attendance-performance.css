@@ -904,9 +904,9 @@
 }
 
 .ds-profile-banner--cover .ds-profile-banner__avatar .ds-avatar {
+  --ds-avatar-size: var(--ds-avatar-cover);
+  --ds-avatar-initials: var(--ds-avatar-initials-cover);
   flex: 0 0 auto;
-  width: 72px;
-  height: 72px;
   border: 3px solid rgb(255 255 255 / 88%);
 }
 

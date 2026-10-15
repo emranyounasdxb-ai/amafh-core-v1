@@ -61,6 +61,16 @@
   --ds-icon-xl: 24px;
   --ds-icon-stroke: 1.75;
   --ds-icon-button: 20px;
+  --ds-avatar-sm: 32px;
+  --ds-avatar-md: 40px;
+  --ds-avatar-lg: 48px;
+  --ds-avatar-xl: 64px;
+  --ds-avatar-cover: 80px;
+  --ds-avatar-initials-sm: 14px;
+  --ds-avatar-initials-md: 16px;
+  --ds-avatar-initials-lg: 18px;
+  --ds-avatar-initials-xl: 24px;
+  --ds-avatar-initials-cover: 28px;
   --ds-chart-1: #5a1acf;
   --ds-chart-2: #35107d;
   --ds-chart-3: #d62bd3;

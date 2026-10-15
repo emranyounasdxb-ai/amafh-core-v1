@@ -153,10 +153,12 @@ export function DateRangePicker({
         placement={placement}
         className={cx(
           "ds-date-popover ds-date-popover--range",
+          months === 2 && "ds-date-popover--two-months",
           compact && "ds-date-popover--compact",
           className,
         )}
-        lockHeight={!compact}
+        lockHeight={months === 1 && !compact}
+        fitViewport={months === 2}
       >
         <div
           className={cx("ds-date-range", compact && "ds-date-range--compact")}

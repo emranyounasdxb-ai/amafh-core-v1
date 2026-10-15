@@ -28,6 +28,7 @@ export function PositionedOverlay({
   restoreFocus = true,
   matchAnchorWidth = false,
   lockHeight = true,
+  fitViewport = false,
 }: {
   open: boolean;
   anchorRef: RefObject<HTMLElement | null>;
@@ -43,6 +44,7 @@ export function PositionedOverlay({
   restoreFocus?: boolean;
   matchAnchorWidth?: boolean;
   lockHeight?: boolean;
+  fitViewport?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
@@ -71,8 +73,15 @@ export function PositionedOverlay({
       },
       placement,
     );
+    if (fitViewport && panel) {
+      const height = Math.min(panel.height, window.innerHeight - 16);
+      next.top = Math.max(
+        8,
+        Math.min(next.top, window.innerHeight - height - 8),
+      );
+    }
     setCoords(next);
-  }, [anchorRef, matchAnchorWidth, placement]);
+  }, [anchorRef, matchAnchorWidth, placement, fitViewport]);
 
   useLayoutEffect(() => {
     if (!open) return;

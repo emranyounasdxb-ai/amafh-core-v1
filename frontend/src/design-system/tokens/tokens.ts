@@ -80,6 +80,13 @@ export const dsTokens = {
     sidebarItem: "36px",
     sidebarSubItem: "32px",
   },
+  avatar: {
+    sm: { size: "32px", initials: "14px" },
+    md: { size: "40px", initials: "16px" },
+    lg: { size: "48px", initials: "18px" },
+    xl: { size: "64px", initials: "24px" },
+    cover: { size: "80px", initials: "28px" },
+  },
   chart: {
     series: ["#5A1ACF", "#35107D", "#D62BD3", "#0B6E75", "#2F6FED", "#C2410C"],
   },
