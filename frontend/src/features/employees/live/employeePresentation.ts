@@ -23,6 +23,7 @@ type EmployeeRecord = {
 };
 
 export type EmployeeListRecord = EmployeeRecord & {
+  nationality: string | null;
   branchName: string | null;
   departmentName: string | null;
   dateOfJoining: string | null;

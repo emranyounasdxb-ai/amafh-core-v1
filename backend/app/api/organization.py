@@ -197,6 +197,7 @@ async def list_employees(
                 "employeeCode": row["company_employee_code"],
                 "companyEmployeeCode": row["company_employee_code"],
                 "fullName": row["full_name"],
+                "nationality": row["nationality"],
                 "status": row["status"],
                 "branchId": str(row["branch_id"]) if row["branch_id"] else None,
                 "departmentId": str(row["department_id"]) if row["department_id"] else None,

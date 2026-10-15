@@ -21,6 +21,7 @@ import {
   InlineNotice,
   LoadingState,
   NoResultsState,
+  NationalityValue,
   OfflineState,
   OverflowMenu,
   PageContainer,
@@ -112,6 +113,7 @@ const COLUMNS = [
   { key: "avatar", label: "Avatar", width: 72, fixed: true },
   { key: "code", label: "Employee code", width: 130 },
   { key: "name", label: "Name", width: 200 },
+  { key: "nationality", label: "Nationality", width: 160 },
   { key: "designation", label: "Designation", width: 150 },
   { key: "branch", label: "Branch", width: 130 },
   { key: "department", label: "Department", width: 150 },
@@ -431,6 +433,8 @@ export function EmployeesPage({ open }: { open: (id: string) => void }) {
             return <Text value={row.code} />;
           case "name":
             return <Text value={row.name} />;
+          case "nationality":
+            return <NationalityValue value={row.nationality} />;
           case "designation":
             return <Text value={row.designation || ""} />;
           case "branch":
