@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  NationalitySelect,
+  NationalityValue,
   Button,
   Checkbox,
   Dialog,
@@ -11,14 +13,12 @@ import {
   InfoGrid,
   MonetaryAmount,
   InlineNotice,
-  Combobox,
   CurrencyInput,
   LoadingState,
   PersonSelect,
   Stepper,
   TextInput,
   UnsavedChangesDialog,
-  nationalityOptions,
   type PersonOption,
   type SelectOption,
   type StepItem,
@@ -53,10 +53,6 @@ type VariantChoices = {
   configuredCount: number;
   totalVariantsCount: number;
 };
-
-const nationalityChoices = nationalityOptions().filter(
-  (option) => option.value !== "XK",
-);
 
 function optionName(rows: NamedRecord[], id: string) {
   return rows.find((row) => row.id === id)?.name || "Unavailable";
@@ -464,9 +460,6 @@ export function CaseCreateForm({
     }
   };
 
-  const nationalityName =
-    nationalityChoices.find((option) => option.value === form.nationality)
-      ?.label || "Unavailable";
   const selectedOwner = people.find(
     (person) => person.id === form.ownerEmployeeId,
   );
@@ -638,13 +631,12 @@ export function CaseCreateForm({
                             : undefined
                         }
                       >
-                        <Combobox
+                        <NationalitySelect
                           id="case-create-nationality"
+                          excludedCodes={["XK"]}
                           compact
                           value={form.nationality}
                           onChange={(value) => patch({ nationality: value })}
-                          options={nationalityChoices}
-                          placeholder="Search nationality or ISO code"
                           invalid={fieldError === "nationality"}
                         />
                       </FormField>
@@ -1049,7 +1041,7 @@ export function CaseCreateForm({
                       }
                     />
                     {form.type === "Individual" ? (
-                      <InfoField label="Nationality" value={nationalityName} />
+                      <InfoField label="Nationality" value={<NationalityValue value={form.nationality} />} />
                     ) : null}
                     <InfoField
                       label="Product"

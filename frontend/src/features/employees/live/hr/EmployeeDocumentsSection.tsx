@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PersonValue,
   Button,
   CompactDate,
   CompactDateTime,
@@ -237,7 +238,7 @@ export function EmployeeDocumentsSection({
       header: "Uploaded by",
       width: "150px",
       render: (row) => (
-        <TruncatedText value={row.uploadedByName || "Team member"} />
+        <PersonValue name={row.uploadedByName || "Team member"} />
       ),
     },
     {

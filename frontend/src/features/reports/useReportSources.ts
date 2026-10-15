@@ -148,13 +148,11 @@ export function useReportSources(
           {
             value: String(row.id),
             label,
-            leading: recordImageSrc("employee", row as ImageRecord)
-              ? createElement(Avatar, {
-                  name: label,
-                  src: recordImageSrc("employee", row as ImageRecord),
-                  size: "sm",
-                })
-              : undefined,
+            leading: createElement(Avatar, {
+              name: label,
+              src: recordImageSrc("employee", row as ImageRecord),
+              size: "sm",
+            }),
             ...(code ? { description: code } : {}),
           },
         ];

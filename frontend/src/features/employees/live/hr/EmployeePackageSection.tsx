@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PersonValue,
   Button,
   CompactDate,
   CompactDateTime,
@@ -194,7 +195,7 @@ export function EmployeePackageSection({
       header: "Recorded by",
       width: "160px",
       render: (row) => (
-        <TruncatedText value={row.createdByName || "Team member"} />
+        <PersonValue name={row.createdByName || "Team member"} />
       ),
     },
     {

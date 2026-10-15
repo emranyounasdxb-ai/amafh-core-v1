@@ -686,6 +686,21 @@
   border: 1px solid var(--ds-border);
 }
 
+.ds-person-value,
+.ds-nationality-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-8);
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.ds-person-value > .ds-avatar,
+.ds-nationality-value > .ds-flag {
+  flex: 0 0 auto;
+}
+
 .ds-combo--unavailable {
   background: var(--ds-subtle);
 }

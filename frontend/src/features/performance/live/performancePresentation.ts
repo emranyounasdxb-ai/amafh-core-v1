@@ -97,7 +97,7 @@ export type Page<T> = {
 export type EmployeePage = Page<EmployeeMetrics> & {
   summary?: PerformanceSummaryValues | null;
 };
-export type RankingItem = {
+export type RankingItem = EmployeeIdentity & {
   employeeId: string;
   employeeName: string;
   achievementPercentage: string;

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  NationalityValue,
   Avatar,
   Button,
   CompactDate,
@@ -31,7 +32,6 @@ import {
   Tabs,
   Timeline,
   TruncatedText,
-  nationalityOptions,
   type MenuItem,
   type RelatedRecordItem,
   type TimelineItem,
@@ -81,7 +81,6 @@ type ClawbackMention = {
   reason: string | null;
 };
 
-const nationalities = nationalityOptions();
 type DetailTab = "overview" | EmployeeSection | "history";
 
 function isOffline(error: string) {
@@ -90,11 +89,6 @@ function isOffline(error: string) {
 
 function Value({ value }: { value: string | null | undefined }) {
   return value ? <TruncatedText value={value} /> : <EmptyValue />;
-}
-
-function nationalityLabel(code: string | null | undefined) {
-  if (!code) return "";
-  return nationalities.find((item) => item.value === code)?.label || code;
 }
 
 export function EmployeeDetailPage({
@@ -647,7 +641,7 @@ export function EmployeeDetailPage({
                   <InfoField
                     label="Nationality"
                     value={
-                      <Value value={nationalityLabel(employee.nationality)} />
+                      <NationalityValue value={employee.nationality} />
                     }
                   />
                   <InfoField
@@ -767,7 +761,7 @@ export function EmployeeDetailPage({
                     <InfoField
                       label="Nationality"
                       value={
-                        nationalityLabel(employee.nationality) || <EmptyValue />
+                        <NationalityValue value={employee.nationality} />
                       }
                     />
                     <InfoField

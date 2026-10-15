@@ -27,7 +27,7 @@ export function Avatar({
       title={name}
     >
       {src && failed !== src ? (
-        <img src={src} alt="" onError={() => setFailed(src)} />
+        <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(src)} />
       ) : (
         initials || "?"
       )}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PersonValue,
   Button,
   CompactDate,
   CompactDateTime,
@@ -15,7 +16,6 @@ import { CommandFormDialog } from "../../../app/commands/CommandFormDialog";
 import { SelectFilter, Text } from "./financeCells";
 import { clawbackCommand } from "./financeCommands";
 import {
-  personText,
   useBranchLabels,
   useEmployeeLabels,
 } from "./financeLabels";
@@ -79,7 +79,7 @@ export function ClawbacksView({
       label: "Case owner",
       width: 200,
       render: (row) => (
-        <Text value={personText(people(row.case_owner_employee_id))} />
+        <PersonValue {...people(row.case_owner_employee_id)} />
       ),
     },
     {
@@ -113,7 +113,7 @@ export function ClawbacksView({
       label: "Recorded by",
       width: 180,
       render: (row) => (
-        <Text value={personText(people(row.created_by_employee_id))} />
+        <PersonValue {...people(row.created_by_employee_id)} />
       ),
     },
   ];
@@ -181,14 +181,14 @@ export function ClawbacksView({
               <InfoField label="Case" value={<Text value={caseLabel(selected.internal_case_id)} />} />
               <InfoField
                 label="Case owner"
-                value={<Text value={personText(people(selected.case_owner_employee_id))} />}
+                value={<PersonValue {...people(selected.case_owner_employee_id)} />}
               />
               <InfoField label="Amount" value={<MonetaryAmount compact={false} value={selected.amount_aed} align="start" />} />
               <InfoField label="Clawback date" value={<CompactDate value={selected.clawback_date} />} />
               <InfoField label="Branch" value={<Text value={branches.label(selected.branch_id)} />} />
               <InfoField
                 label="Recorded by"
-                value={<Text value={personText(people(selected.created_by_employee_id))} />}
+                value={<PersonValue {...people(selected.created_by_employee_id)} />}
               />
               <InfoField label="Recorded" value={<CompactDateTime value={selected.created_at} />} />
               <InfoField label="Reason" value={<Text value={selected.reason} />} />

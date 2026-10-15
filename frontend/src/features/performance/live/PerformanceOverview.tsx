@@ -170,7 +170,7 @@ function Achievement({
   return <TruncatedText value={text} />;
 }
 
-function Person({ row }: { row: EmployeeMetrics | CoordinatorItem }) {
+function Person({ row }: { row: EmployeeMetrics | CoordinatorItem | RankingItem }) {
   const name = personName(row);
   return (
     <span className={styles.person}>
@@ -725,7 +725,7 @@ export function PerformanceOverview({
     visibleCount = rows.length;
     const columns: DataTableColumn<RankingItem>[] = [
       { key: "rank", header: "Rank", width: "80px", kind: "number", sortable: true, render: (row) => row.rank },
-      { key: "name", header: "Employee", width: "220px", sortable: true, render: (row) => <Text value={readable(row.employeeName) || "Team member"} /> },
+      { key: "name", header: "Employee", width: "220px", sortable: true, render: (row) => <Person row={row} /> },
       { key: "achievement", header: "Achievement", width: "130px", kind: "number", sortable: true, render: (row) => formatFullPercent(amount(row.achievementPercentage)) },
       { key: "completed", header: "Completed", width: "120px", kind: "number", sortable: true, render: (row) => row.completedCaseCount },
       {

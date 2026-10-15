@@ -91,7 +91,9 @@ export function useCaseLabels(rows: CaseRecord[]) {
                   path.split("/")[2] as ImageKind,
                   value as ImageRecord,
                 )
-              : undefined,
+              : path.startsWith("/employee-labels/")
+                ? recordImageSrc("employee", value as ImageRecord)
+                : undefined,
           ] as const;
         } catch {
           return [id, "Unavailable", undefined] as const;

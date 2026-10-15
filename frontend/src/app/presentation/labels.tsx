@@ -6,7 +6,7 @@ import {
   isMoneyField,
   isTimestampField,
   MonetaryAmount,
-  TruncatedText,
+  PersonValue,
 } from "../../design-system";
 import type { DataRecord } from "../api/models";
 import { useResource } from "../api/useResource";
@@ -75,7 +75,7 @@ export function EmployeeLabel({
   if (!employeeId) return <>{safe}</>;
   if (self) {
     if (plain) return <>{session!.displayName}</>;
-    return <EmployeeText name={session!.displayName} />;
+    return <PersonValue name={session!.displayName} src={session!.avatarFileId ? `/api/v1/employees/${encodeURIComponent(employeeId)}/media/avatar?v=${encodeURIComponent(session!.avatarFileId)}` : undefined} />;
   }
   if (ownScope || record.denied || record.error) return <>{safe}</>;
   if (record.loading && !record.data) return <>Loading…</>;
@@ -89,16 +89,8 @@ export function EmployeeLabel({
   );
   if (!name) return <>{safe}</>;
   if (plain) return <>{name}</>;
-  return <EmployeeText name={name} code={showCode ? code : ""} />;
-}
-
-function EmployeeText({ name, code }: { name: string; code?: string }) {
-  return (
-    <span className="ds-app-person">
-      <TruncatedText value={name} />
-      {code ? <small>{code}</small> : null}
-    </span>
-  );
+  const avatarFileId = record.data?.avatarFileId;
+  return <PersonValue name={name} code={showCode ? code : ""} src={typeof avatarFileId === "string" && avatarFileId ? `/api/v1/employees/${encodeURIComponent(employeeId)}/media/avatar?v=${encodeURIComponent(avatarFileId)}` : undefined} />;
 }
 
 export function labeledRecordValue(

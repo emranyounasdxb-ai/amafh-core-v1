@@ -3,6 +3,7 @@ import { useResource } from "../../../app/api/useResource";
 import { useSession } from "../../../app/session/useSession";
 import {
   employeeCode,
+  employeeAvatarSrc,
   employeeLookupPath,
   employeeName,
   namedLabel,
@@ -17,7 +18,7 @@ import {
   type CatalogKind,
 } from "./financeRecords";
 
-export type PersonLabel = { name: string; code: string };
+export type PersonLabel = { name: string; code: string; src?: string };
 
 export function useEmployeeLabels(ids: (string | null | undefined)[]) {
   const { session } = useSession();
@@ -37,9 +38,10 @@ export function useEmployeeLabels(ids: (string | null | undefined)[]) {
       return {
         name: employeeName(employee, fallback),
         code: employeeCode(employee),
+        src: employeeAvatarSrc(employee),
       };
     if (session?.employeeId === id)
-      return { name: session.displayName, code: "" };
+      return { name: session.displayName, code: "", src: employeeAvatarSrc({ id, avatarFileId: session.avatarFileId }) };
     return { name: lookup.loading ? "Loading…" : fallback, code: "" };
   };
 }

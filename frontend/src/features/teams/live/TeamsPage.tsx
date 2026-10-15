@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import {
+  PersonValue,
   Button,
   CompactDateTime,
   DataTable,
@@ -53,7 +54,7 @@ import {
   type TableSort,
 } from "../../../shared/table/tableSortState";
 import { isUuid } from "../../../app/presentation/labels";
-import { namedLabel } from "../../employees/live/employeePresentation";
+import { employeeAvatarSrc, namedLabel } from "../../employees/live/employeePresentation";
 import { TeamCommandDialog, type TeamCommand } from "./TeamCommandDialog";
 import {
   createTeamCommand,
@@ -349,7 +350,7 @@ export function TeamsPage({ open }: { open: (id: string) => void }) {
           case "department":
             return <Text value={row.department} />;
           case "leader":
-            return <Text value={row.leader} />;
+            return <PersonValue name={row.leader} src={employeeAvatarSrc({ id: row.leader_employee_id, avatarFileId: row.leader_avatar_file_id })} />;
           case "members":
             return <span className="ds-numeric">{row.members}</span>;
           case "updated":

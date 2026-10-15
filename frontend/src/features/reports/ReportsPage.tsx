@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 import {
+  NationalityValue,
+  PersonValue,
   Button,
   CompactDate,
   CompactDateTime,
@@ -136,6 +138,8 @@ function renderCell(
 ): ReactNode {
   const value = row[key];
   if (value == null || value === "") return <EmptyValue />;
+  if (key === "nationality") return <NationalityValue value={String(value)} />;
+  if (key === "employeeName") return <PersonValue name={String(value)} src={sources.people(String(row.employeeId ?? ""), "").src} />;
   switch (role) {
     case "branch":
       return <Text value={sources.branchLabel(value)} />;
@@ -145,11 +149,7 @@ function renderCell(
       return <Text value={sources.bankLabel(value)} />;
     case "employee":
       return (
-        <Text
-          value={personText(
-            sources.people(String(value), employeeFallback(report, key)),
-          )}
-        />
+        <PersonValue {...sources.people(String(value), employeeFallback(report, key))} />
       );
     case "employee-code":
       return <Text value={sources.people(String(value), "").code} />;

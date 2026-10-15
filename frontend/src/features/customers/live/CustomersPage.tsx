@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
+  NationalityValue,
   Button,
   DataTable,
   DropdownSelect,
@@ -152,7 +153,7 @@ export function CustomersPage({ open }: { open: (id: string) => void }) {
           case "nationality":
             return row.type === "Individual" ? (
               nationalityLabel(row.nationality) ? (
-                <TruncatedText value={nationalityLabel(row.nationality)} />
+                <NationalityValue value={row.nationality} />
               ) : (
                 <EmptyValue />
               )

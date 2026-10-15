@@ -1,6 +1,7 @@
 export { ActionToolbar } from "./ActionToolbar";
 export { AlertDialog } from "./AlertDialog";
 export { Avatar, AvatarGroup } from "./Avatar";
+export { PersonValue } from "./PersonValue";
 export { Banner } from "./Banner";
 export type { BannerLevel, BannerTone } from "./Banner";
 export { Breadcrumbs } from "./Breadcrumbs";
@@ -70,7 +71,7 @@ export {
   ProfileCoverStatus,
 } from "./ProfileBanner";
 export { Combobox } from "./Combobox";
-export { CountrySelect, NationalitySelect } from "./CountrySelect";
+export { CountrySelect, NationalitySelect, NationalityValue } from "./CountrySelect";
 export {
   ButtonGroup,
   CopyButton,

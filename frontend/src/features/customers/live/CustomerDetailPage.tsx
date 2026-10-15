@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  NationalityValue,
   Button,
   Checkbox,
   CountedTextArea,
@@ -33,7 +34,6 @@ import { useSession } from "../../../app/session/useSession";
 import {
   customerDisplayName,
   identityValue,
-  individualNationality,
   relatedCaseMeta,
   relatedCaseTitle,
   type CustomerDetailRecord,
@@ -259,7 +259,7 @@ export function CustomerDetailPage({
             {individual ? (
               <InfoField
                 label="Nationality"
-                value={<Value value={individualNationality(identity)} />}
+                value={<NationalityValue value={identityValue(identity, "nationality")} />}
               />
             ) : null}
             <InfoField

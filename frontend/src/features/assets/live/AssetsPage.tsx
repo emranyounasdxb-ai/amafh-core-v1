@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  PersonValue,
   Button,
   CompactDateTime,
   DropdownSelect,
@@ -35,6 +36,7 @@ import {
 import {
   employeeLookupPath,
   employeeName,
+  employeeAvatarSrc,
   namedLabel,
   readEmployeeLookup,
   type EmployeeLabelRecord,
@@ -176,7 +178,7 @@ export function AssetsPage({ open }: { open: (id: string) => void }) {
       key: "currentEmployeeId",
       label: "Assigned to",
       width: 180,
-      render: (row) => <Text value={assigned(row.currentEmployeeId)} />,
+      render: (row) => <PersonValue name={assigned(row.currentEmployeeId)} src={employeeAvatarSrc(row.currentEmployeeId ? people.data?.[row.currentEmployeeId] : undefined)} />,
     },
     ...(branchScoped
       ? []

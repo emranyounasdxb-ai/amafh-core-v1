@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PersonValue,
   Button,
   CompactDate,
   CompactDateTime,
@@ -367,7 +368,7 @@ export function EmployeeVisaSection({
     time: <CompactDateTime value={event.occurredAt} />,
     title: eventTitle(event),
     description: eventDescription(event),
-    actor: event.actorName || "Team member",
+    actor: <PersonValue name={event.actorName || "Team member"} />,
     tone: event.eventType === "status_changed" ? "info" : "neutral",
   }));
 

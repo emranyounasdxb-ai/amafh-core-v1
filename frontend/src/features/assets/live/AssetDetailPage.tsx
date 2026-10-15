@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import {
+  PersonValue,
   Avatar,
   Button,
   CompactDate,
@@ -262,7 +263,7 @@ export function AssetDetailPage({
       key: "employee",
       header: "Employee",
       width: "180px",
-      render: (row) => <Text value={person(row.employeeId)} />,
+      render: (row) => <PersonValue name={person(row.employeeId)} src={employeeAvatarSrc(people.data?.[row.employeeId ?? ""])} />,
     },
     {
       key: "issued",
@@ -302,13 +303,13 @@ export function AssetDetailPage({
       key: "issuedBy",
       header: "Issued by",
       width: "160px",
-      render: (row) => <Text value={person(row.issuedByEmployeeId, "Team member")} />,
+      render: (row) => <PersonValue name={person(row.issuedByEmployeeId, "Team member")} src={employeeAvatarSrc(people.data?.[row.issuedByEmployeeId ?? ""])} />,
     },
     {
       key: "returnedBy",
       header: "Returned by",
       width: "160px",
-      render: (row) => <Text value={person(row.returnedByEmployeeId, "Team member")} />,
+      render: (row) => <PersonValue name={person(row.returnedByEmployeeId, "Team member")} src={employeeAvatarSrc(people.data?.[row.returnedByEmployeeId ?? ""])} />,
     },
   ];
   const maintenanceColumns: DataTableColumn<AssetMaintenance>[] = [
@@ -360,13 +361,13 @@ export function AssetDetailPage({
       key: "startedBy",
       header: "Started by",
       width: "160px",
-      render: (row) => <Text value={person(row.startedByEmployeeId, "Team member")} />,
+      render: (row) => <PersonValue name={person(row.startedByEmployeeId, "Team member")} src={employeeAvatarSrc(people.data?.[row.startedByEmployeeId ?? ""])} />,
     },
     {
       key: "completedBy",
       header: "Completed by",
       width: "160px",
-      render: (row) => <Text value={person(row.completedByEmployeeId, "Team member")} />,
+      render: (row) => <PersonValue name={person(row.completedByEmployeeId, "Team member")} src={employeeAvatarSrc(people.data?.[row.completedByEmployeeId ?? ""])} />,
     },
   ];
   const timeline: TimelineItem[] = history.rows.map((entry) => {

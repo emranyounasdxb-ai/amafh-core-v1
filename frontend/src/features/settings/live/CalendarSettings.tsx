@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PersonValue,
   Button,
   CompactDate,
   CompactDateTime,
@@ -20,7 +21,7 @@ import {
   useServerTable,
 } from "../../../shared/table/serverTable";
 import { SelectFilter } from "../../finance/live/financeCells";
-import { personText, useEmployeeLabels } from "../../finance/live/financeLabels";
+import { useEmployeeLabels } from "../../finance/live/financeLabels";
 import { Text } from "./settingsCells";
 import { useNamedRecords } from "./useNamedRecords";
 import { canManageSettings } from "./settingsRegistry";
@@ -124,13 +125,9 @@ export function OfficeTimingSettings() {
           label: "Created by",
           width: 200,
           render: (row) => (
-            <Text
-              value={
-                row.createdByEmployeeId
-                  ? personText(people(row.createdByEmployeeId))
-                  : "System"
-              }
-            />
+            row.createdByEmployeeId
+              ? <PersonValue {...people(row.createdByEmployeeId)} />
+              : <Text value="System" />
           ),
         },
       ]}
@@ -143,13 +140,9 @@ export function OfficeTimingSettings() {
         {
           label: "Created by",
           value: (
-            <Text
-              value={
-                row.createdByEmployeeId
-                  ? personText(people(row.createdByEmployeeId))
-                  : "System"
-              }
-            />
+            row.createdByEmployeeId
+              ? <PersonValue {...people(row.createdByEmployeeId)} />
+              : <Text value="System" />
           ),
         },
       ]}

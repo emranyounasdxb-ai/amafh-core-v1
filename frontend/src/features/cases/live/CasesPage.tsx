@@ -6,6 +6,7 @@ import {
   useTransition,
 } from "react";
 import {
+  PersonValue,
   Button,
   DataTable,
   DateRangePicker,
@@ -317,22 +318,18 @@ export function CasesPage({
               />
             );
           case "createdBy":
-            return <TruncatedText value={label(row.createdByEmployeeId)} />;
+            return <PersonValue name={label(row.createdByEmployeeId)} src={label.image(row.createdByEmployeeId)} />;
           case "owner":
-            return <TruncatedText value={label(row.ownerEmployeeId)} />;
+            return <PersonValue name={label(row.ownerEmployeeId)} src={label.image(row.ownerEmployeeId)} />;
           case "branch":
             return <TruncatedText value={label(row.branchId)} />;
           case "department":
             return <TruncatedText value={label(row.departmentId)} />;
           case "assignment":
             return (
-              <TruncatedText
-                value={
-                  row.coordinatorEmployeeId
-                    ? label(row.coordinatorEmployeeId)
-                    : "Not assigned"
-                }
-              />
+              row.coordinatorEmployeeId ? (
+                <PersonValue name={label(row.coordinatorEmployeeId)} src={label.image(row.coordinatorEmployeeId)} />
+              ) : <TruncatedText value="Not assigned" />
             );
           case "status":
             return (

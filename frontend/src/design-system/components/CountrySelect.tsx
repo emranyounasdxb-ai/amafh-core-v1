@@ -1,10 +1,35 @@
 import type { ComponentType } from "react";
 import * as countryFlags from "country-flag-icons/react/3x2";
-import { countryOptions, nationalityOptions } from "../data/countries";
+import { countryOptions, countryRecords, nationalityOptions } from "../data/countries";
 import { Combobox } from "./Combobox";
+import { TruncatedText, EmptyValue } from "./Display";
 import type { SelectOption } from "./Select";
 
 type FlagSvg = ComponentType<{ className?: string; title?: string }>;
+
+const nationalityRecords = new Map(
+  countryRecords.flatMap((record) =>
+    [record.code, record.name, record.nationality].map(
+      (value) => [value.toLocaleLowerCase("en"), record] as const,
+    ),
+  ),
+);
+
+/** Resolve the actual nationality value, never infer a country from a name. */
+export function NationalityValue({ value }: { value?: string | null }) {
+  const text = value?.trim();
+  if (!text) return <EmptyValue />;
+  const record = nationalityRecords.get(text.toLocaleLowerCase("en"));
+  const Flag = record
+    ? (countryFlags as Record<string, FlagSvg | undefined>)[record.code]
+    : undefined;
+  return (
+    <span className="ds-nationality-value">
+      {Flag ? <Flag className="ds-flag" title={record!.name} /> : null}
+      <TruncatedText value={record?.nationality ?? text} />
+    </span>
+  );
+}
 
 function withFlag(options: SelectOption[]): SelectOption[] {
   const flags = countryFlags as Record<string, FlagSvg | undefined>;
@@ -68,6 +93,7 @@ export function NationalitySelect({
   readOnly,
   invalid,
   label = "Nationality",
+  excludedCodes = [],
 }: {
   id: string;
   value: string;
@@ -77,6 +103,7 @@ export function NationalitySelect({
   readOnly?: boolean;
   invalid?: boolean;
   label?: string;
+  excludedCodes?: readonly string[];
 }) {
   return (
     <Combobox
@@ -88,7 +115,7 @@ export function NationalitySelect({
       disabled={disabled}
       readOnly={readOnly}
       invalid={invalid}
-      options={withFlag(nationalityOptions())}
+      options={withFlag(nationalityOptions().filter((option) => !excludedCodes.includes(option.value)))}
       placeholder="Search nationality or ISO code"
     />
   );

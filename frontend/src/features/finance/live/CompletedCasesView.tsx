@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PersonValue,
   CompactDate,
   CompactDateTime,
   Drawer,
@@ -20,7 +21,6 @@ import {
 } from "./financeCells";
 import { rangeChip } from "./financeFilters";
 import {
-  personText,
   useBranchLabels,
   useCatalogLabels,
   useEmployeeLabels,
@@ -111,7 +111,7 @@ export function CompletedCasesView({
       label: "Credited employee",
       width: 200,
       render: (row) => (
-        <Text value={personText(people(row.credited_owner_employee_id))} />
+        <PersonValue {...people(row.credited_owner_employee_id)} />
       ),
     },
     {
@@ -270,11 +270,11 @@ function CompletedCaseDrawer({
               <InfoField label="Product" value={<Text value={data?.product_code} />} />
               <InfoField
                 label="Credited employee"
-                value={<Text value={personText(people(data?.credited_owner_employee_id))} />}
+                value={<PersonValue {...people(data?.credited_owner_employee_id)} />}
               />
               <InfoField
                 label="Current owner"
-                value={<Text value={personText(people(data?.current_owner_employee_id))} />}
+                value={<PersonValue {...people(data?.current_owner_employee_id)} />}
               />
               <InfoField label="Branch" value={<Text value={branches.label(data?.branch_id)} />} />
               <InfoField label="Completed" value={<CompactDateTime value={data?.completed_at} />} />
@@ -315,11 +315,11 @@ function CompletedCaseDrawer({
                 <InfoField label="Clawback date" value={<CompactDate value={data.clawback.clawback_date} />} />
                 <InfoField
                   label="Case owner"
-                  value={<Text value={personText(people(data.clawback.case_owner_employee_id))} />}
+                  value={<PersonValue {...people(data.clawback.case_owner_employee_id)} />}
                 />
                 <InfoField
                   label="Recorded by"
-                  value={<Text value={personText(people(data.clawback.created_by_employee_id))} />}
+                  value={<PersonValue {...people(data.clawback.created_by_employee_id)} />}
                 />
                 <InfoField label="Reason" value={<Text value={data.clawback.reason} />} />
               </InfoGrid>

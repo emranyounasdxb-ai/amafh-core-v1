@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PersonValue,
   Button,
   CompactDate,
   CompactDateTime,
@@ -87,7 +88,7 @@ export function PaymentsView({
       key: "employee_id",
       label: "Employee",
       width: 220,
-      render: (row) => <Text value={personText(people(row.employee_id))} />,
+      render: (row) => <PersonValue {...people(row.employee_id)} />,
     },
     {
       key: "payment_type",
@@ -127,7 +128,7 @@ export function PaymentsView({
       label: "Recorded by",
       width: 180,
       render: (row) => (
-        <Text value={personText(people(row.created_by_employee_id))} />
+        <PersonValue {...people(row.created_by_employee_id)} />
       ),
     },
   ];
@@ -198,7 +199,7 @@ export function PaymentsView({
             <InfoGrid>
               <InfoField
                 label="Employee"
-                value={<Text value={personText(people(selected.employee_id))} />}
+                value={<PersonValue {...people(selected.employee_id)} />}
               />
               <InfoField label="Type" value={<Text value={selected.payment_type} />} />
               <InfoField label="Amount" value={<MonetaryAmount compact={false} value={selected.amount_aed} align="start" />} />
@@ -207,7 +208,7 @@ export function PaymentsView({
               <InfoField label="Branch" value={<Text value={branches.label(selected.branch_id)} />} />
               <InfoField
                 label="Recorded by"
-                value={<Text value={personText(people(selected.created_by_employee_id))} />}
+                value={<PersonValue {...people(selected.created_by_employee_id)} />}
               />
               <InfoField label="Recorded" value={<CompactDateTime value={selected.created_at} />} />
             </InfoGrid>

@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import {
+  PersonValue,
   Avatar,
   Button,
   CompactDate,
@@ -221,19 +222,20 @@ export function EmployeesPage({ open }: { open: (id: string) => void }) {
     [directory],
   );
   const managerOptions = useMemo(() => {
-    const options = new Map<string, { label: string; description?: string }>();
+    const options = new Map<string, { label: string; description?: string; leading: React.ReactNode }>();
     for (const row of base.data ?? []) {
       const name = readableLabel(row.reportingManagerName);
       if (!row.reportingManagerId || !name) continue;
       options.set(row.reportingManagerId, {
         label: name,
         description: readableLabel(row.reportingManagerCode) || undefined,
+        leading: <Avatar name={name} size="sm" src={employeeAvatarSrc({ id: row.reportingManagerId, avatarFileId: directoryById.get(row.reportingManagerId)?.avatarFileId })} />,
       });
     }
     return [...options.entries()]
       .map(([value, option]) => ({ value, ...option }))
       .sort((left, right) => left.label.localeCompare(right.label));
-  }, [base.data]);
+  }, [base.data, directoryById]);
   const rows = useMemo<Row[]>(
     () =>
       directory.map((row) => ({
@@ -436,7 +438,7 @@ export function EmployeesPage({ open }: { open: (id: string) => void }) {
           case "department":
             return <Text value={row.department} />;
           case "reportingManager":
-            return <Text value={row.reportingManager} />;
+            return <PersonValue name={row.reportingManager} src={employeeAvatarSrc(row.reportingManagerId ? { id: row.reportingManagerId, avatarFileId: directoryById.get(row.reportingManagerId)?.avatarFileId } : undefined)} />;
           case "status":
             return (
               <StatusBadge tone={employeeStatusTone(row.status)}>

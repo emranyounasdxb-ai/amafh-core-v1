@@ -112,7 +112,11 @@ export function employeeCode(
 export function employeeAvatarSrc(
   employee: { id: string; avatarFileId?: string | null } | null | undefined,
 ) {
-  if (!employee?.avatarFileId) return undefined;
+  if (!employee || employee.avatarFileId === null) return undefined;
+  // Compact overview rows may omit media metadata; the protected media route
+  // still enforces access and Avatar handles a missing/unavailable image.
+  if (!employee.avatarFileId)
+    return `/api/v1/employees/${encodeURIComponent(employee.id)}/media/avatar`;
   return `/api/v1/employees/${encodeURIComponent(employee.id)}/media/avatar?v=${encodeURIComponent(employee.avatarFileId)}`;
 }
 

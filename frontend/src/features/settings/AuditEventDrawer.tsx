@@ -1,4 +1,5 @@
 import {
+  PersonValue,
   CompactDate,
   CompactDateTime,
   CompactMonthYear,
@@ -218,10 +219,12 @@ function ChangeTable({ event }: { event: AuditEvent }) {
 export function AuditEventDrawer({
   event,
   actorLabel,
+  actorSrc,
   onClose,
 }: {
   event: AuditEvent | null;
   actorLabel?: string;
+  actorSrc?: string;
   onClose: () => void;
 }) {
   const context = event ? payloadEntries(event.context) : [];
@@ -263,7 +266,7 @@ export function AuditEventDrawer({
                 label="Actor"
                 value={
                   event.actorEmployeeId && actorLabel ? (
-                    actorLabel
+                    <PersonValue name={actorLabel} src={actorSrc} />
                   ) : event.actorEmployeeId ? (
                     <EmployeeLabel
                       employeeId={event.actorEmployeeId}

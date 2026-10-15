@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import {
+  PersonValue,
+  Avatar,
   Button,
   CompactDate,
   CompactDateTime,
@@ -27,6 +29,7 @@ import {
   canRecordLastWorkingDate,
   employeeCode,
   employeeName,
+  employeeAvatarSrc,
   employeeStatusTone,
   type EmployeeDetailRecord,
   type EmployeeListRecord,
@@ -49,6 +52,7 @@ export type OpenEmployee = (employeeId: string, section?: EmployeeSection) => vo
 
 type Person = {
   employeeId: string;
+  avatarFileId?: string | null;
   fullName: string | null;
   employeeCode: string | null;
   designation: string | null;
@@ -125,7 +129,7 @@ function personColumns<Row extends Person>(): HrListColumn<Row>[] {
       label: "Name",
       width: 200,
       sortable: true,
-      render: (row) => <HrText value={employeeName(row)} />,
+      render: (row) => <PersonValue name={employeeName(row)} src={employeeAvatarSrc({ id: row.employeeId, avatarFileId: row.avatarFileId })} />,
     },
     {
       key: "designation",
@@ -455,6 +459,7 @@ function EmployeePickerDialog({
   const options = (directory.data ?? []).map((row) => ({
     value: row.id,
     label: employeeName(row),
+    leading: <Avatar name={employeeName(row)} src={employeeAvatarSrc(row)} size="sm" />,
     description:
       [employeeCode(row), row.designation].filter(Boolean).join(" · ") ||
       undefined,
@@ -597,7 +602,7 @@ function HrIssuancesPage({
             label: "Employee",
             width: 200,
             sortable: true,
-            render: (row) => <HrText value={employeeName(row)} />,
+            render: (row) => <PersonValue name={employeeName(row)} src={employeeAvatarSrc({ id: row.employeeId, avatarFileId: row.avatarFileId })} />,
           },
           {
             key: "employeeCode",
@@ -638,7 +643,7 @@ function HrIssuancesPage({
             label: "Prepared by",
             width: 170,
             sortable: true,
-            render: (row) => <HrText value={row.preparedByName} />,
+            render: (row) => <PersonValue name={row.preparedByName} />,
           },
         ]}
         filters={filters}
@@ -739,6 +744,7 @@ export function HrOffboardingPage({ open }: { open: OpenEmployee }) {
     () =>
       (directory.data ?? []).map((row) => ({
         employeeId: row.id,
+        avatarFileId: row.avatarFileId,
         fullName: row.fullName,
         employeeCode: employeeCode(row) || null,
         designation: row.designation,

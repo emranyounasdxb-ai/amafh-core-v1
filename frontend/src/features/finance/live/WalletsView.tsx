@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  PersonValue,
   CompactDateTime,
   DataTable,
   Drawer,
@@ -45,7 +46,7 @@ export function WalletsView({ refresh }: { refresh: number }) {
       key: "employee_id",
       label: "Employee",
       width: 240,
-      render: (row) => <Text value={personText(people(row.employee_id))} />,
+      render: (row) => <PersonValue {...people(row.employee_id)} />,
     },
     {
       key: "balance_points",

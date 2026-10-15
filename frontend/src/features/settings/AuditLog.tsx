@@ -1,5 +1,7 @@
 import { useState } from "react";
 import {
+  Avatar,
+  PersonValue,
   AppliedFilterSummary,
   Button,
   CompactDateTime,
@@ -97,7 +99,7 @@ export function AuditLog() {
     const label = readableLabel(row.fullName, "");
     if (!label) return [];
     const code = readableLabel(row.companyEmployeeCode || row.employeeCode, "");
-    return [{ value: String(row.id), label, ...(code ? { description: code } : {}) }];
+    return [{ value: String(row.id), label, leading: <Avatar name={label} src={typeof row.avatarFileId === "string" ? `/api/v1/employees/${encodeURIComponent(String(row.id))}/media/avatar?v=${encodeURIComponent(row.avatarFileId)}` : undefined} size="sm" />, ...(code ? { description: code } : {}) }];
   });
 
   const apply = (panel: PanelValues) => setFilters({ ...filters, ...panel });
@@ -255,7 +257,7 @@ export function AuditLog() {
       width: 220,
       render: (row) =>
         row.actorEmployeeId ? (
-          <Text value={personText(people(row.actorEmployeeId, "Team member"))} />
+          <PersonValue {...people(row.actorEmployeeId, "Team member")} />
         ) : (
           <EmptyValue />
         ),
@@ -456,6 +458,7 @@ export function AuditLog() {
       )}
       <AuditEventDrawer
         event={selected}
+        actorSrc={selected?.actorEmployeeId ? people(selected.actorEmployeeId).src : undefined}
         actorLabel={
           selected?.actorEmployeeId
             ? personText(people(selected.actorEmployeeId, "Team member"))
