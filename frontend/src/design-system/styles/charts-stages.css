@@ -106,6 +106,56 @@
   max-height: none;
 }
 
+.ds-horizontal-bars {
+  display: grid;
+  gap: 12px;
+  padding-block: 8px;
+}
+
+.ds-horizontal-bars__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ds-horizontal-bars__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+  color: var(--ds-text-muted);
+}
+
+.ds-horizontal-bars__series {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ds-horizontal-bars__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--ds-support-size);
+  line-height: var(--ds-support-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-horizontal-bars__track {
+  min-width: 0;
+  height: 8px;
+}
+
+.ds-horizontal-bars__track > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
 .ds-chart-grid {
   stroke: var(--ds-border);
   stroke-width: 1;

@@ -397,12 +397,14 @@ export function BarChart({
   kind = "number",
   grouped = false,
   currency,
+  horizontal = false,
 }: {
   labels: string[];
   series: ChartSeries[];
   kind?: ChartValueKind;
   grouped?: boolean;
   currency?: string;
+  horizontal?: boolean;
 }) {
   const width = 560;
   const height = 220;
@@ -425,6 +427,44 @@ export function BarChart({
         color: row.color ?? chartSeriesColors[rowIndex],
       })),
     });
+  if (horizontal) {
+    return (
+      <ChartContainer label="Horizontal bar chart" tooltip={tooltip}>
+        <div className="ds-horizontal-bars">
+          {labels.map((label, index) => (
+            <div className="ds-horizontal-bars__row" key={`${label}-${index}`}>
+              <span className="ds-horizontal-bars__label">{label}</span>
+              <div className="ds-horizontal-bars__series">
+                {series.map((item, seriesIndex) => {
+                  const value = item.values[index] ?? 0;
+                  const formatted = chartTip(value, kind, currency);
+                  return (
+                    <div
+                      className="ds-horizontal-bars__item"
+                      key={item.id}
+                      title={`${label} · ${item.label}: ${formatted}`}
+                    >
+                      <div className="ds-horizontal-bars__track" aria-hidden="true">
+                        <span
+                          style={{
+                            width: `${(Math.max(0, value) / max) * 100}%`,
+                            background: item.color ?? chartSeriesColors[seriesIndex],
+                          }}
+                        />
+                      </div>
+                      <span aria-label={`${item.label}: ${formatted}`}>
+                        {chartAxis(value, kind, currency)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </ChartContainer>
+    );
+  }
   return (
     <ChartContainer label="Bar chart" tooltip={tooltip}>
       <svg viewBox={`0 0 ${width} ${height}`} className="ds-chart-svg">

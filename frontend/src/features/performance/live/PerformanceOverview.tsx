@@ -796,10 +796,16 @@ export function PerformanceOverview({
         <ChartCard
           title="Coordinator workload"
           description="Coordinators shown on this page"
+          legend={[
+            { id: "handled", label: "Handled cases", color: "var(--ds-chart-1)" },
+            { id: "booked", label: "Booked submissions", color: "var(--ds-chart-2)" },
+            { id: "stages", label: "Stage updates", color: "var(--ds-chart-3)" },
+          ]}
           actions={resource.updating ? <Refreshing /> : undefined}
           state={rows.length ? "ready" : "empty"}
         >
           <BarChart
+            horizontal
             grouped
             labels={rows.slice(0, 8).map((row) => personName(row))}
             series={[
