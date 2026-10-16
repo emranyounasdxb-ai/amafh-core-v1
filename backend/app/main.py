@@ -1,5 +1,7 @@
 """AMAFH Core private API application."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 
 from app.api.assets import router as assets_router
@@ -34,11 +36,23 @@ from app.errors import install_error_handlers
 from app.upload_limits import UploadBodyLimit
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    from app.mail.sync import start_worker, stop_worker
+
+    await start_worker()
+    try:
+        yield
+    finally:
+        await stop_worker()
+
+
 def create_app() -> FastAPI:
     documentation = settings().environment != "production"
     return FastAPI(
         title="AMAFH Core API",
         version="0.1.0",
+        lifespan=_lifespan,
         openapi_url="/openapi.json" if documentation else None,
         docs_url="/docs" if documentation else None,
         redoc_url="/redoc" if documentation else None,

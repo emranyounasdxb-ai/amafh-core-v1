@@ -66,6 +66,8 @@ type MailPage = {
   pageSize: number;
   folder: string;
   appOnlyDeleted: boolean;
+  syncState?: "initial" | "updating" | "ready" | "failed" | "offline";
+  syncedAt?: string | null;
 };
 
 type MailMessage = MailRow & {
@@ -80,6 +82,7 @@ type MailMessage = MailRow & {
   }[];
   messageId: string;
   replyTo: string;
+  references?: string;
 };
 
 type ComposeFile = {
@@ -186,6 +189,10 @@ export function EmailPage({
   const [pendingReads] = useState(
     () => new Map<string, Promise<MailMessage>>(),
   );
+  const refreshSeconds = useRef(60);
+  useEffect(() => {
+    refreshSeconds.current = limits?.refreshSeconds ?? 60;
+  }, [limits?.refreshSeconds]);
   const pageKey = (folder: FolderRole, number: number, term: string) =>
     JSON.stringify([api.sessionGeneration, folder, number, term]);
   const messageKey = (ref: string) => `${api.sessionGeneration}:${ref}`;
@@ -285,20 +292,26 @@ export function EmailPage({
         })
         .catch((reason: unknown) => {
           if (cancelled) return;
-          pageCache.clear();
-          messageCache.clear();
-          setMessages(null);
-          setPageError(textOf(reason));
+          const text = textOf(reason);
           if (
             reason instanceof ApiFailure &&
             reason.code === "MAIL_RECONNECT"
           ) {
+            pageCache.clear();
+            messageCache.clear();
+            setMessages(null);
+            setPageError(text);
             setConnection((current) =>
               current
                 ? { ...current, connected: false, reconnectRequired: true }
                 : current,
             );
+            return;
           }
+          setPageError(text);
+          setMessages((current) =>
+            current && current.items.length > 0 ? current : null,
+          );
         })
         .finally(() => {
           pending = false;
@@ -306,8 +319,10 @@ export function EmailPage({
         });
     };
     load();
-    const seconds = limits?.refreshSeconds ?? 60;
-    const timer = window.setInterval(load, seconds * 1000);
+    const timer = window.setInterval(
+      load,
+      refreshSeconds.current * 1000,
+    );
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -316,7 +331,6 @@ export function EmailPage({
     api,
     connection?.connected,
     employeeId,
-    limits?.refreshSeconds,
     pageNumber,
     query,
     refreshKey,
@@ -459,6 +473,10 @@ export function EmailPage({
 
   const pageCount = Math.max(1, Math.ceil((messages?.total ?? 0) / 25));
   const folderMissing = pageError.includes("folder is not available");
+  const syncState = messages?.syncState;
+  const synchronizing = syncState === "initial" || syncState === "updating";
+  const syncProblem = syncState === "failed" || syncState === "offline";
+  const keepList = Boolean(messages && messages.items.length > 0);
 
   const folders: { role: FolderRole; page: PageId; icon: DsIconName }[] = [
     { role: "inbox", page: "email-inbox", icon: "mail" },
@@ -677,14 +695,41 @@ export function EmailPage({
                   kept in your mailbox.
                 </p>
               ) : null}
+              {keepList && pageError ? (
+                <InlineNotice tone="warning">{pageError}</InlineNotice>
+              ) : null}
+              {keepList && syncState === "updating" ? (
+                <div className="email-folder-note">
+                  Updating this folder. Messages already synchronized stay open.
+                </div>
+              ) : null}
+              {keepList && syncProblem ? (
+                <InlineNotice tone="warning">
+                  The mailbox could not be refreshed. Messages from the last
+                  successful synchronization stay available.
+                </InlineNotice>
+              ) : null}
+              {messages?.syncedAt ? (
+                <div className="email-folder-note">
+                  Last synchronized{" "}
+                  <CompactDateTime value={messages.syncedAt} />
+                </div>
+              ) : null}
               <div className="email-list-scroll">
                 {loadingList && !messages ? (
                   <LoadingState title="Loading messages" />
                 ) : folderMissing ? (
                   <UnavailableState description="This folder is not available in your mailbox." />
-                ) : pageError ? (
+                ) : pageError && !keepList ? (
                   <RetryState
                     description={pageError}
+                    retry={() => setRefreshKey((current) => current + 1)}
+                  />
+                ) : messages && total === 0 && synchronizing ? (
+                  <LoadingState title="Synchronizing mailbox" />
+                ) : messages && total === 0 && syncProblem ? (
+                  <RetryState
+                    description="Mailbox synchronization failed. Nothing already synchronized was discarded."
                     retry={() => setRefreshKey((current) => current + 1)}
                   />
                 ) : messages && total === 0 ? (
@@ -1154,6 +1199,10 @@ function ComposeDialog({
           previousRef: draftRef.current,
           inReplyTo:
             mode === "reply" || mode === "reply-all" ? source?.messageId || null : null,
+          references:
+            mode === "reply" || mode === "reply-all"
+              ? [source?.references, source?.messageId].filter(Boolean).join(" ") || null
+              : null,
         }),
       });
       setStatus(result.status);

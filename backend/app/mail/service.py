@@ -40,6 +40,16 @@ from app.mail.mime import build_message
 from app.mail.received import received_html
 from app.mail.runtime import get_gateway, run_mail
 from app.mail.sanitize import sanitize_html
+from app.mail.sync import (
+    cached_message,
+    cached_page,
+    cached_summary,
+    purge_account,
+    remember_opened,
+    schedule_seen,
+    schedule_sync,
+    touch_opened,
+)
 from app.policies import Actor
 from app.services.auth import ensure_session_current
 
@@ -236,6 +246,8 @@ async def connect(session: AsyncSession, actor: Actor, password: str) -> dict:
         entity_id=actor.account_id,
     )
     await session.commit()
+    generation = int(existing["generation"]) if existing else 1
+    await schedule_sync(actor.account_id, email, generation, "inbox")
     return {"address": email, "connected": True, "reconnectRequired": False}
 
 
@@ -254,6 +266,7 @@ async def disconnect(session: AsyncSession, actor: Actor) -> None:
         entity_type="user_account",
         entity_id=actor.account_id,
     )
+    await purge_account(session, actor.account_id)
     await session.commit()
 
 
@@ -358,6 +371,25 @@ async def summary(session: AsyncSession, actor: Actor) -> dict:
     unread = {role: 0 for role in (*ROLES, "deleted")}
     if not view["connected"]:
         return {**view, "unread": unread}
+    email = await _email(session, actor)
+    connected = await _connection(session, actor)
+    if connected and connected["secret"]:
+        counts = await cached_summary(
+            session, actor.account_id, email, int(connected["generation"])
+        )
+        if counts is not None:
+            unread.update(counts)
+            await _confirm(session, actor, email)
+            hidden_count = await session.scalar(
+                select(mailbox_hidden_messages.c.id)
+                .where(
+                    mailbox_hidden_messages.c.account_id == actor.account_id,
+                    mailbox_hidden_messages.c.login_email == email,
+                )
+                .limit(1)
+            )
+            unread["deleted"] = 0 if hidden_count is None else 1
+            return {**view, "unread": unread}
     email, password = await _open(session, actor)
     gateway = get_gateway()
     if isinstance(gateway, ImapSmtpGateway):
@@ -406,6 +438,33 @@ async def list_messages(
 ) -> dict:
     if role == "deleted":
         return await _deleted(session, actor, page, page_size, query)
+    if role not in ROLES:
+        raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
+    email = await _email(session, actor)
+    connected = await _connection(session, actor)
+    if (
+        connected
+        and connected["status"] == "connected"
+        and connected["login_email"] == email
+        and connected["secret"]
+    ):
+        generation = int(connected["generation"])
+        cached = await cached_page(
+            session,
+            actor.account_id,
+            email,
+            generation,
+            role,
+            page=page,
+            page_size=page_size,
+            query=query,
+        )
+        if cached is not None:
+            if cached.get("syncState") == "missing":
+                raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
+            await schedule_sync(actor.account_id, email, generation, role)
+            await _confirm(session, actor, email)
+            return cached
     email, password = await _open(session, actor)
     gateway = get_gateway()
     if isinstance(gateway, ImapSmtpGateway):
@@ -428,6 +487,7 @@ async def list_messages(
             raise failure(exc) from None
         await _confirm(session, actor, email)
         generation = await _current_generation(session, actor)
+        await schedule_sync(actor.account_id, email, generation, role)
         return {
             "items": [
                 _summary(item, role, result.uid_validity, generation, actor.account_id)
@@ -438,6 +498,8 @@ async def list_messages(
             "pageSize": page_size,
             "folder": role,
             "appOnlyDeleted": False,
+            "syncState": "ready",
+            "syncedAt": None,
         }
     folder = await _folder(session, actor, email, password, role)
     hidden = await _hidden(session, actor, email, role, folder.uid_validity)
@@ -475,6 +537,7 @@ async def list_messages(
             raise failure(exc) from None
     await _confirm(session, actor, email)
     generation = await _current_generation(session, actor)
+    await schedule_sync(actor.account_id, email, generation, role)
     return {
         "items": [
             _summary(item, role, result.uid_validity, generation, actor.account_id)
@@ -485,6 +548,8 @@ async def list_messages(
         "pageSize": page_size,
         "folder": role,
         "appOnlyDeleted": False,
+        "syncState": "ready",
+        "syncedAt": None,
     }
 
 
@@ -582,6 +647,51 @@ async def _deleted(
 
 async def read_message(session: AsyncSession, actor: Actor, ref: str) -> dict:
     role, validity, uid = await _owned_ref(session, actor, ref)
+    if role not in ROLES:
+        raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
+    email = await _email(session, actor)
+    connected = await _connection(session, actor)
+    if (
+        connected
+        and connected["status"] == "connected"
+        and connected["login_email"] == email
+        and connected["secret"]
+    ):
+        cached = await cached_message(
+            session,
+            actor.account_id,
+            email,
+            int(connected["generation"]),
+            role,
+            validity,
+            uid,
+        )
+        if cached is not None and cached.stale:
+            raise ApiError(404, "MAIL_MISSING", PUBLIC_MESSAGES["missing"])
+        if cached is not None and cached.message is not None:
+            message = cached.message
+            await _confirm(session, actor, email)
+            await touch_opened(
+                actor.account_id,
+                email,
+                int(connected["generation"]),
+                role,
+                validity,
+                uid,
+            )
+            if role != "drafts" and message["unread"]:
+                await schedule_seen(
+                    actor.account_id,
+                    email,
+                    int(connected["generation"]),
+                    role,
+                    uid,
+                    validity,
+                )
+                message["unread"] = False
+            message["html"] = received_html(message["html"], limit=settings().mail_read_bytes)
+            message["ref"] = ref
+            return message
     email, password = await _open(session, actor)
     if role not in ROLES:
         raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
@@ -616,6 +726,7 @@ async def read_message(session: AsyncSession, actor: Actor, ref: str) -> dict:
         raise failure(exc) from None
     await _confirm(session, actor, email)
     generation = await _current_generation(session, actor)
+    await remember_opened(actor.account_id, email, generation, role, validity, uid, content)
     html = received_html(content.html, limit=settings().mail_read_bytes)
     return {
         **_summary(content.summary, role, validity, generation, actor.account_id),
@@ -633,6 +744,7 @@ async def read_message(session: AsyncSession, actor: Actor, ref: str) -> dict:
         ],
         "messageId": content.message_id,
         "replyTo": content.reply_to,
+        "references": content.references,
         "appOnlyDeleted": False,
     }
 

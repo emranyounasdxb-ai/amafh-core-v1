@@ -14,6 +14,7 @@ from app.db.mailbox import (
     mailbox_send_attempts,
 )
 from app.mail.files import purge_account_files
+from app.mail.sync import purge_account
 
 
 async def clear_secret(session: AsyncSession, account_id: UUID) -> None:
@@ -22,6 +23,7 @@ async def clear_secret(session: AsyncSession, account_id: UUID) -> None:
         .where(mailbox_connections.c.account_id == account_id)
         .values(secret=None, status="reconnect")
     )
+    await purge_account(session, account_id)
 
 
 async def forget_address(session: AsyncSession, account_id: UUID) -> None:
@@ -43,3 +45,4 @@ async def forget_address(session: AsyncSession, account_id: UUID) -> None:
         delete(mailbox_send_attempts).where(mailbox_send_attempts.c.account_id == account_id)
     )
     await purge_account_files(session, account_id)
+    await purge_account(session, account_id)

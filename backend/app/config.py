@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     mail_timeout_seconds: float = 20
     mail_attachment_ttl_seconds: int = 86_400
     mail_refresh_seconds: int = 60
+    mail_sync_headers: int = 1000
+    mail_sync_bodies: int = 40
+    mail_sync_body_bytes: int = 200_000
+    mail_sync_batch: int = 50
+    mail_sync_lease_seconds: int = 60
+    mail_sync_attempts: int = 5
 
     @field_validator("database_url")
     @classmethod
@@ -75,15 +81,18 @@ class Settings(BaseSettings):
             "mail_read_bytes",
             "mail_attachment_ttl_seconds",
             "mail_refresh_seconds",
+            "mail_sync_headers",
+            "mail_sync_bodies",
+            "mail_sync_body_bytes",
+            "mail_sync_batch",
+            "mail_sync_lease_seconds",
+            "mail_sync_attempts",
         ):
             if getattr(self, name) < 1:
                 raise ValueError(f"{name} must be positive")
         if self.mail_timeout_seconds <= 0:
             raise ValueError("mail_timeout_seconds must be positive")
-        if (
-            self.mail_provider_message_bytes is not None
-            and self.mail_provider_message_bytes < 1
-        ):
+        if self.mail_provider_message_bytes is not None and self.mail_provider_message_bytes < 1:
             raise ValueError("mail_provider_message_bytes must be positive when set")
         if self.mailbox_key_file is not None and not self.mailbox_key_file.is_absolute():
             raise ValueError("AMAFH_MAILBOX_KEY_FILE must be an absolute path")
