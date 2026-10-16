@@ -35,7 +35,7 @@ from app.mail.files import (
     write_bytes,
 )
 from app.mail.folders import ROLES
-from app.mail.gateway import MessageSummary
+from app.mail.gateway import ImapSmtpGateway, MessageSummary
 from app.mail.mime import build_message
 from app.mail.received import received_html
 from app.mail.runtime import get_gateway, run_mail
@@ -283,12 +283,16 @@ async def _folder(session: AsyncSession, actor: Actor, email: str, password: str
     if role not in ROLES:
         raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
     try:
-        folders = await run_mail(get_gateway().folders, email, password)
+        gateway = get_gateway()
+        if isinstance(gateway, ImapSmtpGateway):
+            match = await run_mail(gateway.folder, email, password, role)
+        else:
+            folders = await run_mail(gateway.folders, email, password)
+            match = next((folder for folder in folders if folder.role == role), None)
     except MailFailure as exc:
         await _auth_followup(session, actor, exc)
         raise failure(exc) from None
     await _confirm(session, actor, email)
-    match = next((folder for folder in folders if folder.role == role), None)
     if match is None:
         raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
     return match
@@ -510,19 +514,35 @@ async def _deleted(
 async def read_message(session: AsyncSession, actor: Actor, ref: str) -> dict:
     role, validity, uid = await _owned_ref(session, actor, ref)
     email, password = await _open(session, actor)
-    folder = await _folder(session, actor, email, password, role)
-    if folder.uid_validity != validity:
-        raise ApiError(404, "MAIL_MISSING", PUBLIC_MESSAGES["missing"])
+    if role not in ROLES:
+        raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
+    gateway = get_gateway()
     try:
-        content = await run_mail(
-            get_gateway().fetch,
-            email,
-            password,
-            folder.name,
-            uid,
-            mark_seen=role != "drafts",
-        )
+        if isinstance(gateway, ImapSmtpGateway):
+            content = await run_mail(
+                gateway.fetch_checked,
+                email,
+                password,
+                role,
+                validity,
+                uid,
+                mark_seen=role != "drafts",
+            )
+        else:
+            folder = await _folder(session, actor, email, password, role)
+            if folder.uid_validity != validity:
+                raise ApiError(404, "MAIL_MISSING", PUBLIC_MESSAGES["missing"])
+            content = await run_mail(
+                gateway.fetch,
+                email,
+                password,
+                folder.name,
+                uid,
+                mark_seen=role != "drafts",
+            )
     except MailFailure as exc:
+        if exc.code == "folder":
+            raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"]) from None
         await _auth_followup(session, actor, exc)
         raise failure(exc) from None
     await _confirm(session, actor, email)

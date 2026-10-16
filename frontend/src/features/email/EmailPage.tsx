@@ -31,6 +31,7 @@ import {
 } from "./presentation";
 import "./email.css";
 import { EmailSplitPane } from "./EmailSplitPane";
+import { MailViewCache } from "./viewCache";
 
 type FolderRole = "inbox" | "drafts" | "sent" | "deleted" | "spam" | "archive";
 
@@ -176,13 +177,25 @@ export function EmailPage({
   const readSequence = useRef(0);
   const [activeRef, setActiveRef] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
+  const [pageCache] = useState(
+    () => new MailViewCache<MailPage>(8, 2 * 1024 * 1024),
+  );
+  const [messageCache] = useState(
+    () => new MailViewCache<MailMessage>(12, 8 * 1024 * 1024),
+  );
+  const [pendingReads] = useState(
+    () => new Map<string, Promise<MailMessage>>(),
+  );
+  const pageKey = (folder: FolderRole, number: number, term: string) =>
+    JSON.stringify([api.sessionGeneration, folder, number, term]);
+  const messageKey = (ref: string) => `${api.sessionGeneration}:${ref}`;
   const [trackedFolder, setTrackedFolder] = useState(role);
   // Reset before rendering another folder, including browser back/forward.
   // This also prevents issuing its first request with the previous folder's page.
   if (trackedFolder !== role) {
     setTrackedFolder(role);
     setPageNumber(1);
-    setMessages(null);
+    setMessages(pageCache.get(pageKey(role, 1, "")));
     setSelected(null);
     setActiveRef(null);
     setReading(false);
@@ -205,6 +218,15 @@ export function EmailPage({
       owned.length = 0;
     };
   }, [employeeId]);
+
+  useEffect(
+    () => () => {
+      pageCache.clear();
+      messageCache.clear();
+      pendingReads.clear();
+    },
+    [pageCache, messageCache, pendingReads, employeeId],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -236,7 +258,16 @@ export function EmailPage({
   useEffect(() => {
     if (!connection?.connected) return;
     let cancelled = false;
+    let pending = false;
+    const cacheKey = JSON.stringify([
+      api.sessionGeneration,
+      role,
+      pageNumber,
+      query,
+    ]);
     const load = () => {
+      if (pending) return;
+      pending = true;
       setLoadingList(true);
       const params = new URLSearchParams({
         page: String(pageNumber),
@@ -247,12 +278,15 @@ export function EmailPage({
         .request<MailPage>(`/mailbox/folders/${role}/messages?${params}`)
         .then((value) => {
           if (!cancelled) {
+            pageCache.set(cacheKey, value);
             setMessages(value);
             setPageError("");
           }
         })
         .catch((reason: unknown) => {
           if (cancelled) return;
+          pageCache.clear();
+          messageCache.clear();
           setMessages(null);
           setPageError(textOf(reason));
           if (
@@ -267,6 +301,7 @@ export function EmailPage({
           }
         })
         .finally(() => {
+          pending = false;
           if (!cancelled) setLoadingList(false);
         });
     };
@@ -286,6 +321,8 @@ export function EmailPage({
     query,
     refreshKey,
     role,
+    pageCache,
+    messageCache,
   ]);
 
   const connect = async () => {
@@ -297,6 +334,10 @@ export function EmailPage({
         body: JSON.stringify({ password }),
       });
       setPassword("");
+      closeMessage();
+      pendingReads.clear();
+      pageCache.clear();
+      messageCache.clear();
       setConnection(value);
     } catch (reason) {
       setError(textOf(reason));
@@ -309,6 +350,9 @@ export function EmailPage({
     setBusy(true);
     try {
       await api.request("/mailbox/connection", { method: "DELETE" });
+      pageCache.clear();
+      messageCache.clear();
+      pendingReads.clear();
       readSequence.current += 1;
       setSelected(null);
       setActiveRef(null);
@@ -333,16 +377,38 @@ export function EmailPage({
     setReading(false);
   };
   const openMessage = async (row: MailRow) => {
+    if (activeRef === row.ref && (selected || reading)) return;
     const request = ++readSequence.current;
+    const cacheKey = messageKey(row.ref);
+    const cached = messageCache.get(cacheKey);
     setActiveRef(row.ref);
-    setSelected(null);
+    setSelected(cached);
     setReading(true);
     setError("");
     try {
-      const message = await api.request<MailMessage>(
-        `/mailbox/messages/${row.ref}`,
-      );
+      let pending = pendingReads.get(cacheKey);
+      if (!pending) {
+        pending = api.request<MailMessage>(`/mailbox/messages/${row.ref}`);
+        pendingReads.set(cacheKey, pending);
+        void pending
+          .finally(() => {
+            if (pendingReads.get(cacheKey) === pending)
+              pendingReads.delete(cacheKey);
+          })
+          .catch(() => undefined);
+      }
+      const message = await pending;
       if (request === readSequence.current) {
+        messageCache.set(cacheKey, message);
+        const currentPageKey = pageKey(role, pageNumber, query);
+        const cachedPage = pageCache.get(currentPageKey);
+        if (cachedPage && role !== "drafts")
+          pageCache.set(currentPageKey, {
+            ...cachedPage,
+            items: cachedPage.items.map((item) =>
+              item.ref === row.ref ? { ...item, unread: false } : item,
+            ),
+          });
         setSelected(message);
         setMessages((current) =>
           current
@@ -358,7 +424,12 @@ export function EmailPage({
         );
       }
     } catch (reason) {
-      if (request === readSequence.current) setError(textOf(reason));
+      if (request === readSequence.current) {
+        messageCache.clear();
+        pageCache.clear();
+        setSelected(null);
+        setError(textOf(reason));
+      }
     } finally {
       if (request === readSequence.current) setReading(false);
     }
@@ -366,6 +437,8 @@ export function EmailPage({
 
   const hideOrRestore = async (ref: string, action: "hide" | "restore") => {
     await api.request(`/mailbox/messages/${ref}/${action}`, { method: "POST" });
+    pageCache.clear();
+    messageCache.clear();
     closeMessage();
     setPageNumber(1);
     setRefreshKey((current) => current + 1);
@@ -398,6 +471,7 @@ export function EmailPage({
   const applySearch = () => {
     setPageNumber(1);
     setQuery(search.trim());
+    setMessages(pageCache.get(pageKey(role, 1, search.trim())));
     setRefreshKey((current) => current + 1);
     closeMessage();
   };
@@ -539,7 +613,11 @@ export function EmailPage({
                   aria-label="Refresh mailbox"
                   title="Refresh mailbox"
                   disabled={loadingList}
-                  onClick={() => setRefreshKey((current) => current + 1)}
+                  onClick={() => {
+                    pageCache.clear();
+                    messageCache.clear();
+                    setRefreshKey((current) => current + 1);
+                  }}
                 >
                   <DsIcon name="refresh" size={16} />
                 </Button>
@@ -580,6 +658,7 @@ export function EmailPage({
                       setSearch("");
                       setQuery("");
                       setPageNumber(1);
+                      setMessages(pageCache.get(pageKey(role, 1, "")));
                     }}
                   >
                     <DsIcon name="close" size={14} />
@@ -594,8 +673,8 @@ export function EmailPage({
               ) : null}
               {role === "drafts" ? (
                 <p className="email-folder-note">
-                  Saving adds a new draft. Older versions are hidden here and kept
-                  in your mailbox.
+                  Saving adds a new draft. Older versions are hidden here and
+                  kept in your mailbox.
                 </p>
               ) : null}
               <div className="email-list-scroll">
@@ -700,6 +779,9 @@ export function EmailPage({
                     disabled={pageNumber <= 1 || loadingList}
                     onClick={() => {
                       closeMessage();
+                      setMessages(
+                        pageCache.get(pageKey(role, pageNumber - 1, query)),
+                      );
                       setPageNumber((current) => current - 1);
                     }}
                   >
@@ -715,6 +797,9 @@ export function EmailPage({
                     disabled={pageNumber >= pageCount || loadingList}
                     onClick={() => {
                       closeMessage();
+                      setMessages(
+                        pageCache.get(pageKey(role, pageNumber + 1, query)),
+                      );
                       setPageNumber((current) => current + 1);
                     }}
                   >
@@ -728,11 +813,13 @@ export function EmailPage({
               aria-label="Message reading pane"
               aria-busy={reading}
             >
-              {reading ? (
+              {reading && !selected ? (
                 <LoadingState title="Opening message" />
               ) : selected ? (
                 <>
-                  {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+                  {error ? (
+                    <InlineNotice tone="error">{error}</InlineNotice>
+                  ) : null}
                   <header className="email-reader-header">
                     <div className="email-reader-top">
                       <Button
@@ -743,7 +830,10 @@ export function EmailPage({
                       >
                         <DsIcon name="back" size={16} /> Messages
                       </Button>
-                      <span>{TITLE[role]}</span>
+                      <span>
+                        {TITLE[role]}
+                        {reading ? " · Updating…" : ""}
+                      </span>
                       <Button
                         variant="ghost"
                         size="compact"
@@ -777,7 +867,8 @@ export function EmailPage({
                           <dd>{selected.cc}</dd>
                         </div>
                       ) : null}
-                      {selected.bcc && (role === "drafts" || role === "sent") ? (
+                      {selected.bcc &&
+                      (role === "drafts" || role === "sent") ? (
                         <div>
                           <dt>BCC</dt>
                           <dd>{selected.bcc}</dd>
@@ -805,9 +896,11 @@ export function EmailPage({
                           variant="secondary"
                           size="compact"
                           onClick={() =>
-                            void download(selected.ref, item.index, item.filename).catch(
-                              (reason) => setError(textOf(reason)),
-                            )
+                            void download(
+                              selected.ref,
+                              item.index,
+                              item.filename,
+                            ).catch((reason) => setError(textOf(reason)))
                           }
                         >
                           <DsIcon name="download" size={14} />
@@ -921,6 +1014,8 @@ export function EmailPage({
           limits={limits}
           onClose={() => setComposeOpen(false)}
           onSent={() => {
+            pageCache.clear();
+            messageCache.clear();
             setComposeOpen(false);
             setRefreshKey((current) => current + 1);
           }}

@@ -95,18 +95,7 @@ class ImapSmtpGateway:
 
     def folders(self, username: str, password: str) -> list[FolderInfo]:
         with self._imap(username, password) as client:
-            status, data = client.list()
-            if status != "OK":
-                raise MailFailure("unavailable")
-            discovered = []
-            for line in data or []:
-                if isinstance(line, bytes):
-                    parsed = _parse_list(line)
-                    if parsed:
-                        discovered.append(parsed)
-            roles = assign_roles(discovered)
-            if "inbox" not in roles:
-                roles["inbox"] = "INBOX"
+            roles = self._folder_names(client)
             result = []
             for role, name in roles.items():
                 try:
@@ -115,6 +104,27 @@ class ImapSmtpGateway:
                     continue
                 result.append(FolderInfo(role, name, validity, unread))
             return result
+
+    def folder(self, username: str, password: str, role: str) -> FolderInfo | None:
+        """Discover roles but request fresh status only for the folder being opened."""
+        with self._imap(username, password) as client:
+            name = self._folder_names(client).get(role)
+            if name is None:
+                return None
+            validity, unread = self._status(client, name)
+            return FolderInfo(role, name, validity, unread)
+
+    def _folder_names(self, client: imaplib.IMAP4_SSL) -> dict[str, str]:
+        status, data = client.list()
+        if status != "OK":
+            raise MailFailure("unavailable")
+        discovered = []
+        for line in data or []:
+            if isinstance(line, bytes) and (parsed := _parse_list(line)):
+                discovered.append(parsed)
+        roles = assign_roles(discovered)
+        roles.setdefault("inbox", "INBOX")
+        return roles
 
     def unseen(self, username: str, password: str, folder_name: str, excluded: set[int]) -> int:
         with self._imap(username, password) as client:
@@ -143,7 +153,7 @@ class ImapSmtpGateway:
             start = max(page - 1, 0) * page_size
             chosen = uids[start : start + page_size]
             return MessagePage(
-                items=[self._summary(client, uid) for uid in chosen],
+                items=self._summaries(client, chosen),
                 total=len(uids),
                 uid_validity=validity,
             )
@@ -160,28 +170,45 @@ class ImapSmtpGateway:
     ) -> MessageContent:
         with self._imap(username, password) as client:
             self._select(client, folder_name, readonly=not mark_seen)
-            size = self._size(client, uid)
-            if size > settings().mail_read_bytes:
-                summary = self._summary(client, uid)
-                return MessageContent(
-                    summary=summary,
-                    html=(
-                        "<p>This message is too large to display here. "
-                        "It remains in the mailbox.</p>"
-                    ),
-                    attachments=[],
-                    message_id="",
-                    references="",
-                    reply_to="",
-                    cc="",
-                )
-            status, data = client.uid("FETCH", str(uid), "(BODY.PEEK[])")
-            raw = _fetch_body(data)
-            if status != "OK" or raw is None:
+            return self._fetch_selected(client, uid, mark_seen=mark_seen)
+
+    def fetch_checked(
+        self, username: str, password: str, role: str, validity: int, uid: int, *, mark_seen: bool
+    ) -> MessageContent:
+        """One TLS login; validate fresh UIDVALIDITY before downloading or marking read."""
+        with self._imap(username, password) as client:
+            name = self._folder_names(client).get(role)
+            if name is None:
+                raise MailFailure("folder")
+            current, _unread = self._select(client, name, readonly=not mark_seen)
+            if current != validity:
                 raise MailFailure("missing")
-            if mark_seen:
-                client.uid("STORE", str(uid), "+FLAGS.SILENT", "(\\Seen)")
-            return _content_from_bytes(uid, raw, unread=not mark_seen)
+            return self._fetch_selected(client, uid, mark_seen=mark_seen)
+
+    def _fetch_selected(
+        self, client: imaplib.IMAP4_SSL, uid: int, *, mark_seen: bool
+    ) -> MessageContent:
+        size = self._size(client, uid)
+        if size > settings().mail_read_bytes:
+            summary = self._summary(client, uid)
+            return MessageContent(
+                summary=summary,
+                html=(
+                    "<p>This message is too large to display here. It remains in the mailbox.</p>"
+                ),
+                attachments=[],
+                message_id="",
+                references="",
+                reply_to="",
+                cc="",
+            )
+        status, data = client.uid("FETCH", str(uid), "(BODY.PEEK[])")
+        raw = _fetch_body(data)
+        if status != "OK" or raw is None:
+            raise MailFailure("missing")
+        if mark_seen:
+            client.uid("STORE", str(uid), "+FLAGS.SILENT", "(\\Seen)")
+        return _content_from_bytes(uid, raw, unread=not mark_seen)
 
     def fetch_attachment(
         self, username: str, password: str, folder_name: str, uid: int, index: int
@@ -343,6 +370,54 @@ class ImapSmtpGateway:
             has_attachment="attachment" in meta.lower() or "filename" in meta.lower(),
         )
 
+    def _summaries(self, client: imaplib.IMAP4_SSL, uids: list[int]) -> list[MessageSummary]:
+        if not uids:
+            return []
+        # One bounded UID FETCH instead of a header + preview round trip per row.
+        status, data = client.uid(
+            "FETCH",
+            ",".join(str(uid) for uid in uids),
+            "(UID FLAGS BODYSTRUCTURE "
+            "BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE CONTENT-TYPE "
+            "CONTENT-TRANSFER-ENCODING)] BODY.PEEK[TEXT]<0.512>)",
+        )
+        if status != "OK":
+            raise MailFailure("unavailable")
+        records = _summary_records(data)
+        result = []
+        for uid in uids:
+            record = records.get(uid)
+            if record is None:
+                # A message may have been expunged between SEARCH and FETCH.
+                continue
+            meta, header, body = record
+            parsed = message_from_bytes(header)
+            preview = ""
+            if parsed.get_content_type() in {"text/plain", "text/html"} and body:
+                preview_part = message_from_bytes(header.rstrip(b"\r\n") + b"\r\n\r\n" + body)
+                try:
+                    preview = _part_text(preview_part)
+                except LookupError:
+                    preview = body.decode("utf-8", "replace")
+                if parsed.get_content_type() == "text/html":
+                    preview = re.sub(r"<[^>]*>", " ", preview)
+                preview = re.sub(r"\s+", " ", preview).strip()[:180]
+            flag_section = re.search(r"FLAGS\s+\(([^)]*)\)", meta, re.IGNORECASE)
+            flags = set(re.findall(r"\\[A-Za-z]+", flag_section.group(1) if flag_section else ""))
+            result.append(
+                MessageSummary(
+                    uid=uid,
+                    subject=_header(parsed.get("Subject")),
+                    sender=_header(parsed.get("From")),
+                    recipients=_header(parsed.get("To")),
+                    preview=preview,
+                    message_date=_date(parsed.get("Date")),
+                    unread="\\Seen" not in flags,
+                    has_attachment="attachment" in meta.lower() or "filename" in meta.lower(),
+                )
+            )
+        return result
+
     def _preview(self, client: imaplib.IMAP4_SSL, uid: int) -> str:
         status, data = client.uid("FETCH", str(uid), "(BODY.PEEK[TEXT]<0.180>)")
         if status != "OK":
@@ -411,6 +486,38 @@ def _fetch_pair(data) -> tuple[str, bytes | None]:
 def _fetch_body(data) -> bytes | None:
     _meta, body = _fetch_pair(data)
     return body
+
+
+def _summary_records(data) -> dict[int, tuple[str, bytes, bytes]]:
+    """Associate split IMAP literals by response, even when UID is returned last."""
+    records: dict[int, tuple[str, bytes, bytes]] = {}
+    meta: list[str] = []
+    header = b""
+    body = b""
+
+    def finish() -> None:
+        combined = " ".join(meta)
+        uid = _number(re.sub(r'"(?:\\.|[^"\\])*"', '""', combined), "UID")
+        if uid and header:
+            records[uid] = (combined, header, body)
+
+    for item in data or []:
+        raw_meta = item[0] if isinstance(item, tuple) else item
+        if not isinstance(raw_meta, bytes):
+            continue
+        text = raw_meta.decode("utf-8", "replace")
+        if re.match(r"^\d+\s+\(", text):
+            finish()
+            meta = []
+            header = body = b""
+        meta.append(text)
+        if isinstance(item, tuple) and len(item) > 1 and isinstance(item[1], bytes):
+            if re.search(r"BODY\[HEADER\.FIELDS", text, re.IGNORECASE):
+                header = item[1]
+            elif re.search(r"BODY\[TEXT\]", text, re.IGNORECASE):
+                body = item[1][:512]
+    finish()
+    return records
 
 
 def _append_uid(data) -> tuple[int | None, int | None]:
