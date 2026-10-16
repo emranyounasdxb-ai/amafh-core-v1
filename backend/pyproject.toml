@@ -26,6 +26,7 @@ dependencies = [
   "cryptography==50.0.1",
   "google-api-python-client==2.200.0",
   "google-auth==2.58.1",
+  "nh3==0.3.7",
 ]
 
 [project.optional-dependencies]

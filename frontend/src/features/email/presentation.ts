@@ -42,7 +42,7 @@ export function mailDate(value: string | null) {
   }).format(date);
 }
 
-// Only this fixed stylesheet is permitted by the iframe's CSP. Received content
-// cannot enable arbitrary inline styles, scripts, external images or fonts.
+// Fixed reader styles. Received inline formatting is sanitized on the server;
+// scripts, stylesheets, images and fonts from the message cannot load remotely.
 export const MAIL_DOCUMENT_STYLE =
-  'body{margin:0;color:#1a171d;font:14px/1.75 "Segoe UI",Arial,sans-serif;overflow-wrap:anywhere}p{margin:0 0 16px}a{color:#5a1acf}blockquote{margin:16px 0;padding:4px 16px;border-left:3px solid #ddd7e4;color:#3e3946}ul,ol{padding-left:24px}';
+  'body{margin:0;color:#1a171d;font:14px/1.7 "Segoe UI",Arial,sans-serif;overflow-wrap:anywhere}p{margin:0 0 16px}a{color:#5a1acf}blockquote{margin:16px 0;padding:4px 16px;border-left:3px solid #ddd7e4;color:#3e3946}ul,ol{padding-left:24px}h1,h2,h3,h4,h5,h6{line-height:1.35;margin:0 0 16px}table{max-width:100%;border-spacing:0}td,th{overflow-wrap:anywhere}pre,code,samp{white-space:pre-wrap;overflow-wrap:anywhere;font-family:Consolas,monospace}hr{border:0;border-top:1px solid #ddd7e4;margin:20px 0}';

@@ -124,8 +124,11 @@ function splitAddresses(value: string) {
     .filter(Boolean);
 }
 
-function documentHtml(body: string) {
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'sha256-oEPMJvCmpEZ0D3PPlFRGEEN9OdqFs3bzmJ+ZRRGU4TM=';"><base target="_blank"><style>${MAIL_DOCUMENT_STYLE}</style></head><body>${body}</body></html>`;
+function documentHtml(body: string, received = false) {
+  // Only received HTML may contain server-filtered style attributes. The fixed
+  // stylesheet is hash-authorized; received <style> elements remain blocked.
+  const attributePolicy = received ? "'unsafe-inline'" : "'none'";
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; img-src 'none'; font-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; style-src 'sha256-z86pM5dj2saOjO8AtjbcbE43TyFWd3eUlUD32dOxryM='; style-src-elem 'sha256-z86pM5dj2saOjO8AtjbcbE43TyFWd3eUlUD32dOxryM='; style-src-attr ${attributePolicy};"><base target="_blank"><style>${MAIL_DOCUMENT_STYLE}</style></head><body>${body}</body></html>`;
 }
 
 function applySignatureOnce(html: string, signature: string) {
@@ -788,7 +791,7 @@ export function EmailPage({
                       title="Message"
                       sandbox=""
                       referrerPolicy="no-referrer"
-                      srcDoc={documentHtml(selected.html)}
+                      srcDoc={documentHtml(selected.html, true)}
                     />
                   </div>
                   {selected.attachments.length ? (

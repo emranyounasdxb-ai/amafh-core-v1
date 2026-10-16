@@ -37,6 +37,7 @@ from app.mail.files import (
 from app.mail.folders import ROLES
 from app.mail.gateway import MessageSummary
 from app.mail.mime import build_message
+from app.mail.received import received_html
 from app.mail.runtime import get_gateway, run_mail
 from app.mail.sanitize import sanitize_html
 from app.policies import Actor
@@ -526,7 +527,7 @@ async def read_message(session: AsyncSession, actor: Actor, ref: str) -> dict:
         raise failure(exc) from None
     await _confirm(session, actor, email)
     generation = await _current_generation(session, actor)
-    html = sanitize_html(content.html, limit=settings().mail_read_bytes)
+    html = received_html(content.html, limit=settings().mail_read_bytes)
     return {
         **_summary(content.summary, role, validity, generation, actor.account_id),
         "html": html,
