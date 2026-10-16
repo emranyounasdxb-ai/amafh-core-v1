@@ -236,6 +236,32 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
     )
 
 
+async def ensure_session_current(session: AsyncSession, actor: Actor) -> None:
+    """Re-apply the session rules after a long mailbox read, without recording activity."""
+    row = (
+        await session.execute(
+            select(sessions.c.invalidated_at, sessions.c.last_active_at).where(
+                sessions.c.id == actor.session_id
+            )
+        )
+    ).first()
+    if row is None:
+        raise ApiError(401, "AUTH_REQUIRED", "Authentication required")
+    invalidated_at, last_active_at = row
+    idle = timedelta(seconds=settings().session_idle_seconds)
+    if invalidated_at is not None:
+        if invalidated_at - last_active_at >= idle:
+            raise ApiError(401, "SESSION_EXPIRED", "Session expired")
+        raise ApiError(401, "AUTH_REQUIRED", "Authentication required")
+    now = utcnow()
+    if now - last_active_at >= idle:
+        await session.execute(
+            update(sessions).where(sessions.c.id == actor.session_id).values(invalidated_at=now)
+        )
+        await session.commit()
+        raise ApiError(401, "SESSION_EXPIRED", "Session expired")
+
+
 async def record_activity(session: AsyncSession, actor: Actor) -> None:
     now = utcnow()
     renewed = await session.scalar(

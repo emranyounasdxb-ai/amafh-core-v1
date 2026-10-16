@@ -25,6 +25,18 @@ export const sidebarGroups: ProductionNavGroup[] = [
     ],
   },
   {
+    id: "email",
+    label: "Email",
+    items: [
+      { id: "email-inbox", label: "Inbox", icon: "mail" },
+      { id: "email-drafts", label: "Drafts", icon: "created" },
+      { id: "email-sent", label: "Sent", icon: "export" },
+      { id: "email-deleted", label: "Deleted", icon: "unavailable" },
+      { id: "email-spam", label: "Spam/Junk", icon: "warning" },
+      { id: "email-archive", label: "Archive", icon: "pdf" },
+    ],
+  },
+  {
     id: "sales",
     label: "Sales",
     items: [
@@ -105,6 +117,12 @@ export const pageTitles: Record<PageId, string> = {
   finance: "Finance",
   reports: "Reports",
   settings: "Settings",
+  "email-inbox": "Inbox",
+  "email-drafts": "Drafts",
+  "email-sent": "Sent",
+  "email-deleted": "Deleted",
+  "email-spam": "Spam/Junk",
+  "email-archive": "Archive",
 };
 
 export function sidebarActiveId(

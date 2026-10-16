@@ -14,6 +14,7 @@ from app.api.dashboard import router as dashboard_router
 from app.api.finance import router as finance_router
 from app.api.holiday_calendar import router as holiday_calendar_router
 from app.api.hr_records import router as hr_records_router
+from app.api.mailbox import router as mailbox_router
 from app.api.master_lifecycle import router as master_lifecycle_router
 from app.api.media import router as media_router
 from app.api.my_wallet import router as my_wallet_router
@@ -56,6 +57,7 @@ app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(finance_router, prefix="/api/v1")
 app.include_router(holiday_calendar_router, prefix="/api/v1")
 app.include_router(hr_records_router, prefix="/api/v1")
+app.include_router(mailbox_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 app.include_router(branding_router, prefix="/api/v1")
 app.include_router(assets_router, prefix="/api/v1")

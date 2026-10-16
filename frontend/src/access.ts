@@ -35,7 +35,13 @@ export type PageId =
   | "assets"
   | "finance"
   | "reports"
-  | "settings";
+  | "settings"
+  | "email-inbox"
+  | "email-drafts"
+  | "email-sent"
+  | "email-deleted"
+  | "email-spam"
+  | "email-archive";
 
 export const lockedDesignations: readonly Designation[] = [
   "Owner",
@@ -111,6 +117,12 @@ export function canOpenPage(session: AccessSession, page: PageId) {
     case "case-detail":
     case "tasks":
     case "notifications":
+    case "email-inbox":
+    case "email-drafts":
+    case "email-sent":
+    case "email-deleted":
+    case "email-spam":
+    case "email-archive":
       return true;
     case "cases":
       return has(session, "case.read");

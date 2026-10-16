@@ -521,3 +521,6 @@ async def disable_account_in_transaction(session: AsyncSession, account_id: UUID
         .where(sessions.c.account_id == account_id, sessions.c.invalidated_at.is_(None))
         .values(invalidated_at=now)
     )
+    from app.mail.lifecycle import clear_secret
+
+    await clear_secret(session, account_id)

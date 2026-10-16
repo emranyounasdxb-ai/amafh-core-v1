@@ -22,6 +22,7 @@ UPLOAD_PATH = re.compile(
     r"employees/[^/]+/(?:media/[^/]+|documents)|"
     r"employee-documents/[^/]+/versions|catalog/[^/]+/[^/]+/image)/?\Z"
 )
+MAIL_UPLOAD = re.compile(r"/api/v1/mailbox/attachments/?\Z")
 
 
 class UploadBodyLimit:
@@ -43,8 +44,14 @@ class UploadBodyLimit:
         multipart = any(
             k.lower() == b"content-type" and v.lower().startswith(b"multipart/") for k, v in headers
         )
-        upload = bool(UPLOAD_PATH.fullmatch(scope.get("path", ""))) or multipart
-        limit = MAX_REQUEST_BYTES if upload else MAX_JSON_REQUEST_BYTES
+        mailbox_upload = bool(MAIL_UPLOAD.fullmatch(path))
+        upload = bool(UPLOAD_PATH.fullmatch(path)) or multipart or mailbox_upload
+        if mailbox_upload:
+            from app.config import settings
+
+            limit = settings().mail_attachment_bytes + MULTIPART_OVERHEAD_BYTES
+        else:
+            limit = MAX_REQUEST_BYTES if upload else MAX_JSON_REQUEST_BYTES
 
         async def reject() -> None:
             await JSONResponse(
@@ -55,7 +62,17 @@ class UploadBodyLimit:
                         if upload
                         else "Request exceeds the size limit"
                     ),
-                    "fieldErrors": {"file": ["Maximum file size is 5 MB"]} if upload else {},
+                    "fieldErrors": (
+                        {
+                            "file": [
+                                "The attachment exceeds the configured mailbox limit"
+                                if mailbox_upload
+                                else "Maximum file size is 5 MB"
+                            ]
+                        }
+                        if upload
+                        else {}
+                    ),
                 },
                 status_code=413,
             )(scope, receive, send)

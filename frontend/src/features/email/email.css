@@ -1,0 +1,43 @@
+.email-page {
+  container-type: inline-size;
+}
+
+.email-workspace {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+
+@container (min-width: 960px) {
+  .email-workspace {
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.9fr);
+  }
+}
+
+.email-editor,
+.email-preview {
+  min-height: 160px;
+  padding: 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-surface);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.email-editor:focus {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
+
+.email-frame {
+  width: 100%;
+  min-height: 220px;
+  border: 0;
+  background: var(--ds-surface);
+}
+
+.email-compose-grid {
+  display: grid;
+  gap: 12px;
+}

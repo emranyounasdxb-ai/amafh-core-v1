@@ -6,6 +6,7 @@ from . import (  # noqa: F401
     cases,
     finance,
     hr_records,
+    mailbox,
     operations,
     organization,
     performance,

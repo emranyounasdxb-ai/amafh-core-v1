@@ -32,12 +32,14 @@ import {
 } from "../../design-system";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { ApplicationNavigation } from "./ApplicationNavigation";
+import { useInboxUnread } from "../../features/email/useInboxUnread";
 import { DubaiClock } from "./DubaiClock";
 import styles from "./ApplicationShell.module.css";
 import { recordImageSrc } from "../api/recordImages";
 
 export function ApplicationShell() {
-  const { session: identity, loading, signOut } = useSession();
+  const { api, session: identity, loading, signOut } = useSession();
+  const inboxUnread = useInboxUnread(api, identity?.employeeId ?? null);
   const { route, navigationState, navigate, back } = useAppRoute();
   const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -63,10 +65,14 @@ export function ApplicationShell() {
             id: item.id,
             label: item.label,
             icon: item.icon,
+            badge:
+              item.id === "email-inbox" && inboxUnread > 0
+                ? { count: inboxUnread, tone: "brand" as const, label: `${inboxUnread} unread` }
+                : undefined,
           })),
       }))
       .filter((group) => group.items.length > 0);
-  }, [session]);
+  }, [inboxUnread, session]);
 
   const go = (next: PageId, recordId?: string) => {
     if (!session || !canOpenPage(session, next)) return;

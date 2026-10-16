@@ -23,6 +23,7 @@ import { MyWalletPage } from "../../features/wallet/MyWalletPage";
 import { ReportsPage } from "../../features/reports/ReportsPage";
 import { PerformancePage } from "../../features/performance/live/PerformancePage";
 import { SettingsPage } from "../../features/settings/live/SettingsPage";
+import { EmailPage } from "../../features/email/EmailPage";
 import type { AppRoute } from "./routes";
 import {
   HrCertificatesPage,
@@ -298,6 +299,13 @@ export function LiveRoutes({
       return <FinancePage />;
     case "reports":
       return <ReportsPage />;
+    case "email-inbox":
+    case "email-drafts":
+    case "email-sent":
+    case "email-deleted":
+    case "email-spam":
+    case "email-archive":
+      return <EmailPage key={session.employeeId} page={route.page} />;
     case "settings":
       return (
         <SettingsPage

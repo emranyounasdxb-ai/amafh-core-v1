@@ -17,6 +17,19 @@ class Settings(BaseSettings):
     session_idle_seconds: int = 3600
     media_storage_root: Path = Path(__file__).resolve().parent.parent / "private_media"
     owner_recovery_secret_file: Path | None = None
+    mail_imap_host: str = "ded6959.inmotionhosting.com"
+    mail_imap_port: int = 993
+    mail_smtp_host: str = "ded6959.inmotionhosting.com"
+    mail_smtp_port: int = 465
+    mail_attachment_bytes: int = 10_000_000
+    mail_attachments_bytes: int = 10_000_000
+    mail_message_bytes: int = 15_000_000
+    mail_provider_message_bytes: int | None = None
+    mail_read_bytes: int = 15_000_000
+    mailbox_key_file: Path | None = None
+    mail_timeout_seconds: float = 20
+    mail_attachment_ttl_seconds: int = 86_400
+    mail_refresh_seconds: int = 60
 
     @field_validator("database_url")
     @classmethod
@@ -47,7 +60,40 @@ class Settings(BaseSettings):
             and self.public_origin.host in {"localhost", "127.0.0.1"}
         ):
             raise ValueError("Public origin requires HTTPS outside local development/test")
+        for name in ("mail_imap_host", "mail_smtp_host"):
+            host = getattr(self, name).strip()
+            if not host or any(character in host for character in " \t\r\n/@:\\"):
+                raise ValueError(f"{name} must be a bare mail hostname")
+            setattr(self, name, host)
+        for name in ("mail_imap_port", "mail_smtp_port"):
+            if not 1 <= getattr(self, name) <= 65535:
+                raise ValueError(f"{name} is not a valid port")
+        for name in (
+            "mail_attachment_bytes",
+            "mail_attachments_bytes",
+            "mail_message_bytes",
+            "mail_read_bytes",
+            "mail_attachment_ttl_seconds",
+            "mail_refresh_seconds",
+        ):
+            if getattr(self, name) < 1:
+                raise ValueError(f"{name} must be positive")
+        if self.mail_timeout_seconds <= 0:
+            raise ValueError("mail_timeout_seconds must be positive")
+        if (
+            self.mail_provider_message_bytes is not None
+            and self.mail_provider_message_bytes < 1
+        ):
+            raise ValueError("mail_provider_message_bytes must be positive when set")
+        if self.mailbox_key_file is not None and not self.mailbox_key_file.is_absolute():
+            raise ValueError("AMAFH_MAILBOX_KEY_FILE must be an absolute path")
         return self
+
+    def effective_message_bytes(self) -> int:
+        provider = self.mail_provider_message_bytes
+        if provider is None:
+            return self.mail_message_bytes
+        return min(self.mail_message_bytes, provider)
 
 
 @lru_cache

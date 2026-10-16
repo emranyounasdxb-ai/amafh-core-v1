@@ -30,6 +30,12 @@ const paths: Record<
   finance: "/finance",
   reports: "/reports",
   settings: "/settings",
+  "email-inbox": "/email/inbox",
+  "email-drafts": "/email/drafts",
+  "email-sent": "/email/sent",
+  "email-deleted": "/email/deleted",
+  "email-spam": "/email/spam",
+  "email-archive": "/email/archive",
 };
 
 const recordPages: readonly PageId[] = [

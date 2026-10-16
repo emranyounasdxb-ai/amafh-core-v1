@@ -121,6 +121,9 @@ async def disable_account(session: AsyncSession, actor: Actor, account_id: UUID)
         after={"accessStatus": "Disabled"},
     )
     await access_changed(session, "user.disabled", account["employee_id"])
+    from app.mail.lifecycle import clear_secret
+
+    await clear_secret(session, account_id)
     await session.commit()
 
 
@@ -250,3 +253,6 @@ async def save_login_email(session: AsyncSession, account, email: str, actor_id:
         before={"loginEmail": account["login_email"]},
         after={"loginEmail": email},
     )
+    from app.mail.lifecycle import forget_address
+
+    await forget_address(session, account["id"])
