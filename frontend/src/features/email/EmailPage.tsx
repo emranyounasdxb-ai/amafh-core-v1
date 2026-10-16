@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PageId } from "../../access";
 import { ApiFailure } from "../../app/api/http";
 import { useSession } from "../../app/session/useSession";
@@ -6,6 +6,8 @@ import {
   Button,
   CompactDateTime,
   Dialog,
+  DsIcon,
+  type DsIconName,
   EmptyState,
   ErrorState,
   FileUpload,
@@ -16,16 +18,19 @@ import {
   PageHeader,
   PasswordInput,
   ReadOnlyField,
-  ResponsiveDataTable,
   RetryState,
-  SearchFilterToolbar,
   SectionCard,
-  StatusBadge,
   TextInput,
   UnavailableState,
-  type DataTableColumn,
 } from "../../design-system";
+import {
+  MAIL_DOCUMENT_STYLE,
+  mailDate,
+  mailIdentity,
+  mailPreview,
+} from "./presentation";
 import "./email.css";
+import { EmailSplitPane } from "./EmailSplitPane";
 
 type FolderRole = "inbox" | "drafts" | "sent" | "deleted" | "spam" | "archive";
 
@@ -66,12 +71,22 @@ type MailMessage = MailRow & {
   html: string;
   cc: string;
   bcc: string;
-  attachments: { index: number; filename: string; contentType: string; size: number }[];
+  attachments: {
+    index: number;
+    filename: string;
+    contentType: string;
+    size: number;
+  }[];
   messageId: string;
   replyTo: string;
 };
 
-type ComposeFile = { id?: string; remoteIndex?: number; filename: string; size: number };
+type ComposeFile = {
+  id?: string;
+  remoteIndex?: number;
+  filename: string;
+  size: number;
+};
 
 type SendResult = {
   status: string;
@@ -110,7 +125,7 @@ function splitAddresses(value: string) {
 }
 
 function documentHtml(body: string) {
-  return `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:;"><base target="_blank"></head><body>${body}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'sha256-oEPMJvCmpEZ0D3PPlFRGEEN9OdqFs3bzmJ+ZRRGU4TM=';"><base target="_blank"><style>${MAIL_DOCUMENT_STYLE}</style></head><body>${body}</body></html>`;
 }
 
 function applySignatureOnce(html: string, signature: string) {
@@ -118,7 +133,13 @@ function applySignatureOnce(html: string, signature: string) {
   return `${html}<div data-amafh-signature="true">${signature}</div>`;
 }
 
-export function EmailPage({ page }: { page: PageId }) {
+export function EmailPage({
+  page,
+  navigate,
+}: {
+  page: PageId;
+  navigate: (page: PageId) => void;
+}) {
   const role = ROLE[page] ?? "inbox";
   const { api, session } = useSession();
   const employeeId = session?.employeeId ?? "";
@@ -136,8 +157,12 @@ export function EmailPage({ page }: { page: PageId }) {
   const [loadingList, setLoadingList] = useState(false);
   const [selected, setSelected] = useState<MailMessage | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [composeMode, setComposeMode] = useState<"new" | "reply" | "reply-all" | "forward" | "draft">("new");
-  const openCompose = (mode: "new" | "reply" | "reply-all" | "forward" | "draft") => {
+  const [composeMode, setComposeMode] = useState<
+    "new" | "reply" | "reply-all" | "forward" | "draft"
+  >("new");
+  const openCompose = (
+    mode: "new" | "reply" | "reply-all" | "forward" | "draft",
+  ) => {
     setComposeMode(mode);
     setComposeOpen(true);
   };
@@ -145,6 +170,30 @@ export function EmailPage({ page }: { page: PageId }) {
   const [signature, setSignature] = useState("");
   const [signatureDraft, setSignatureDraft] = useState("");
   const urls = useRef<string[]>([]);
+  const readSequence = useRef(0);
+  const [activeRef, setActiveRef] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
+  const [trackedFolder, setTrackedFolder] = useState(role);
+  // Reset before rendering another folder, including browser back/forward.
+  // This also prevents issuing its first request with the previous folder's page.
+  if (trackedFolder !== role) {
+    setTrackedFolder(role);
+    setPageNumber(1);
+    setMessages(null);
+    setSelected(null);
+    setActiveRef(null);
+    setReading(false);
+    setSearch("");
+    setQuery("");
+    setError("");
+    setPageError("");
+  }
+  useEffect(
+    () => () => {
+      readSequence.current += 1;
+    },
+    [role],
+  );
 
   useEffect(() => {
     const owned = urls.current;
@@ -203,9 +252,14 @@ export function EmailPage({ page }: { page: PageId }) {
           if (cancelled) return;
           setMessages(null);
           setPageError(textOf(reason));
-          if (reason instanceof ApiFailure && reason.code === "MAIL_RECONNECT") {
+          if (
+            reason instanceof ApiFailure &&
+            reason.code === "MAIL_RECONNECT"
+          ) {
             setConnection((current) =>
-              current ? { ...current, connected: false, reconnectRequired: true } : current,
+              current
+                ? { ...current, connected: false, reconnectRequired: true }
+                : current,
             );
           }
         })
@@ -220,40 +274,16 @@ export function EmailPage({ page }: { page: PageId }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [api, connection?.connected, employeeId, limits?.refreshSeconds, pageNumber, query, refreshKey, role]);
-
-  const columns = useMemo<DataTableColumn<MailRow>[]>(
-    () => [
-      {
-        key: "who",
-        header: role === "sent" || role === "drafts" ? "To" : "From",
-        render: (row) => (role === "sent" || role === "drafts" ? row.recipients : row.sender) || "—",
-      },
-      { key: "subject", header: "Subject", render: (row) => row.subject },
-      { key: "preview", header: "Preview", render: (row) => row.preview || "—" },
-      {
-        key: "date",
-        header: "Date",
-        kind: "datetime",
-        render: (row) => (row.date ? <CompactDateTime value={row.date} /> : "—"),
-      },
-      {
-        key: "unread",
-        header: "Status",
-        render: (row) => (
-          <StatusBadge tone={row.unread ? "brand" : "neutral"}>
-            {row.unread ? "Unread" : "Read"}
-          </StatusBadge>
-        ),
-      },
-      {
-        key: "attachment",
-        header: "Attachment",
-        render: (row) => (row.hasAttachment ? "Yes" : "—"),
-      },
-    ],
-    [role],
-  );
+  }, [
+    api,
+    connection?.connected,
+    employeeId,
+    limits?.refreshSeconds,
+    pageNumber,
+    query,
+    refreshKey,
+    role,
+  ]);
 
   const connect = async () => {
     setBusy(true);
@@ -276,10 +306,15 @@ export function EmailPage({ page }: { page: PageId }) {
     setBusy(true);
     try {
       await api.request("/mailbox/connection", { method: "DELETE" });
+      readSequence.current += 1;
       setSelected(null);
+      setActiveRef(null);
+      setReading(false);
       setMessages(null);
       setConnection((current) =>
-        current ? { ...current, connected: false, reconnectRequired: false } : current,
+        current
+          ? { ...current, connected: false, reconnectRequired: false }
+          : current,
       );
     } catch (reason) {
       setError(textOf(reason));
@@ -288,24 +323,55 @@ export function EmailPage({ page }: { page: PageId }) {
     }
   };
 
+  const closeMessage = () => {
+    readSequence.current += 1;
+    setSelected(null);
+    setActiveRef(null);
+    setReading(false);
+  };
   const openMessage = async (row: MailRow) => {
+    const request = ++readSequence.current;
+    setActiveRef(row.ref);
+    setSelected(null);
+    setReading(true);
+    setError("");
     try {
-      const message = await api.request<MailMessage>(`/mailbox/messages/${row.ref}`);
-      setSelected(message);
+      const message = await api.request<MailMessage>(
+        `/mailbox/messages/${row.ref}`,
+      );
+      if (request === readSequence.current) {
+        setSelected(message);
+        setMessages((current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) =>
+                  item.ref === row.ref && role !== "drafts"
+                    ? { ...item, unread: false }
+                    : item,
+                ),
+              }
+            : current,
+        );
+      }
     } catch (reason) {
-      setError(textOf(reason));
+      if (request === readSequence.current) setError(textOf(reason));
+    } finally {
+      if (request === readSequence.current) setReading(false);
     }
   };
 
   const hideOrRestore = async (ref: string, action: "hide" | "restore") => {
     await api.request(`/mailbox/messages/${ref}/${action}`, { method: "POST" });
-    setSelected(null);
+    closeMessage();
     setPageNumber(1);
     setRefreshKey((current) => current + 1);
   };
 
   const download = async (ref: string, index: number, filename: string) => {
-    const response = await api.response(`/mailbox/messages/${ref}/attachments/${index}`);
+    const response = await api.response(
+      `/mailbox/messages/${ref}/attachments/${index}`,
+    );
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     urls.current.push(url);
@@ -318,198 +384,530 @@ export function EmailPage({ page }: { page: PageId }) {
   const pageCount = Math.max(1, Math.ceil((messages?.total ?? 0) / 25));
   const folderMissing = pageError.includes("folder is not available");
 
+  const folders: { role: FolderRole; page: PageId; icon: DsIconName }[] = [
+    { role: "inbox", page: "email-inbox", icon: "mail" },
+    { role: "drafts", page: "email-drafts", icon: "edit" },
+    { role: "sent", page: "email-sent", icon: "forward" },
+    { role: "deleted", page: "email-deleted", icon: "delete" },
+    { role: "spam", page: "email-spam", icon: "warning" },
+    { role: "archive", page: "email-archive", icon: "assets" },
+  ];
+  const applySearch = () => {
+    setPageNumber(1);
+    setQuery(search.trim());
+    setRefreshKey((current) => current + 1);
+    closeMessage();
+  };
+  const from = selected ? mailIdentity(selected.sender) : null;
+  const total = messages?.total ?? 0;
+
   return (
     <PageContainer className="email-page">
       <PageHeader
-        title={TITLE[role]}
-        subtitle={
-          connection?.address
-            ? `Mailbox ${connection.address}`
-            : "Your Official/Login email mailbox"
-        }
+        title="Email"
+        subtitle={connection?.address || "Your Official/Login email mailbox"}
         actions={
           connection?.connected ? (
             <>
-              <Button size="compact" onClick={() => openCompose("new")}>
-                Compose
+              <Button
+                variant="secondary"
+                size="compact"
+                onClick={() => setSignatureOpen(true)}
+              >
+                <DsIcon name="edit" size={14} /> Signature
               </Button>
-              <Button variant="secondary" size="compact" onClick={() => setSignatureOpen(true)}>
-                Signature
-              </Button>
-              <Button variant="ghost" size="compact" onClick={() => void disconnect()} disabled={busy}>
+              <Button
+                variant="ghost"
+                size="compact"
+                onClick={() => void disconnect()}
+                disabled={busy}
+              >
                 Disconnect
               </Button>
             </>
-          ) : null
+          ) : undefined
         }
       />
       {!connection && !pageError ? <LoadingState /> : null}
       {pageError && !connection ? (
-        <ErrorState description={pageError} retry={() => window.location.reload()} />
+        <ErrorState
+          description={pageError}
+          retry={() => window.location.reload()}
+        />
       ) : null}
       {connection && !connection.connected ? (
-        <SectionCard
-          title={connection.reconnectRequired ? "Reconnect mailbox" : "Connect mailbox"}
-          description="The InMotion mailbox password may differ from the AMAFH Core password. AMAFH Core does not create the mailbox."
-        >
-          <ReadOnlyField label="Official/Login email" value={connection.address} />
-          <FormField label="Mailbox password" htmlFor="mailbox-password" error={error || undefined}>
-            <PasswordInput
-              id="mailbox-password"
-              name="mailbox-password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
+        <div className="email-connect">
+          <div className="email-connect-icon">
+            <DsIcon name="mail" size={24} />
+          </div>
+          <SectionCard
+            title={
+              connection.reconnectRequired
+                ? "Reconnect your mailbox"
+                : "Your email, in one place"
+            }
+            description="Connect your Official/Login email to read and send messages without leaving AMAFH Core."
+          >
+            <ReadOnlyField
+              label="Official/Login email"
+              value={connection.address}
             />
-          </FormField>
-          <Button onClick={() => void connect()} disabled={busy || !password}>
-            {connection.reconnectRequired ? "Reconnect" : "Connect mailbox"}
-          </Button>
-        </SectionCard>
+            <FormField
+              label="Mailbox password"
+              htmlFor="mailbox-password"
+              error={error || undefined}
+            >
+              <PasswordInput
+                id="mailbox-password"
+                name="mailbox-password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </FormField>
+            <p className="email-help">
+              Use your mailbox password. It may be different from your AMAFH
+              Core password.
+            </p>
+            <Button
+              onClick={() => void connect()}
+              disabled={busy || !password}
+              loading={busy}
+            >
+              {connection.reconnectRequired
+                ? "Reconnect mailbox"
+                : "Connect mailbox"}
+            </Button>
+          </SectionCard>
+        </div>
       ) : null}
       {connection?.connected ? (
-        <>
-          {role === "deleted" ? (
-            <InlineNotice tone="info" title="Deleted in AMAFH Core only">
-              Hiding a message here leaves it in its original InMotion folder. Restore shows it
-              in AMAFH Core again. There is no permanent delete. Mail removed in Webmail or
-              another mail client is outside this protection.
-            </InlineNotice>
-          ) : null}
-          {role === "drafts" ? (
-            <InlineNotice tone="info" title="Draft versions stay in the mailbox">
-              Saving a draft adds a new copy in the mailbox Drafts folder and hides the previous
-              version in AMAFH Core. Discard hides a version here. Neither action deletes the
-              mailbox copy.
-            </InlineNotice>
-          ) : null}
-          <SearchFilterToolbar
-            searchId="mailbox-search"
-            searchLabel="Search mailbox"
-            searchValue={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search this mailbox"
-            actions={
-              <Button
-                variant="secondary"
-                size="compact"
-                onClick={() => {
-                  setPageNumber(1);
-                  setQuery(search.trim());
-                  setRefreshKey((current) => current + 1);
+        <div className="email-layout" data-reading={Boolean(activeRef)}>
+          <aside className="email-folders" aria-label="Mailbox folders">
+            <Button
+              className="email-compose"
+              onClick={() => openCompose("new")}
+            >
+              <DsIcon name="edit" size={16} /> Compose
+            </Button>
+            <nav aria-label="Email folders">
+              {folders.map((folder) => (
+                <button
+                  key={folder.role}
+                  type="button"
+                  className={`email-folder ${role === folder.role ? "email-folder--active" : ""}`}
+                  aria-current={role === folder.role ? "page" : undefined}
+                  onClick={() => {
+                    if (folder.role !== role) navigate(folder.page);
+                  }}
+                >
+                  <DsIcon name={folder.icon} size={18} />
+                  <span>{TITLE[folder.role]}</span>
+                </button>
+              ))}
+            </nav>
+            <div className="email-connection-status">
+              <span aria-hidden="true" />
+              <div>
+                <strong>Connected</strong>
+                <small>Your private mailbox</small>
+              </div>
+            </div>
+          </aside>
+          <EmailSplitPane>
+            <section
+              id="email-message-list-panel"
+              className="email-list-panel"
+              aria-label={`${TITLE[role]} messages`}
+              aria-busy={loadingList}
+            >
+              <div className="email-list-header">
+                <div>
+                  <h2>{TITLE[role]}</h2>
+                  <span>
+                    {query
+                      ? "Search results"
+                      : `${total} ${total === 1 ? "message" : "messages"}`}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  aria-label="Refresh mailbox"
+                  title="Refresh mailbox"
+                  disabled={loadingList}
+                  onClick={() => setRefreshKey((current) => current + 1)}
+                >
+                  <DsIcon name="refresh" size={16} />
+                </Button>
+              </div>
+              <form
+                className="email-search"
+                role="search"
+                aria-label="Search mailbox"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  applySearch();
                 }}
               >
-                Refresh
-              </Button>
-            }
-            applied={
-              query
-                ? [
-                    {
-                      id: "search",
-                      field: "Search",
-                      value: query,
-                      label: `Search: ${query}`,
-                      onRemove: () => {
-                        setSearch("");
-                        setQuery("");
-                        setPageNumber(1);
-                      },
-                    },
-                  ]
-                : []
-            }
-            onClearFilters={() => {
-              setSearch("");
-              setQuery("");
-            }}
-          />
-          {loadingList && !messages ? <LoadingState /> : null}
-          {folderMissing ? (
-            <UnavailableState description="This mailbox does not have that folder. AMAFH Core does not create folders." />
-          ) : pageError && connection.connected ? (
-            <RetryState
-              description={pageError}
-              retry={() => setRefreshKey((current) => current + 1)}
-            />
-          ) : messages && messages.total === 0 ? (
-            <EmptyState title="No messages" description="This folder has nothing to show." />
-          ) : messages ? (
-            <div className="email-workspace">
-              <div>
-                <ResponsiveDataTable
-                  columns={columns}
-                  rows={messages.items}
-                  rowKey={(row) => row.ref}
-                  ariaLabel={`${TITLE[role]} messages`}
-                  page={pageNumber}
-                  pageCount={pageCount}
-                  onPageChange={setPageNumber}
-                  pageSize={25}
-                  onRowActivate={(row) => void openMessage(row)}
+                <TextInput
+                  id="mailbox-search"
+                  type="search"
+                  aria-label="Search mailbox"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={`Search ${TITLE[role].toLowerCase()}`}
+                  prefix={<DsIcon name="search" size={16} />}
                 />
-              </div>
-              {selected ? (
-                <SectionCard title={selected.subject}>
-                  <div>
-                    {selected.sender || selected.recipients}{" "}
-                    {selected.date ? <CompactDateTime value={selected.date} /> : null}
-                  </div>
-                  <iframe
-                    className="email-frame"
-                    title="Message"
-                    sandbox=""
-                    referrerPolicy="no-referrer"
-                    srcDoc={documentHtml(selected.html)}
+                <button
+                  type="submit"
+                  className="email-search-submit"
+                  aria-label="Search messages"
+                >
+                  <DsIcon name="forward" size={16} />
+                </button>
+              </form>
+              {query ? (
+                <div className="email-search-applied">
+                  <span>“{query}”</span>
+                  <button
+                    type="button"
+                    aria-label="Clear mailbox search"
+                    onClick={() => {
+                      setSearch("");
+                      setQuery("");
+                      setPageNumber(1);
+                    }}
+                  >
+                    <DsIcon name="close" size={14} />
+                  </button>
+                </div>
+              ) : null}
+              {role === "deleted" ? (
+                <p className="email-folder-note">
+                  Hidden in AMAFH Core only. Original mailbox messages are kept.
+                  Restore brings them back here.
+                </p>
+              ) : null}
+              {role === "drafts" ? (
+                <p className="email-folder-note">
+                  Saving adds a new draft. Older versions are hidden here and kept
+                  in your mailbox.
+                </p>
+              ) : null}
+              <div className="email-list-scroll">
+                {loadingList && !messages ? (
+                  <LoadingState title="Loading messages" />
+                ) : folderMissing ? (
+                  <UnavailableState description="This folder is not available in your mailbox." />
+                ) : pageError ? (
+                  <RetryState
+                    description={pageError}
+                    retry={() => setRefreshKey((current) => current + 1)}
                   />
-                  {selected.attachments.map((item) => (
-                    <Button
-                      key={item.index}
-                      variant="secondary"
-                      size="compact"
-                      onClick={() => void download(selected.ref, item.index, item.filename)}
+                ) : messages && total === 0 ? (
+                  <EmptyState
+                    title={
+                      query ? "No matching messages" : "You're all caught up"
+                    }
+                    description={
+                      query
+                        ? "Try another name or subject."
+                        : "There are no messages in this folder."
+                    }
+                  />
+                ) : (
+                  <ul className="email-message-list">
+                    {messages?.items.map((row) => {
+                      const identity = mailIdentity(
+                        role === "sent" || role === "drafts"
+                          ? row.recipients
+                          : row.sender,
+                      );
+                      return (
+                        <li key={row.ref}>
+                          <button
+                            type="button"
+                            className={`email-message ${row.unread ? "email-message--unread" : ""} ${activeRef === row.ref ? "email-message--selected" : ""}`}
+                            aria-label={`Open message: ${row.subject}`}
+                            aria-pressed={activeRef === row.ref}
+                            onClick={() => void openMessage(row)}
+                          >
+                            <span
+                              className="email-message-avatar"
+                              aria-hidden="true"
+                            >
+                              {identity.initials}
+                            </span>
+                            <span className="email-message-summary">
+                              <span className="email-message-top">
+                                <span
+                                  className="email-message-person"
+                                  title={
+                                    role === "sent" || role === "drafts"
+                                      ? row.recipients
+                                      : row.sender
+                                  }
+                                >
+                                  {identity.label}
+                                </span>
+                                <time dateTime={row.date || undefined}>
+                                  {mailDate(row.date)}
+                                </time>
+                              </span>
+                              <span className="email-message-subject">
+                                {row.unread ? (
+                                  <span
+                                    className="email-unread-dot"
+                                    aria-label="Unread"
+                                  />
+                                ) : null}
+                                <span>{row.subject || "(no subject)"}</span>
+                                {row.hasAttachment ? (
+                                  <span
+                                    title="Has attachments"
+                                    aria-label="Has attachments"
+                                  >
+                                    <DsIcon name="download" size={14} />
+                                  </span>
+                                ) : null}
+                              </span>
+                              <span className="email-message-preview">
+                                {mailPreview(row.preview)}
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+              <div className="email-pagination">
+                <span>
+                  {total
+                    ? `${(pageNumber - 1) * 25 + 1}–${Math.min(pageNumber * 25, total)} of ${total}`
+                    : "0 messages"}
+                </span>
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="compact"
+                    aria-label="Previous page"
+                    disabled={pageNumber <= 1 || loadingList}
+                    onClick={() => {
+                      closeMessage();
+                      setPageNumber((current) => current - 1);
+                    }}
+                  >
+                    <DsIcon name="previous" size={16} />
+                  </Button>
+                  <span aria-label={`Page ${pageNumber} of ${pageCount}`}>
+                    {pageNumber} / {pageCount}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="compact"
+                    aria-label="Next page"
+                    disabled={pageNumber >= pageCount || loadingList}
+                    onClick={() => {
+                      closeMessage();
+                      setPageNumber((current) => current + 1);
+                    }}
+                  >
+                    <DsIcon name="next" size={16} />
+                  </Button>
+                </div>
+              </div>
+            </section>
+            <section
+              className={`email-reader ${!activeRef ? "email-reader--empty" : ""}`}
+              aria-label="Message reading pane"
+              aria-busy={reading}
+            >
+              {reading ? (
+                <LoadingState title="Opening message" />
+              ) : selected ? (
+                <>
+                  {error ? <InlineNotice tone="error">{error}</InlineNotice> : null}
+                  <header className="email-reader-header">
+                    <div className="email-reader-top">
+                      <Button
+                        variant="ghost"
+                        size="compact"
+                        className="email-reader-back"
+                        onClick={closeMessage}
+                      >
+                        <DsIcon name="back" size={16} /> Messages
+                      </Button>
+                      <span>{TITLE[role]}</span>
+                      <Button
+                        variant="ghost"
+                        size="compact"
+                        aria-label="Close message"
+                        onClick={closeMessage}
+                      >
+                        <DsIcon name="close" size={16} />
+                      </Button>
+                    </div>
+                    <h2>{selected.subject || "(no subject)"}</h2>
+                    <div className="email-sender">
+                      <span className="email-message-avatar" aria-hidden="true">
+                        {from?.initials}
+                      </span>
+                      <div>
+                        <strong>{from?.label}</strong>
+                        <span>{from?.email}</span>
+                      </div>
+                      {selected.date ? (
+                        <CompactDateTime value={selected.date} />
+                      ) : null}
+                    </div>
+                    <dl className="email-message-details">
+                      <div>
+                        <dt>To</dt>
+                        <dd>{selected.recipients || "—"}</dd>
+                      </div>
+                      {selected.cc ? (
+                        <div>
+                          <dt>CC</dt>
+                          <dd>{selected.cc}</dd>
+                        </div>
+                      ) : null}
+                      {selected.bcc && (role === "drafts" || role === "sent") ? (
+                        <div>
+                          <dt>BCC</dt>
+                          <dd>{selected.bcc}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  </header>
+                  <div className="email-reader-body">
+                    <iframe
+                      className="email-frame"
+                      title="Message"
+                      sandbox=""
+                      referrerPolicy="no-referrer"
+                      srcDoc={documentHtml(selected.html)}
+                    />
+                  </div>
+                  {selected.attachments.length ? (
+                    <div
+                      className="email-attachments"
+                      aria-label="Message attachments"
                     >
-                      {item.filename}
-                    </Button>
-                  ))}
-                  <div>
+                      {selected.attachments.map((item) => (
+                        <Button
+                          key={item.index}
+                          variant="secondary"
+                          size="compact"
+                          onClick={() =>
+                            void download(selected.ref, item.index, item.filename).catch(
+                              (reason) => setError(textOf(reason)),
+                            )
+                          }
+                        >
+                          <DsIcon name="download" size={14} />
+                          {item.filename}
+                          <span className="email-attachment-size">
+                            {item.size < 1024
+                              ? `${item.size} B`
+                              : `${Math.ceil(item.size / 1024)} KB`}
+                          </span>
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <footer className="email-reader-actions">
                     {role === "deleted" ? (
-                      <Button size="compact" onClick={() => void hideOrRestore(selected.ref, "restore")}>
-                        Restore
+                      <Button
+                        size="compact"
+                        onClick={() =>
+                          void hideOrRestore(selected.ref, "restore").catch(
+                            (reason) => setError(textOf(reason)),
+                          )
+                        }
+                      >
+                        <DsIcon name="back" size={14} /> Restore
                       </Button>
                     ) : (
-                      <Button
-                        variant="secondary"
-                        size="compact"
-                        onClick={() => void hideOrRestore(selected.ref, "hide")}
-                      >
-                        {role === "drafts" ? "Discard draft" : "Delete"}
-                      </Button>
-                    )}
-                    {role !== "deleted" ? (
                       <>
-                        <Button variant="ghost" size="compact" onClick={() => openCompose("reply")}>
-                          Reply
+                        <Button
+                          size="compact"
+                          onClick={() =>
+                            openCompose(role === "drafts" ? "draft" : "reply")
+                          }
+                        >
+                          <DsIcon
+                            name={role === "drafts" ? "edit" : "back"}
+                            size={14}
+                          />
+                          {role === "drafts" ? "Edit draft" : "Reply"}
                         </Button>
-                        <Button variant="ghost" size="compact" onClick={() => openCompose("reply-all")}>
-                          Reply all
-                        </Button>
-                        <Button variant="ghost" size="compact" onClick={() => openCompose("forward")}>
-                          Forward
-                        </Button>
-                        {role === "drafts" ? (
-                          <Button variant="ghost" size="compact" onClick={() => openCompose("draft")}>
-                            Edit draft
-                          </Button>
+                        {role !== "drafts" ? (
+                          <>
+                            <Button
+                              variant="secondary"
+                              size="compact"
+                              onClick={() => openCompose("reply-all")}
+                            >
+                              Reply all
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="compact"
+                              onClick={() => openCompose("forward")}
+                            >
+                              Forward <DsIcon name="forward" size={14} />
+                            </Button>
+                          </>
                         ) : null}
+                        <Button
+                          className="email-delete"
+                          variant="ghost"
+                          size="compact"
+                          onClick={() =>
+                            void hideOrRestore(selected.ref, "hide").catch(
+                              (reason) => setError(textOf(reason)),
+                            )
+                          }
+                        >
+                          <DsIcon name="delete" size={14} />
+                          {role === "drafts" ? "Discard" : "Delete"}
+                        </Button>
                       </>
-                    ) : null}
-                  </div>
-                </SectionCard>
-              ) : null}
-            </div>
-          ) : null}
-        </>
+                    )}
+                  </footer>
+                </>
+              ) : (
+                <div className="email-reader-placeholder">
+                  <span>
+                    <DsIcon name="mail" size={24} />
+                  </span>
+                  <h2>
+                    {error ? "Message could not be opened" : "Choose a message"}
+                  </h2>
+                  <p>
+                    {error ||
+                      "Select an email to read it here. Your messages stay in your connected mailbox."}
+                  </p>
+                  {activeRef ? (
+                    <Button
+                      variant="secondary"
+                      size="compact"
+                      onClick={closeMessage}
+                    >
+                      Back to messages
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+            </section>
+          </EmailSplitPane>
+        </div>
+      ) : null}
+      {error && !activeRef && connection?.connected ? (
+        <InlineNotice tone="error">{error}</InlineNotice>
       ) : null}
       {composeOpen && connection?.connected ? (
         <ComposeDialog

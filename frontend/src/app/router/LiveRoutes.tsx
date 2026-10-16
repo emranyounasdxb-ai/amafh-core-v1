@@ -305,7 +305,7 @@ export function LiveRoutes({
     case "email-deleted":
     case "email-spam":
     case "email-archive":
-      return <EmailPage key={session.employeeId} page={route.page} />;
+      return <EmailPage key={session.employeeId} page={route.page} navigate={navigate} />;
     case "settings":
       return (
         <SettingsPage

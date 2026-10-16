@@ -22,18 +22,7 @@ export const sidebarGroups: ProductionNavGroup[] = [
       { id: "tasks", label: "Tasks", icon: "tasks" },
       { id: "my-cases", label: "Own Cases", icon: "cases" },
       { id: "my-wallet", label: "My Wallet", icon: "finance" },
-    ],
-  },
-  {
-    id: "email",
-    label: "Email",
-    items: [
-      { id: "email-inbox", label: "Inbox", icon: "mail" },
-      { id: "email-drafts", label: "Drafts", icon: "created" },
-      { id: "email-sent", label: "Sent", icon: "export" },
-      { id: "email-deleted", label: "Deleted", icon: "unavailable" },
-      { id: "email-spam", label: "Spam/Junk", icon: "warning" },
-      { id: "email-archive", label: "Archive", icon: "pdf" },
+      { id: "email-inbox", label: "Email", icon: "mail" },
     ],
   },
   {
@@ -130,6 +119,7 @@ export function sidebarActiveId(
   employeeOrigin?: PageId,
   caseDetailOrigin?: PageId,
 ): string {
+  if (page.startsWith("email-")) return "email-inbox";
   if (page === "case-detail")
     return caseDetailOrigin === "my-cases" ? "my-cases" : "cases";
   if (page === "performance-detail") return "performance";
