@@ -17,6 +17,15 @@ export class MailViewCache<T> {
     const entry = this.values.get(key);
     return entry && entry.expires > Date.now() ? entry.value : null;
   }
+  /** Retained view only: callers must still revalidate with the server. */
+  peek(key: string): T | null {
+    const entry = this.values.get(key);
+    if (!entry) return null;
+    // Keep recently viewed mail, rather than frequently refreshed pages alone.
+    this.values.delete(key);
+    this.values.set(key, entry);
+    return entry.value;
+  }
   set(key: string, value: T) {
     this.delete(key);
     const bytes = JSON.stringify(value).length * 2;

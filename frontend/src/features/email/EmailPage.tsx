@@ -195,7 +195,7 @@ export function EmailPage({
   if (trackedFolder !== role) {
     setTrackedFolder(role);
     setPageNumber(1);
-    setMessages(pageCache.get(pageKey(role, 1, "")));
+    setMessages(pageCache.peek(pageKey(role, 1, "")));
     setSelected(null);
     setActiveRef(null);
     setReading(false);
@@ -380,7 +380,7 @@ export function EmailPage({
     if (activeRef === row.ref && (selected || reading)) return;
     const request = ++readSequence.current;
     const cacheKey = messageKey(row.ref);
-    const cached = messageCache.get(cacheKey);
+    const cached = messageCache.peek(cacheKey);
     setActiveRef(row.ref);
     setSelected(cached);
     setReading(true);
@@ -401,7 +401,7 @@ export function EmailPage({
       if (request === readSequence.current) {
         messageCache.set(cacheKey, message);
         const currentPageKey = pageKey(role, pageNumber, query);
-        const cachedPage = pageCache.get(currentPageKey);
+        const cachedPage = pageCache.peek(currentPageKey);
         if (cachedPage && role !== "drafts")
           pageCache.set(currentPageKey, {
             ...cachedPage,
@@ -471,7 +471,7 @@ export function EmailPage({
   const applySearch = () => {
     setPageNumber(1);
     setQuery(search.trim());
-    setMessages(pageCache.get(pageKey(role, 1, search.trim())));
+    setMessages(pageCache.peek(pageKey(role, 1, search.trim())));
     setRefreshKey((current) => current + 1);
     closeMessage();
   };
@@ -658,7 +658,7 @@ export function EmailPage({
                       setSearch("");
                       setQuery("");
                       setPageNumber(1);
-                      setMessages(pageCache.get(pageKey(role, 1, "")));
+                      setMessages(pageCache.peek(pageKey(role, 1, "")));
                     }}
                   >
                     <DsIcon name="close" size={14} />
@@ -780,7 +780,7 @@ export function EmailPage({
                     onClick={() => {
                       closeMessage();
                       setMessages(
-                        pageCache.get(pageKey(role, pageNumber - 1, query)),
+                        pageCache.peek(pageKey(role, pageNumber - 1, query)),
                       );
                       setPageNumber((current) => current - 1);
                     }}
@@ -798,7 +798,7 @@ export function EmailPage({
                     onClick={() => {
                       closeMessage();
                       setMessages(
-                        pageCache.get(pageKey(role, pageNumber + 1, query)),
+                        pageCache.peek(pageKey(role, pageNumber + 1, query)),
                       );
                       setPageNumber((current) => current + 1);
                     }}

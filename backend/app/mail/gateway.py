@@ -158,6 +158,59 @@ class ImapSmtpGateway:
                 uid_validity=validity,
             )
 
+    def list_folder_messages(
+        self,
+        username: str,
+        password: str,
+        role: str,
+        *,
+        excluded_by_validity: dict[int, set[int]],
+        query: str,
+        page: int,
+        page_size: int,
+    ) -> MessagePage:
+        """Discover, select and read a page within one authenticated connection."""
+        with self._imap(username, password) as client:
+            name = self._folder_names(client).get(role)
+            if name is None:
+                raise MailFailure("folder")
+            validity, _unread = self._select(client, name, readonly=True)
+            excluded = excluded_by_validity.get(validity, set())
+            uids = [uid for uid in self._search(client, query) if uid not in excluded]
+            uids.sort(reverse=True)
+            start = max(page - 1, 0) * page_size
+            return MessagePage(
+                items=self._summaries(client, uids[start : start + page_size]),
+                total=len(uids),
+                uid_validity=validity,
+            )
+
+    def unread_counts(
+        self,
+        username: str,
+        password: str,
+        excluded: dict[str, dict[int, set[int]]],
+    ) -> dict[str, int]:
+        """One login for a refresh, retaining fresh UID validity for every folder."""
+        with self._imap(username, password) as client:
+            result = {}
+            for role, name in self._folder_names(client).items():
+                try:
+                    validity, _unread = self._select(client, name, readonly=True)
+                except MailFailure as exc:
+                    if exc.code == "folder":
+                        continue
+                    raise
+                status, data = client.uid("SEARCH", "UNSEEN")
+                if status != "OK" or not data:
+                    raise MailFailure("unavailable")
+                raw = data[0] if isinstance(data[0], bytes) else b""
+                hidden = excluded.get(role, {}).get(validity, set())
+                result[role] = sum(
+                    1 for uid in raw.split() if uid.isdigit() and int(uid) not in hidden
+                )
+            return result
+
     def message_summary(
         self, username: str, password: str, folder_name: str, uid: int
     ) -> MessageSummary:

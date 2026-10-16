@@ -279,6 +279,30 @@ async def _hidden(
     return set(rows)
 
 
+async def _hidden_versions(
+    session: AsyncSession, actor: Actor, email: str, role: str | None = None
+) -> dict[str, dict[int, set[int]]]:
+    filters = [
+        mailbox_hidden_messages.c.account_id == actor.account_id,
+        mailbox_hidden_messages.c.login_email == email,
+    ]
+    if role is not None:
+        filters.append(mailbox_hidden_messages.c.folder_role == role)
+    rows = await session.execute(
+        select(
+            mailbox_hidden_messages.c.folder_role,
+            mailbox_hidden_messages.c.uid_validity,
+            mailbox_hidden_messages.c.uid,
+        ).where(*filters)
+    )
+    result: dict[str, dict[int, set[int]]] = {}
+    for row in rows:
+        result.setdefault(row.folder_role, {}).setdefault(int(row.uid_validity), set()).add(
+            int(row.uid)
+        )
+    return result
+
+
 async def _folder(session: AsyncSession, actor: Actor, email: str, password: str, role: str):
     if role not in ROLES:
         raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
@@ -335,6 +359,19 @@ async def summary(session: AsyncSession, actor: Actor) -> dict:
     if not view["connected"]:
         return {**view, "unread": unread}
     email, password = await _open(session, actor)
+    gateway = get_gateway()
+    if isinstance(gateway, ImapSmtpGateway):
+        excluded = await _hidden_versions(session, actor, email)
+        try:
+            unread.update(await run_mail(gateway.unread_counts, email, password, excluded))
+        except MailFailure as exc:
+            await _auth_followup(session, actor, exc)
+            if exc.code == "auth":
+                return {**await connection_view(session, actor), "unread": unread}
+            raise failure(exc) from None
+        await _confirm(session, actor, email)
+        unread["deleted"] = int(bool(excluded))
+        return {**view, "unread": unread}
     try:
         folders = await run_mail(get_gateway().folders, email, password)
     except MailFailure as exc:
@@ -370,6 +407,38 @@ async def list_messages(
     if role == "deleted":
         return await _deleted(session, actor, page, page_size, query)
     email, password = await _open(session, actor)
+    gateway = get_gateway()
+    if isinstance(gateway, ImapSmtpGateway):
+        if role not in ROLES:
+            raise ApiError(404, "MAIL_FOLDER", PUBLIC_MESSAGES["folder"])
+        hidden_versions = await _hidden_versions(session, actor, email, role)
+        try:
+            result = await run_mail(
+                gateway.list_folder_messages,
+                email,
+                password,
+                role,
+                excluded_by_validity=hidden_versions.get(role, {}),
+                query=query.strip(),
+                page=page,
+                page_size=page_size,
+            )
+        except MailFailure as exc:
+            await _auth_followup(session, actor, exc)
+            raise failure(exc) from None
+        await _confirm(session, actor, email)
+        generation = await _current_generation(session, actor)
+        return {
+            "items": [
+                _summary(item, role, result.uid_validity, generation, actor.account_id)
+                for item in result.items
+            ],
+            "total": result.total,
+            "page": page,
+            "pageSize": page_size,
+            "folder": role,
+            "appOnlyDeleted": False,
+        }
     folder = await _folder(session, actor, email, password, role)
     hidden = await _hidden(session, actor, email, role, folder.uid_validity)
     try:

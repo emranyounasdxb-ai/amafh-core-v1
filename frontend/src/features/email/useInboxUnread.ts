@@ -14,7 +14,10 @@ export function useInboxUnread(api: ApiClient, employeeId: string | null) {
   useEffect(() => {
     if (!employeeId) return;
     let cancelled = false;
+    let pending = false;
     const load = () => {
+      if (pending) return;
+      pending = true;
       void api
         .request<Summary>("/mailbox/summary")
         .then((summary) => {
@@ -22,6 +25,9 @@ export function useInboxUnread(api: ApiClient, employeeId: string | null) {
         })
         .catch(() => {
           if (!cancelled) setUnread(0);
+        })
+        .finally(() => {
+          pending = false;
         });
     };
     load();
