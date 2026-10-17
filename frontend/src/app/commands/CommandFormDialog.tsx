@@ -426,6 +426,7 @@ export function CommandFormDialog({
   onClose,
   onSaved,
   reference,
+  customField,
 }: {
   command: Command;
   record?: DataRecord;
@@ -433,6 +434,14 @@ export function CommandFormDialog({
   onSaved: (value: unknown) => void;
   /** Read-only context derived from the current values; never submitted. */
   reference?: (values: DataRecord) => ReactNode;
+  /** Optional submitted field editor; other commands keep their standard controls. */
+  customField?: (context: {
+    field: Field;
+    values: DataRecord;
+    change: (key: string, value: unknown) => void;
+    disabled: boolean;
+    error?: string;
+  }) => ReactNode | undefined;
 }) {
   const { api } = useSession();
   const [values, setValues] = useState<DataRecord>(() => {
@@ -726,6 +735,19 @@ export function CommandFormDialog({
 
   function renderField(field: Field) {
     const invalid = fields[field.key]?.join(" ");
+    const custom = customField?.({
+      field,
+      values,
+      change,
+      disabled: busy,
+      error: invalid,
+    });
+    if (custom !== undefined)
+      return (
+        <div key={field.key} className="ds-field--span">
+          {custom}
+        </div>
+      );
     if (field.control === "emiratesId") {
       return (
         <FormField

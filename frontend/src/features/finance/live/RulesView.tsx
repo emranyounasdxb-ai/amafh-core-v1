@@ -45,6 +45,7 @@ import { FinanceToolbar } from "./financeTable";
 import styles from "./FinancePage.module.css";
 import { recordImageSrc, type ImageKind } from "../../../app/api/recordImages";
 import { RecordImage } from "../../../shared/media/RecordImage";
+import { salaryPointsField } from "./SalaryPointsEditor";
 
 const TABLE_ID = "finance-rules";
 const STATUSES = [
@@ -201,7 +202,12 @@ export function RulesView({
       label: "CC points",
       width: 110,
       kind: "number",
-      render: (row) => <Points value={row.cc_points} />,
+      render: (row) =>
+        row.cc_salary_points?.length ? (
+          <span>{row.cc_salary_points.length} salary ranges</span>
+        ) : (
+          <Points value={row.cc_points} />
+        ),
     },
     {
       key: "commission_aed",
@@ -332,7 +338,7 @@ export function RulesView({
         filtered={applied.length > 0}
         loadingTitle="Loading financial rules"
         emptyTitle="No financial rules"
-        emptyDescription="Financial rules define CC points, PF slabs, and commission."
+        emptyDescription="Financial rules define CC salary points, PF slabs, and commission."
         onRowActivate={setSelected}
         rowLabel={ruleRowName}
       />
@@ -354,7 +360,9 @@ export function RulesView({
               ) : null}
               {canActivate(selected) ? (
                 <Button
-                  onClick={() => setAction({ kind: "activate", rule: selected })}
+                  onClick={() =>
+                    setAction({ kind: "activate", rule: selected })
+                  }
                 >
                   Activate rule
                 </Button>
@@ -388,6 +396,7 @@ export function RulesView({
       {action?.kind === "create" ? (
         <CommandFormDialog
           command={createRuleCommand()}
+          customField={salaryPointsField}
           onClose={() => setAction(null)}
           onSaved={() => saved("Financial rule added.")}
         />
@@ -406,7 +415,13 @@ export function RulesView({
               },
             ],
           })}
-          record={action.rule}
+          record={{
+            ...action.rule,
+            ccPointsMode: action.rule.cc_salary_points?.length
+              ? "Salary ranges"
+              : "Fixed points",
+          }}
+          customField={salaryPointsField}
           onClose={() => setAction(null)}
           onSaved={() => saved("Financial rule replaced.")}
         />
@@ -454,7 +469,10 @@ function RuleFacts({
   return (
     <InfoGrid>
       <InfoField label="Bank" value={<Text value={catalog(rule.bank_id)} />} />
-      <InfoField label="Product" value={<Text value={catalog(rule.product_type_id)} />} />
+      <InfoField
+        label="Product"
+        value={<Text value={catalog(rule.product_type_id)} />}
+      />
       <InfoField
         label="CC variant / PF slab"
         value={
@@ -465,15 +483,58 @@ function RuleFacts({
           )
         }
       />
-      <InfoField label="CC points" numeric value={<Points value={rule.cc_points} />} />
-      <InfoField label="Commission" value={<MonetaryAmount compact={false} value={rule.commission_aed} align="start" />} />
-      <InfoField label="Effective" value={<CompactDate value={rule.effective_date} />} />
+      <InfoField
+        label="CC points"
+        numeric
+        value={
+          rule.cc_salary_points?.length ? (
+            "By customer salary"
+          ) : (
+            <Points value={rule.cc_points} />
+          )
+        }
+      />
+      {rule.cc_salary_points?.length ? (
+        <InfoField
+          label="Salary ranges and points"
+          value={
+            <div className={styles.salaryFacts}>
+              {rule.cc_salary_points.map((slab) => (
+                <div key={slab.salaryMin}>
+                  <PfSlab min={slab.salaryMin} max={slab.salaryMax} />
+                  <span>
+                    {" "}
+                    → <Points value={slab.points} /> points
+                  </span>
+                </div>
+              ))}
+            </div>
+          }
+        />
+      ) : null}
+      <InfoField
+        label="Commission"
+        value={
+          <MonetaryAmount
+            compact={false}
+            value={rule.commission_aed}
+            align="start"
+          />
+        }
+      />
+      <InfoField
+        label="Effective"
+        value={<CompactDate value={rule.effective_date} />}
+      />
       <InfoField label="Status" value={<RuleStatus rule={rule} />} />
       <InfoField
         label="Superseded by"
         value={<Text value={replacementText(rule, successor)} />}
       />
-      <InfoField label="Created" value={<CompactDateTime value={rule.created_at} />} />
+      <InfoField
+        label="Created"
+        value={<CompactDateTime value={rule.created_at} />}
+      />
     </InfoGrid>
   );
 }
@@ -502,7 +563,9 @@ function RuleStateDialog({
         body: "{}",
       });
       onSaved(
-        deactivating ? "Financial rule deactivated." : "Financial rule activated.",
+        deactivating
+          ? "Financial rule deactivated."
+          : "Financial rule activated.",
       );
     } catch (failure) {
       setError(

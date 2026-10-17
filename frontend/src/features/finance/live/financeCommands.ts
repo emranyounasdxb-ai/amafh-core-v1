@@ -9,6 +9,7 @@ import {
   type CommandConfirmation,
   type Field,
 } from "../../../app/api/commands";
+import { financialRulePayload } from "./salaryPoints";
 
 const ruleFields: Field[] = [
   bankField,
@@ -27,10 +28,26 @@ const ruleFields: Field[] = [
     show: (v) => !v.productVariantId,
   },
   {
+    key: "ccPointsMode",
+    label: "CC points calculation",
+    required: true,
+    options: ["Salary ranges", "Fixed points"],
+    initial: "Salary ranges",
+    show: (v) => Boolean(v.productVariantId),
+  },
+  {
     key: "ccPoints",
     label: "CC whole points",
     type: "number",
-    show: (v) => Boolean(v.productVariantId),
+    show: (v) =>
+      Boolean(v.productVariantId) && v.ccPointsMode === "Fixed points",
+  },
+  {
+    key: "ccSalaryPoints",
+    label: "Salary ranges and points",
+    initial: [{ salaryMin: "", salaryMax: "", points: "" }],
+    show: (v) =>
+      Boolean(v.productVariantId) && v.ccPointsMode !== "Fixed points",
   },
   { key: "commissionAed", label: "Commission AED", type: "decimal" },
   effectiveField,
@@ -41,6 +58,7 @@ export function createRuleCommand(): Command {
     title: "Add Financial Rule",
     path: "/finance/rules",
     fields: ruleFields,
+    transform: financialRulePayload,
     submitLabel: "Add rule",
   };
 }
@@ -53,6 +71,7 @@ export function replaceRuleCommand(
     title: "Replace Financial Rule",
     path: `/finance/rules/${encodeURIComponent(ruleId)}/replace`,
     fields: ruleFields,
+    transform: financialRulePayload,
     confirmation,
     submitLabel: "Replace rule",
   };

@@ -103,6 +103,7 @@ async def _insert(session: AsyncSession, actor: Actor, item: FinancialRuleInput,
         pf_amount_min=item.pfAmountMin,
         pf_amount_max=item.pfAmountMax,
         cc_points=item.ccPoints,
+        cc_salary_points=[row.model_dump(mode="json") for row in item.ccSalaryPoints],
         commission_aed=item.commissionAed,
         effective_date=item.effectiveDate,
         active=True,
@@ -115,7 +116,10 @@ async def _insert(session: AsyncSession, actor: Actor, item: FinancialRuleInput,
         module="finance",
         entity_type="financial_rule",
         entity_id=rule_id,
-        after={key: str(value) if value is not None else None for key, value in values.items()},
+        after={
+            key: value if isinstance(value, list) else str(value) if value is not None else None
+            for key, value in values.items()
+        },
     )
     return {"id": str(rule_id), "active": True, "effectiveDate": item.effectiveDate.isoformat()}
 
@@ -229,6 +233,7 @@ async def set_active(session: AsyncSession, actor: Actor, rule_id: UUID, active:
                 pfAmountMin=context["pf_amount_min"],
                 pfAmountMax=context["pf_amount_max"],
                 ccPoints=context["cc_points"],
+                ccSalaryPoints=context["cc_salary_points"],
                 commissionAed=context["commission_aed"],
                 effectiveDate=context["effective_date"],
             )

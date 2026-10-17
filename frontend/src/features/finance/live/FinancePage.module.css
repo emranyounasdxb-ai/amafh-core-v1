@@ -66,3 +66,40 @@
   gap: var(--ds-space-4);
   min-width: 0;
 }
+
+.salaryEditor {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  margin-top: 8px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-card);
+  min-width: 0;
+}
+
+.salaryEditor h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.salaryRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 100px auto;
+  gap: 12px;
+  align-items: start;
+}
+.salaryRow > button {
+  margin-top: 24px;
+}
+.salaryFacts {
+  display: grid;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .salaryRow {
+    grid-template-columns: 1fr 1fr;
+  }
+  .salaryRow > button {
+    margin-top: 24px;
+    justify-self: end;
+  }
+}

@@ -36,6 +36,9 @@ MAX_CSV_BYTES = 5_000_000
 MAX_DATA_ROWS = 5_000
 READ_CHUNK_BYTES = 64 * 1024
 INSERT_BATCH_ROWS = 512
+FINANCIAL_RULE_ERRORS = frozenset(
+    {"FINANCIAL_RULE_MISSING", "CC_SALARY_MISSING", "CC_SALARY_RULE_MISSING"}
+)
 
 
 async def read_upload(file: UploadFile) -> tuple[bytes, str, bool]:
@@ -385,8 +388,8 @@ async def _has_blocking_upload(session: AsyncSession, digest: str, actor: Actor)
             .scalars()
             .all()
         )
-        if "FINANCIAL_RULE_MISSING" not in codes or any(
-            code not in {None, "FINANCIAL_RULE_MISSING"} for code in codes
+        if not any(code in FINANCIAL_RULE_ERRORS for code in codes) or any(
+            code is not None and code not in FINANCIAL_RULE_ERRORS for code in codes
         ):
             return True
     return False
@@ -419,7 +422,7 @@ async def _evaluate(session, actor, content, digest, too_large):
                 try:
                     await finance_completion.prepare(session, case, now)
                 except ApiError as exc:
-                    if exc.code != "FINANCIAL_RULE_MISSING":
+                    if exc.code not in FINANCIAL_RULE_ERRORS:
                         raise
                     errors.append(
                         {
@@ -745,7 +748,7 @@ async def apply_validated_batch(
                     try:
                         await finance_completion.prepare(session, case, now)
                     except ApiError as exc:
-                        if exc.code != "FINANCIAL_RULE_MISSING":
+                        if exc.code not in FINANCIAL_RULE_ERRORS:
                             raise
                         errors.append(
                             {

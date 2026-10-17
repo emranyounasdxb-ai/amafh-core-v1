@@ -3,11 +3,7 @@ import type { DataRecord, Page } from "../../../app/api/models";
 import { isUuid } from "../../../app/presentation/labels";
 
 export type FinanceView =
-  | "completed-cases"
-  | "wallets"
-  | "clawbacks"
-  | "payments"
-  | "rules";
+  "completed-cases" | "wallets" | "clawbacks" | "payments" | "rules";
 
 export const VIEW_LABEL: Record<FinanceView, string> = {
   "completed-cases": "Completed cases",
@@ -102,6 +98,7 @@ export type FinancialRuleRecord = {
   pf_amount_min: string | null;
   pf_amount_max: string | null;
   cc_points: number | null;
+  cc_salary_points: { salaryMin: string; salaryMax: string; points: number }[];
   commission_aed: string | null;
   effective_date: string;
   active: boolean;

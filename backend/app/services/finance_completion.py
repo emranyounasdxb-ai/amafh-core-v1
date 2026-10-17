@@ -14,6 +14,7 @@ from app.db.finance import case_financial_results
 from app.db.operations import financial_rules, points_wallet_transactions, points_wallets
 from app.errors import ApiError
 from app.policies import Actor
+from app.services.cc_salary_points import resolve_points
 
 DUBAI = ZoneInfo("Asia/Dubai")
 
@@ -78,7 +79,7 @@ async def prepare(session: AsyncSession, case: dict, completed_at: datetime) -> 
             "rule_effective_date": rule["effective_date"],
             "owner_id": case["owner_employee_id"],
             "product_code": code,
-            "cc_points": rule["cc_points"] if code == "CC" else None,
+            "cc_points": resolve_points(rule, case["salary_aed"]) if code == "CC" else None,
             "commission_aed": rule["commission_aed"],
             "pf_amount_aed": case["requested_pf_amount"] if code == "PF" else None,
         }

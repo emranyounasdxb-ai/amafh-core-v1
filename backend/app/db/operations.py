@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from .assets import asset_assignments, asset_maintenance_history, assets  # noqa: F401
 from .attendance import (
@@ -61,6 +61,7 @@ financial_rules = Table(
     Column("pf_amount_min", Numeric(18, 0)),
     Column("pf_amount_max", Numeric(18, 0)),
     Column("cc_points", Integer),
+    Column("cc_salary_points", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
     Column("commission_aed", Numeric(18, 0)),
     Column("effective_date", Date, nullable=False),
     Column("active", Boolean, nullable=False, server_default="true"),
@@ -114,6 +115,12 @@ financial_rules = Table(
         ),
     ),
     CheckConstraint(
+        "amafh_valid_cc_salary_points(cc_salary_points) AND "
+        "(cc_salary_points = '[]'::jsonb OR "
+        "(product_variant_id IS NOT NULL AND cc_points IS NULL))",
+        name="ck_financial_rule_salary_points",
+    ),
+    CheckConstraint(
         "(product_variant_id IS NOT NULL AND pf_amount_min IS NULL AND pf_amount_max IS NULL) "
         "OR (product_variant_id IS NULL AND pf_amount_min IS NOT NULL "
         "AND pf_amount_max IS NOT NULL AND pf_amount_min <= pf_amount_max)",
@@ -123,7 +130,8 @@ financial_rules = Table(
         "(cc_points IS NULL OR cc_points > 0) AND "
         "(commission_aed IS NULL OR commission_aed >= 0) AND "
         "((product_variant_id IS NOT NULL AND "
-        "(cc_points IS NOT NULL OR commission_aed IS NOT NULL)) OR "
+        "(cc_points IS NOT NULL OR commission_aed IS NOT NULL "
+        "OR cc_salary_points <> '[]'::jsonb)) OR "
         "(product_variant_id IS NULL AND pf_amount_min > 0 AND commission_aed IS NOT NULL))",
         name="ck_financial_rule_values",
     ),

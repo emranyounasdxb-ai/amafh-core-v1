@@ -7,7 +7,21 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.normalization import display_name, identifier
-from app.whole_numbers import WholeAmount, WholeCount
+from app.whole_numbers import NonNegativeWholeAed, WholeAmount, WholeCount
+
+
+class CCSalaryPoints(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    salaryMin: NonNegativeWholeAed
+    salaryMax: NonNegativeWholeAed
+    points: WholeCount = Field(gt=0, le=2147483647)
+
+    @model_validator(mode="after")
+    def ordered_range(self):
+        if self.salaryMin > self.salaryMax:
+            raise ValueError("Salary minimum must not exceed salary maximum")
+        return self
 
 
 class FinancialRuleInput(BaseModel):
@@ -17,21 +31,34 @@ class FinancialRuleInput(BaseModel):
     pfAmountMin: WholeAmount | None = Field(default=None, gt=0)
     pfAmountMax: WholeAmount | None = Field(default=None, gt=0)
     ccPoints: WholeCount | None = Field(default=None, gt=0)
+    ccSalaryPoints: list[CCSalaryPoints] = Field(default_factory=list, max_length=100)
     commissionAed: WholeAmount | None = Field(default=None, ge=0)
     effectiveDate: date
+
+    @field_validator("ccSalaryPoints")
+    @classmethod
+    def distinct_salary_ranges(cls, rows):
+        rows = sorted(rows, key=lambda row: row.salaryMin)
+        for previous, current in zip(rows, rows[1:], strict=False):
+            if current.salaryMin <= previous.salaryMax:
+                raise ValueError("Salary ranges must not overlap, including their endpoints")
+        return rows
 
     @model_validator(mode="after")
     def one_product_context(self):
         if self.productVariantId is not None:
             if self.pfAmountMin is not None or self.pfAmountMax is not None:
                 raise ValueError("CC rules cannot have a PF slab")
-            if self.ccPoints is None and self.commissionAed is None:
+            if self.ccSalaryPoints and self.ccPoints is not None:
+                raise ValueError("Choose salary-range points or fixed CC points, not both")
+            if self.ccPoints is None and self.commissionAed is None and not self.ccSalaryPoints:
                 raise ValueError("CC rules require points and/or commission")
         elif (
             self.pfAmountMin is None
             or self.pfAmountMax is None
             or self.pfAmountMin > self.pfAmountMax
             or self.ccPoints is not None
+            or self.ccSalaryPoints
             or self.commissionAed is None
         ):
             raise ValueError("PF rules require a valid slab and financial value")
