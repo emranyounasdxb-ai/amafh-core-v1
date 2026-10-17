@@ -25,6 +25,8 @@ import {
   shouldPollCatalog,
 } from "./catalogRefresh";
 import { CallsNumberSearch } from "./CallsNumberSearch";
+import { CallsPlaybackControls } from "./CallsPlaybackControls";
+import { callType } from "./callsPresentation";
 import "./calls.css";
 
 type SourceView = {
@@ -100,6 +102,8 @@ export function CallsPage() {
   const refreshCatalog = useRef<() => void>(() => {});
   const requestId = useRef(0);
   const playId = useRef(0);
+  const playAbort = useRef<AbortController | null>(null);
+  const loadedId = useRef("");
   const [source, setSource] = useState<SourceView | null>(null);
   const [months, setMonths] = useState<string[]>([]);
   const [month, setMonth] = useState("");
@@ -132,6 +136,8 @@ export function CallsPage() {
       requestId.current += 1;
       playId.current += 1;
       searchAbort.current?.abort();
+      playAbort.current?.abort();
+      loadedId.current = "";
       stopAudio(audio);
     };
   }, [session]);
@@ -271,11 +277,50 @@ export function CallsPage() {
     void search(page, pageSize, month, customerNumber);
   }
 
+  function selectRecording(row: Recording) {
+    if (
+      selectedRecording?.owner === session &&
+      selectedRecording.row.id === row.id
+    )
+      return;
+    playId.current += 1;
+    playAbort.current?.abort();
+    loadedId.current = "";
+    stopAudio(audioRef.current);
+    setSelectedRecording({ owner: session, row });
+    setPlayingId("");
+    setBusy(false);
+    setPlayError("");
+  }
+
   async function play(row: Recording) {
     const audio = audioRef.current;
     if (!audio) return;
+    if (loadedId.current === row.id && audio.getAttribute("src")) {
+      if (!audio.paused) {
+        audio.pause();
+        setBusy(false);
+      } else {
+        const current = playId.current;
+        setPlayError("");
+        try {
+          await audio.play();
+        } catch {
+          if (current !== playId.current) return;
+          setBusy(false);
+          setPlayError(
+            "Playback could not start. Try Play again or download this recording.",
+          );
+        }
+      }
+      return;
+    }
     const id = playId.current + 1;
     playId.current = id;
+    playAbort.current?.abort();
+    const controller = new AbortController();
+    playAbort.current = controller;
+    loadedId.current = "";
     stopAudio(audio);
     setSelectedRecording({ owner: session, row });
     setPlayingId("");
@@ -283,7 +328,11 @@ export function CallsPage() {
     setPlayError("");
     const url = `/api/v1/calls/recordings/${row.id}/stream`;
     try {
-      const head = await fetch(url, { method: "HEAD", credentials: "include" });
+      const head = await fetch(url, {
+        method: "HEAD",
+        credentials: "include",
+        signal: controller.signal,
+      });
       if (id !== playId.current) return;
       if (head.status === 401 || head.status === 403) {
         setApplied(null);
@@ -307,13 +356,14 @@ export function CallsPage() {
         return;
       }
       audio.src = url;
+      loadedId.current = row.id;
       audio.load();
       await audio.play();
       if (id !== playId.current) return;
-      setPlayingId(row.id);
-      setBusy(false);
+      // Playing/waiting events drive the visualizer, not the Play click.
     } catch {
       if (id !== playId.current) return;
+      if (controller.signal.aborted) return;
       setBusy(false);
       setPlayError(
         "This recording cannot be played in the browser. Use Download.",
@@ -480,10 +530,37 @@ export function CallsPage() {
                   density="compact"
                   rowKey={(row) => row.id}
                   rows={visible.recordings}
+                  selectedKeys={visibleSelected ? [visibleSelected] : []}
+                  onRowActivate={selectRecording}
+                  rowActivateLabel={(row) =>
+                    `Select recording between ${row.extension} and ${row.customerNumber}`
+                  }
                   columns={[
                     {
+                      key: "recording",
+                      header: "Call",
+                      kind: "text",
+                      width: "80px",
+                      minWidth: 70,
+                      render: (row) => (
+                        <span className="calls-row-index">
+                          <DsIcon
+                            name={
+                              visibleSelected === row.id ? "volume" : "phone"
+                            }
+                            size={14}
+                          />
+                          {String(
+                            (visible.page - 1) * visible.pageSize +
+                              visible.recordings.indexOf(row) +
+                              1,
+                          ).padStart(2, "0")}
+                        </span>
+                      ),
+                    },
+                    {
                       key: "extension",
-                      header: "Number 1",
+                      header: "Extension / number",
                       kind: "text",
                       width: "130px",
                       minWidth: 110,
@@ -493,7 +570,7 @@ export function CallsPage() {
                     },
                     {
                       key: "customerNumber",
-                      header: "Number 2",
+                      header: "Contact / extension",
                       kind: "text",
                       width: "160px",
                       minWidth: 130,
@@ -504,14 +581,17 @@ export function CallsPage() {
                       ),
                     },
                     {
-                      key: "filename",
-                      header: "Recording file",
+                      key: "type",
+                      header: "Type",
                       kind: "text",
-                      width: "240px",
+                      width: "110px",
+                      minWidth: 100,
                       render: (row) => (
-                        <span className="calls-file" title={row.filename}>
-                          <DsIcon name="pdf" size={16} />
-                          <span>{row.filename}</span>
+                        <span
+                          className={`calls-type calls-type--${callType(row.extension, row.customerNumber).toLowerCase()}`}
+                        >
+                          <i aria-hidden="true" />
+                          {callType(row.extension, row.customerNumber)}
                         </span>
                       ),
                     },
@@ -519,8 +599,8 @@ export function CallsPage() {
                       key: "actions",
                       header: "Actions",
                       kind: "text",
-                    width: "240px",
-                    minWidth: 230,
+                      width: "190px",
+                      minWidth: 180,
                       render: (row) => (
                         <span className="calls-actions">
                           <Button
@@ -530,12 +610,22 @@ export function CallsPage() {
                                 ? "primary"
                                 : "secondary"
                             }
-                            aria-pressed={visibleSelected === row.id}
+                            aria-pressed={visiblePlaying === row.id}
+                            disabled={
+                              busy &&
+                              visibleSelected === row.id &&
+                              !visiblePlaying
+                            }
                             onClick={() => void play(row)}
                           >
-                            <DsIcon name="phone" size={14} />
+                            <DsIcon
+                              name={
+                                visiblePlaying === row.id ? "pause" : "play"
+                              }
+                              size={14}
+                            />
                             {visiblePlaying === row.id
-                              ? "Playing"
+                              ? "Pause"
                               : busy && visibleSelected === row.id
                                 ? "Opening"
                                 : "Play"}
@@ -553,6 +643,12 @@ export function CallsPage() {
                   ]}
                 />
               )}
+              {visible.total > 0 ? (
+                <div className="calls-table-hint">
+                  <DsIcon name="information" size={14} /> Click a row to select
+                  a recording. Press Play to listen.
+                </div>
+              ) : null}
               <Pagination
                 page={visible.page}
                 pageCount={pageCount}
@@ -600,14 +696,24 @@ export function CallsPage() {
               ) : undefined
             }
           >
-            <div className="calls-player-art" aria-hidden="true">
+            <div
+              className={`calls-player-art${visiblePlaying && !busy ? " calls-player-art--playing" : ""}`}
+              aria-hidden="true"
+            >
               <span>
                 <DsIcon name="phone" size={24} />
               </span>
               <div className="calls-audio-bars">
                 {[14, 26, 38, 22, 46, 32, 18, 40, 28, 16, 34, 22].map(
                   (height, index) => (
-                    <i key={index} style={{ height }} />
+                    <i
+                      key={index}
+                      style={{
+                        height,
+                        animationDelay: `${index * -0.13}s`,
+                        animationDuration: `${0.6 + (index % 4) * 0.15}s`,
+                      }}
+                    />
                   ),
                 )}
               </div>
@@ -618,50 +724,87 @@ export function CallsPage() {
             {visibleRecording ? (
               <div className="calls-selected-details">
                 <div className="calls-player-title">
-                  {busy ? "Opening recording…" : "Selected recording"}
+                  {busy
+                    ? "Opening recording…"
+                    : visiblePlaying
+                      ? "Now playing"
+                      : "Selected recording"}
                 </div>
                 <div className="calls-participant-pair">
                   <strong>{visibleRecording.extension}</strong>
-                  <span>·</span>
+                  <DsIcon name="phone" size={14} />
                   <strong>{visibleRecording.customerNumber}</strong>
                 </div>
                 <p>
                   <DsIcon name="calendar" size={14} />
                   <CompactMonthYear value={visibleRecording.month} />
                 </p>
-                <div
-                  className="calls-selected-filename"
-                  title={visibleRecording.filename}
+                <span
+                  className={`calls-type calls-type--${callType(visibleRecording.extension, visibleRecording.customerNumber).toLowerCase()}`}
                 >
-                  {visibleRecording.filename}
-                </div>
+                  <i aria-hidden="true" />
+                  {callType(
+                    visibleRecording.extension,
+                    visibleRecording.customerNumber,
+                  )}{" "}
+                  call
+                </span>
               </div>
             ) : (
               <div className="calls-player-placeholder">
                 <h3>No recording selected</h3>
-                <p>Choose Play beside a recording to start listening.</p>
+                <p>Select a row to load it here, then press Play.</p>
               </div>
             )}
             <audio
               ref={audioRef}
-              controls
-              hidden={!visibleRecording}
+              hidden
               preload="none"
               aria-label="Selected recording"
-              onWaiting={() => setBusy(true)}
+              onWaiting={() => {
+                if (loadedId.current) setBusy(true);
+              }}
+              onStalled={() => {
+                if (loadedId.current && !audioRef.current?.paused)
+                  setBusy(true);
+              }}
               onPlaying={() => {
                 setBusy(false);
-                if (visibleRecording) setPlayingId(visibleRecording.id);
+                if (
+                  visibleRecording &&
+                  loadedId.current === visibleRecording.id
+                )
+                  setPlayingId(visibleRecording.id);
               }}
-              onPause={() => setPlayingId("")}
-              onEnded={() => setPlayingId("")}
+              onPause={() => {
+                setPlayingId("");
+                setBusy(false);
+              }}
+              onEnded={() => {
+                setPlayingId("");
+                setBusy(false);
+              }}
               onError={() => {
-                if (!visibleRecording) return;
+                if (
+                  !visibleRecording ||
+                  loadedId.current !== visibleRecording.id
+                )
+                  return;
+                loadedId.current = "";
                 setBusy(false);
                 setPlayingId("");
                 setPlayError(
                   "This recording cannot be played in the browser. Use Download.",
                 );
+              }}
+            />
+            <CallsPlaybackControls
+              audioRef={audioRef}
+              recordingId={visibleSelected}
+              playing={Boolean(visiblePlaying)}
+              busy={busy}
+              onToggle={() => {
+                if (visibleRecording) void play(visibleRecording);
               }}
             />
             {visibleRecording ? (
