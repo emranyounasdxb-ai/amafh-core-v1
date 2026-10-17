@@ -539,6 +539,7 @@ export function CallsPage() {
                     {
                       key: "recording",
                       header: "Call",
+                      fixed: true,
                       kind: "text",
                       width: "80px",
                       minWidth: 70,
@@ -560,7 +561,7 @@ export function CallsPage() {
                     },
                     {
                       key: "extension",
-                      header: "Extension / number",
+                      header: "Dialled from",
                       kind: "text",
                       width: "130px",
                       minWidth: 110,
@@ -570,7 +571,7 @@ export function CallsPage() {
                     },
                     {
                       key: "customerNumber",
-                      header: "Contact / extension",
+                      header: "Receiver",
                       kind: "text",
                       width: "160px",
                       minWidth: 130,
@@ -584,13 +585,21 @@ export function CallsPage() {
                       key: "type",
                       header: "Type",
                       kind: "text",
-                      width: "110px",
-                      minWidth: 100,
+                      width: "130px",
+                      minWidth: 130,
                       render: (row) => (
                         <span
                           className={`calls-type calls-type--${callType(row.extension, row.customerNumber).toLowerCase()}`}
                         >
-                          <i aria-hidden="true" />
+                          <DsIcon
+                            name={
+                              callType(row.extension, row.customerNumber) ===
+                              "Internal"
+                                ? "organization"
+                                : "externalCall"
+                            }
+                            size={14}
+                          />
                           {callType(row.extension, row.customerNumber)}
                         </span>
                       ),
@@ -599,8 +608,8 @@ export function CallsPage() {
                       key: "actions",
                       header: "Actions",
                       kind: "text",
-                      width: "190px",
-                      minWidth: 180,
+                      width: "252px",
+                      minWidth: 252,
                       render: (row) => (
                         <span className="calls-actions">
                           <Button
@@ -742,7 +751,17 @@ export function CallsPage() {
                 <span
                   className={`calls-type calls-type--${callType(visibleRecording.extension, visibleRecording.customerNumber).toLowerCase()}`}
                 >
-                  <i aria-hidden="true" />
+                  <DsIcon
+                    name={
+                      callType(
+                        visibleRecording.extension,
+                        visibleRecording.customerNumber,
+                      ) === "Internal"
+                        ? "organization"
+                        : "externalCall"
+                    }
+                    size={14}
+                  />
                   {callType(
                     visibleRecording.extension,
                     visibleRecording.customerNumber,

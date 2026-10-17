@@ -67,15 +67,14 @@ export function CallsPlaybackControls({
       </div>
       <div className="calls-transport">
         <Button
+          className="calls-skip"
           variant="ghost"
           aria-label="Rewind 10 seconds"
           disabled={!duration}
           onClick={() => seek(position - 10)}
         >
           <DsIcon name="rewind10" size={20} />
-          <span className="calls-skip-count" aria-hidden="true">
-            10
-          </span>
+          <span aria-hidden="true">10s</span>
         </Button>
         <Button
           className="calls-main-play"
@@ -86,15 +85,14 @@ export function CallsPlaybackControls({
           <DsIcon name={playing ? "pause" : "play"} size={24} />
         </Button>
         <Button
+          className="calls-skip"
           variant="ghost"
           aria-label="Forward 10 seconds"
           disabled={!duration}
           onClick={() => seek(position + 10)}
         >
           <DsIcon name="forward10" size={20} />
-          <span className="calls-skip-count" aria-hidden="true">
-            10
-          </span>
+          <span aria-hidden="true">10s</span>
         </Button>
       </div>
       <div className="calls-playback-settings">

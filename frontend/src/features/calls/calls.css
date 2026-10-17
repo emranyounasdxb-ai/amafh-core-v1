@@ -140,10 +140,16 @@
 }
 
 .calls-recording-table .calls-actions {
-  gap: 6px;
+  display: inline-grid;
+  grid-template-columns: 96px 112px;
+  gap: 8px;
 }
 .calls-recording-table .ds-button {
-  padding-inline: 9px;
+  padding-inline: 8px;
+  white-space: nowrap;
+  min-width: 0;
+  width: 100%;
+  justify-content: center;
 }
 
 .calls-table-hint {
@@ -166,11 +172,8 @@
   line-height: 16px;
   white-space: nowrap;
 }
-.calls-type i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
+.calls-type svg {
+  flex-shrink: 0;
 }
 .calls-type--internal {
   color: #0c7065;
@@ -226,12 +229,16 @@
   padding: 0;
   border-radius: 50%;
 }
-.calls-skip-count {
-  position: absolute;
-  font-size: 7px;
-  font-weight: 700;
-  top: 17px;
-  left: 16px;
+.calls-transport .calls-skip {
+  width: 52px;
+  height: 56px;
+  border-radius: 12px;
+}
+.calls-transport .calls-skip .ds-button__label {
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 13px;
 }
 .calls-transport .calls-main-play {
   width: 52px;
