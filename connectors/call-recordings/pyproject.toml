@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "amafh-call-recordings"
-version = "1.0.0"
+version = "1.0.1"
 description = "Read-only Windows connector for PBX call recordings"
 requires-python = ">=3.14,<3.15"
 dependencies = []

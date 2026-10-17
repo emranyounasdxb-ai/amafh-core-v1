@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from app.config import settings
 from app.db.base import utcnow
 from app.db.calls import call_recording_sources, call_recording_sync_state, call_recordings
 
-_PHONE = r"^[0-9]{10}$"
+_PHONE = r"^[0-9]{1,32}$"
 _MONTH = r"^[0-9]{4}-(0[1-9]|1[0-2])$"
 
 
@@ -112,7 +112,7 @@ async def search(session: AsyncSession, month: str, phone: str, page: int, page_
         call_recording_sources.c.source_key == SOURCE_KEY,
         call_recordings.c.catalog_generation == call_recording_sources.c.catalog_generation,
         call_recordings.c.month == month,
-        call_recordings.c.customer_number == phone,
+        or_(call_recordings.c.customer_number == phone, call_recordings.c.extension == phone),
         text("call_recordings.availability = 'ready'"),
     )
     joined = call_recordings.join(
@@ -157,6 +157,7 @@ async def search(session: AsyncSession, month: str, phone: str, page: int, page_
 def recording_values(source_id: UUID, generation: int, item: dict) -> dict | None:
     availability = item.get("availability")
     phone = item.get("customerNumber")
+    first_number = item.get("extension")
     month = item.get("month")
     filename = item.get("filename")
     connector_id = item.get("id")
@@ -165,6 +166,8 @@ def recording_values(source_id: UUID, generation: int, item: dict) -> dict | Non
     if not isinstance(phone, str) or phone != phone.strip():
         return None
     if re.fullmatch(_PHONE, phone) is None or re.fullmatch(_MONTH, str(month or "")) is None:
+        return None
+    if not isinstance(first_number, str) or re.fullmatch(_PHONE, first_number) is None:
         return None
     if (
         not isinstance(filename, str)
@@ -186,7 +189,7 @@ def recording_values(source_id: UUID, generation: int, item: dict) -> dict | Non
         "connector_id": connector_id,
         "month": month,
         "customer_number": phone,
-        "extension": str(item.get("extension") or "")[:32],
+        "extension": first_number,
         "filename": filename[:255],
         "byte_size": int(item.get("byteSize") or 0),
         "file_version": str(item.get("fileVersion") or ""),

@@ -213,9 +213,7 @@ def _heartbeat(status: dict):
             indexed_at = datetime.fromisoformat(indexed) if isinstance(indexed, str) else None
         except ValueError:
             indexed_at = None
-        phase = "ready" if status.get("indexReady") else "indexing"
-        if status.get("phase") == "offline":
-            phase = "offline"
+        phase = _connector_phase(status)
         await session.execute(
             update(call_recording_sync_state)
             .where(call_recording_sync_state.c.source_id == locked["source_id"])
@@ -229,6 +227,14 @@ def _heartbeat(status: dict):
         )
 
     return apply
+
+
+def _connector_phase(status: dict) -> str:
+    if status.get("phase") == "offline":
+        return "offline"
+    if status.get("phase") != "ready" or not status.get("indexReady"):
+        return "indexing"
+    return "ready"
 
 
 async def _arm_snapshot(session: AsyncSession, state) -> None:
@@ -312,7 +318,7 @@ async def _deltas(source_id: UUID, token: UUID) -> None:
                 .values(
                     applied_sequence=int(page["through"]),
                     last_synchronized_at=utcnow(),
-                    phase="ready",
+                    phase=locked["phase"],
                     error_code=None,
                     lease_until=utcnow() + timedelta(seconds=settings().calls_sync_lease_seconds),
                 )
@@ -412,7 +418,7 @@ async def _snapshot(source_id: UUID, token: UUID, status: dict) -> None:
             if page["complete"]:
                 values.update(
                     {
-                        "phase": "ready",
+                        "phase": _connector_phase(status),
                         "published_epoch": epoch,
                         "applied_sequence": journal_max,
                         "snapshot_epoch": None,

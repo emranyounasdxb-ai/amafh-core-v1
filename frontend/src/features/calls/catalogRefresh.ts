@@ -1,4 +1,5 @@
 export const CATALOG_POLL_MS = 5000;
+export const CATALOG_READY_POLL_MS = 30000;
 
 export type CatalogRefreshSource = {
   catalogReady: boolean;
@@ -11,6 +12,5 @@ export function shouldPollCatalog(
 ): boolean {
   if (hidden) return false;
   if (!source) return true;
-  if (!source.catalogReady) return true;
-  return source.phase === "indexing" || source.phase === "updating" || source.phase === "offline";
+  return source.phase !== "not_configured";
 }

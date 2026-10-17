@@ -17,7 +17,7 @@ import {
 } from "../../design-system";
 import { ApiFailure } from "../../app/api/http";
 import { useSession } from "../../app/session/useSession";
-import { CATALOG_POLL_MS, shouldPollCatalog } from "./catalogRefresh";
+import { CATALOG_POLL_MS, CATALOG_READY_POLL_MS, shouldPollCatalog } from "./catalogRefresh";
 import "./calls.css";
 
 type SourceView = {
@@ -131,7 +131,9 @@ export function CallsPage() {
       if (!active) return;
       const hidden = document.visibilityState === "hidden";
       if (!shouldPollCatalog(sourceRef.current, hidden)) return;
-      timer = setTimeout(pull, CATALOG_POLL_MS);
+      const interval =
+        sourceRef.current?.phase === "ready" ? CATALOG_READY_POLL_MS : CATALOG_POLL_MS;
+      timer = setTimeout(pull, interval);
     };
 
     const pull = () => {
@@ -301,7 +303,7 @@ export function CallsPage() {
     <PageContainer>
       <PageHeader
         title="Calls"
-        subtitle="Search recordings for one customer number in the selected month."
+        subtitle="Find mobile, landline and internal calls by exact number in the selected month."
         status={source ? PHASE_LABEL[source.phase] : undefined}
         statusTone={source ? phaseTone(source.phase) : "neutral"}
       />
@@ -326,8 +328,8 @@ export function CallsPage() {
       >
         <SearchFilterToolbar
           searchId="calls-customer-number"
-          searchLabel="Customer number"
-          searchPlaceholder="10-digit customer number"
+          searchLabel="Phone number or extension"
+          searchPlaceholder="Full phone number or extension"
           searchValue={customerNumber}
           onSearchChange={setCustomerNumber}
           disabled={!source?.catalogReady}
@@ -372,7 +374,7 @@ export function CallsPage() {
           {visible.total === 0 ? (
             <EmptyState
               title="No recordings"
-              description="No recordings match this customer number in the selected month."
+              description="No recordings match this exact phone number or extension in the selected month."
             />
           ) : (
             <DataTable
@@ -388,16 +390,16 @@ export function CallsPage() {
                   render: (row) => <CompactMonthYear value={row.month} />,
                 },
                 {
-                  key: "customerNumber",
-                  header: "Customer number",
-                  kind: "text",
-                  render: (row) => row.customerNumber,
-                },
-                {
                   key: "extension",
-                  header: "Extension",
+                  header: "Number 1",
                   kind: "text",
                   render: (row) => row.extension,
+                },
+                {
+                  key: "customerNumber",
+                  header: "Number 2",
+                  kind: "text",
+                  render: (row) => row.customerNumber,
                 },
                 {
                   key: "filename",

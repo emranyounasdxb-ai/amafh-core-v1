@@ -44,6 +44,19 @@ class CatalogIndex:
         self._migrate(connection)
         self._connection = connection
         with self._lock:
+            # Version 1 accepted only ten-digit destination numbers and could
+            # checkpoint past unsettled files. Revisit metadata in place once;
+            # keep IDs, the epoch, journal and existing playable catalog intact.
+            if self._value("number_format_revision") != "2":
+                self._execute("BEGIN IMMEDIATE")
+                try:
+                    self._execute("DELETE FROM meta WHERE key IN ('reconcile_checkpoint', 'last_indexed_at')")
+                    self._upsert_meta("phase", "indexing")
+                    self._upsert_meta("number_format_revision", "2")
+                    self._execute("COMMIT")
+                except Exception:
+                    self._execute("ROLLBACK")
+                    raise
             self._execute(
                 "INSERT INTO meta(key, value) VALUES('contract', ?) "
                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value",

@@ -45,7 +45,7 @@ call_recordings = Table(
     Column("catalog_generation", Integer, nullable=False),
     Column("connector_id", String(36), nullable=False),
     Column("month", String(7), nullable=False),
-    Column("customer_number", String(10), nullable=False),
+    Column("customer_number", String(32), nullable=False),
     Column("extension", String(32), nullable=False),
     Column("filename", String(255), nullable=False),
     Column("byte_size", BigInteger, nullable=False),
@@ -63,12 +63,22 @@ call_recordings = Table(
     CheckConstraint("catalog_generation >= 0", name="ck_call_recordings_generation"),
     CheckConstraint("month ~ '^[0-9]{4}-[0-9]{2}$'", name="ck_call_recordings_month"),
     CheckConstraint(
-        "customer_number ~ '^[0-9]{10}$'",
+        "customer_number ~ '^[0-9]{1,32}$'",
         name="ck_call_recordings_customer_number",
     ),
     CheckConstraint(
         "availability IN ('ready', 'missing')",
         name="ck_call_recordings_availability",
+    ),
+    Index(
+        "ix_call_recordings_first_number_search",
+        "source_id",
+        "catalog_generation",
+        "month",
+        "extension",
+        "filename",
+        "id",
+        postgresql_where=text("availability = 'ready'"),
     ),
     Index(
         "ix_call_recordings_search",

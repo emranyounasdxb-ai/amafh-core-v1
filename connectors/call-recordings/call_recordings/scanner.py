@@ -51,9 +51,11 @@ class Scanner:
         self._dirty = threading.Event()
         self._priority: set[str] = set()
         self._thread: threading.Thread | None = None
-        self._seen: dict[str, tuple[int, int]] = {}
+        self._seen: dict[str, tuple[int, int, str | None]] = {}
         self._seen_at: dict[str, float] = {}
         self._clock = __import__("time").monotonic
+        self._defer_until: float | None = None
+        self._settle_delay = 0.0
 
     @property
     def running(self) -> bool:
@@ -84,13 +86,14 @@ class Scanner:
             if self._stop.is_set():
                 return
             if self.index.has_checkpoint():
-                if self._stop.wait(0.05):
+                if self._stop.wait(max(0.05, self._settle_delay)):
                     return
                 continue
             self._dirty.wait(self.reconcile_seconds)
             self._dirty.clear()
 
     def reconcile(self) -> None:
+        self._settle_delay = 0.0
         if self._stop.is_set():
             return
         if not self.root.exists() or directory_is_reparse(self.root):
@@ -109,19 +112,17 @@ class Scanner:
         self._priority.clear()
         opens = 0
         budget = max(1, int(self.open_budget))
+        # Watcher hints must leave work available for the historical cursor.
+        priority_budget = budget // 2
+        if not priority_budget:
+            priority = []
         for month in priority:
-            if self._stop.is_set() or opens >= budget:
-                self.index.set_phase("indexing")
+            if self._stop.is_set():
                 return
-            outcome, opens = self._scan_month(
-                month, opens, budget, skip_through="", persist=False
+            _outcome, opens = self._scan_month(
+                month, opens, priority_budget, skip_through="", persist=False
             )
-            if outcome != "done":
-                self.index.set_phase("indexing")
-                return
         for index, month in enumerate(months):
-            if month in priority:
-                continue
             if self._stop.is_set():
                 return
             if cursor_month and month < cursor_month:
@@ -140,7 +141,7 @@ class Scanner:
             if outcome == "stop":
                 self.index.set_phase("indexing")
                 return
-            following = next((later for later in months[index + 1 :] if later not in priority), "")
+            following = next(iter(months[index + 1 :]), "")
             self.index.set_checkpoint(following, "")
             cursor_month, cursor_file = following, ""
         if self._stop.is_set():
@@ -164,6 +165,8 @@ class Scanner:
         if names is None:
             return "done", opens
         names = sorted(names)
+        checkpoint = skip_through
+        deferred = False
 
         def remember(filename: str) -> None:
             if persist:
@@ -175,7 +178,7 @@ class Scanner:
             if skip_through and name <= skip_through:
                 continue
             if opens >= budget:
-                remember(skip_through)
+                remember(checkpoint)
                 return "stop", opens
             failed = False
             try:
@@ -189,10 +192,20 @@ class Scanner:
                 continue
             if opened:
                 opens += 1
+            if self._defer_until is not None:
+                deferred = True
+                delay = max(0.0, self._defer_until - self._clock())
+                self._settle_delay = (
+                    min(self._settle_delay, delay) if self._settle_delay else delay
+                )
             skip_through = name
-            remember(name)
+            # Revisit this bounded settling batch before walking the rest of a
+            # large archive. The checkpoint also survives a process restart.
+            if not deferred:
+                checkpoint = name
+            remember(checkpoint)
         self.index.mark_missing(month, set(names))
-        if opens >= budget:
+        if deferred or opens >= budget:
             return "stop", opens
         return "done", opens
 
@@ -223,6 +236,7 @@ class Scanner:
         return names
 
     def _observe(self, month: str, filename: str) -> bool:
+        self._defer_until = None
         relative = f"{month}/{filename}"
         parsed = parse_filename(filename)
         if parsed is None or not parsed.supported:
@@ -247,6 +261,13 @@ class Scanner:
             return False
         identity = file_identity(path)
         fingerprint = f"{first.st_size}:{first.st_mtime_ns}:{identity or ''}"
+        key = (first.st_size, first.st_mtime_ns, identity)
+        now = self._clock()
+        if self._seen.get(relative) == key:
+            due = self._seen_at[relative] + self.settle_seconds
+            if now < due:
+                self._defer_until = due
+                return False
         current = self.index.get(self.index.recording_id(relative))
         if (
             identity
@@ -273,20 +294,23 @@ class Scanner:
         if first.st_size != second.st_size or first.st_mtime_ns != second.st_mtime_ns:
             self._remember_pending(relative, month, filename, parsed)
             return True
-        key = (size, first.st_mtime_ns)
+        if size <= 0 or not complete:
+            self._seen.pop(relative, None)
+            self._seen_at.pop(relative, None)
+            self._remember_pending(relative, month, filename, parsed, size, version)
+            return True
         now = self._clock()
         previous = self._seen.get(relative)
         if previous != key:
             self._seen[relative] = key
             self._seen_at[relative] = now
             if self.settle_seconds > 0:
+                self._defer_until = now + self.settle_seconds
                 self._remember_pending(relative, month, filename, parsed, size, version)
                 return True
         settled = now - self._seen_at.get(relative, now)
         if self.settle_seconds > 0 and settled < self.settle_seconds:
-            self._remember_pending(relative, month, filename, parsed, size, version)
-            return True
-        if size <= 0 or not complete:
+            self._defer_until = self._seen_at[relative] + self.settle_seconds
             self._remember_pending(relative, month, filename, parsed, size, version)
             return True
         self.index.upsert(
@@ -302,6 +326,8 @@ class Scanner:
                 "fingerprint": fingerprint,
             },
         )
+        self._seen.pop(relative, None)
+        self._seen_at.pop(relative, None)
         return True
 
     def _remember_pending(self, relative, month, filename, parsed, size=None, version=None) -> None:

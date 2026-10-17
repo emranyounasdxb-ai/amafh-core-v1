@@ -1,15 +1,15 @@
 """Anchored recording-name and month-folder parser.
 
-The first numeric field is opaque. It is not a timestamp. The month comes from
-the selected directory name. The customer field is exactly ten ASCII digits,
-with leading zeros preserved. The optional ``##`` marker keeps that file
-distinct from the unmarked name.
+The generated numeric field is opaque, not a timestamp. Both following fields
+are exact dialled numbers (including internal extensions). Their order does not
+establish call direction or employee identity. Legacy attribute names remain for
+wire compatibility. Leading zeros and the original filename are preserved.
 """
 
 import re
 from dataclasses import dataclass
 
-_FILENAME = re.compile(r"\Aauto-([0-9]+)-([0-9]+)-(##)?([0-9]{10})\.([A-Za-z0-9]+)\Z")
+_FILENAME = re.compile(r"\Aauto-([0-9]+)-([0-9]{1,32})-(##)?([0-9]{1,32})\.([A-Za-z0-9]+)\Z")
 _MONTH = re.compile(r"\A([0-9]{4})-(0[1-9]|1[0-2])\Z")
 CONFIRMED_EXTENSION = "wav"
 
@@ -38,7 +38,7 @@ def parse_filename(name: str) -> ParsedName | None:
         marked=marker == "##",
         customer_number=customer_number,
         file_extension=file_extension,
-        supported=file_extension == CONFIRMED_EXTENSION,
+        supported=file_extension.lower() == CONFIRMED_EXTENSION,
     )
 
 
@@ -52,10 +52,10 @@ def parse_month(name: str) -> str | None:
 
 
 def parse_customer_query(value: str) -> str | None:
-    """Trim surrounding whitespace and accept only the whole ten-digit field."""
+    """Accept an exact numeric participant; never truncate or rewrite prefixes."""
     if not isinstance(value, str):
         return None
     text = value.strip()
-    if len(text) != 10 or any(ch < "0" or ch > "9" for ch in text):
+    if not 1 <= len(text) <= 32 or any(ch < "0" or ch > "9" for ch in text):
         return None
     return text
