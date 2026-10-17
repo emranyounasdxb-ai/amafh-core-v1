@@ -11,12 +11,14 @@ from app.audit import record
 from app.calls import client as connector_client
 from app.calls import stream as stream_mod
 from app.calls.catalog import months as list_months
+from app.calls.catalog import number_suggestions as suggest_numbers
 from app.calls.catalog import search as search_catalog
 from app.calls.catalog import status as catalog_status
 from app.calls.policy import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
     clean_month,
+    clean_number_prefix,
     clean_page,
     clean_phone,
     require_calls,
@@ -32,7 +34,7 @@ from app.calls.stream import (
 )
 from app.db.session import session_factory
 from app.errors import ApiError
-from app.schemas.calls import SearchBody
+from app.schemas.calls import NumberSuggestionsBody, SearchBody
 from app.services import auth
 
 router = APIRouter(prefix="/calls", tags=["calls"])
@@ -81,6 +83,12 @@ async def search(actor: CsrfActor, db: Db, body: SearchBody):
     )
     await db.commit()
     return result
+
+
+@router.post("/number-suggestions")
+async def number_suggestions(actor: CsrfActor, db: Db, body: NumberSuggestionsBody):
+    require_calls(actor)
+    return await suggest_numbers(db, clean_month(body.month), clean_number_prefix(body.prefix))
 
 
 async def _transfer(

@@ -58,3 +58,14 @@ def clean_page(value: object, *, default: int) -> int:
             {"page": ["Choose a valid page."]},
         )
     return value
+
+
+def clean_number_prefix(value: object) -> str:
+    if not isinstance(value, str) or re.fullmatch(r"[0-9]{3,32}", value.strip()) is None:
+        raise ApiError(
+            422,
+            "VALIDATION_ERROR",
+            "Enter at least 3 digits for suggestions",
+            {"prefix": ["Enter between 3 and 32 digits."]},
+        )
+    return value.strip()

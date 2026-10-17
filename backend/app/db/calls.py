@@ -71,6 +71,22 @@ call_recordings = Table(
         name="ck_call_recordings_availability",
     ),
     Index(
+        "ix_call_recordings_first_number_prefix",
+        "source_id",
+        "catalog_generation",
+        "month",
+        text('(extension COLLATE "C")'),
+        postgresql_where=text("availability = 'ready'"),
+    ),
+    Index(
+        "ix_call_recordings_second_number_prefix",
+        "source_id",
+        "catalog_generation",
+        "month",
+        text('(customer_number COLLATE "C")'),
+        postgresql_where=text("availability = 'ready'"),
+    ),
+    Index(
         "ix_call_recordings_first_number_search",
         "source_id",
         "catalog_generation",

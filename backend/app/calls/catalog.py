@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import func, or_, select, text, union_all
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,19 +51,29 @@ def _iso(value: datetime | None) -> str | None:
 
 async def _rows(session: AsyncSession):
     source = (
-        await session.execute(
-            select(call_recording_sources).where(call_recording_sources.c.source_key == SOURCE_KEY)
+        (
+            await session.execute(
+                select(call_recording_sources).where(
+                    call_recording_sources.c.source_key == SOURCE_KEY
+                )
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     state = None
     if source is not None:
         state = (
-            await session.execute(
-                select(call_recording_sync_state).where(
-                    call_recording_sync_state.c.source_id == source["id"]
+            (
+                await session.execute(
+                    select(call_recording_sync_state).where(
+                        call_recording_sync_state.c.source_id == source["id"]
+                    )
                 )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
     return source, state
 
 
@@ -152,6 +162,47 @@ async def search(session: AsyncSession, month: str, phone: str, page: int, page_
             for row in rows
         ],
     }
+
+
+async def number_suggestions(session: AsyncSession, month: str, prefix: str) -> dict:
+    """Bounded number-only lookup. Never contacts Windows or reads audio.
+
+    C-collated range bounds use the two partial prefix indexes. Advancing the
+    final ASCII digit also handles a trailing9 without rewriting dialled numbers.
+    Limit each side before merging, preserving leading zeros and deduplicating.
+    """
+    from app.calls.client import outbound_configured
+
+    result = {"month": month, "prefix": prefix, "numbers": []}
+    source, state = await _rows(session)
+    view = source_view(source, state, configured=outbound_configured())
+    if not view["configured"] or not view["catalogReady"]:
+        return result
+    upper = prefix[:-1] + chr(ord(prefix[-1]) + 1)
+    candidates = []
+    for column in (call_recordings.c.extension, call_recordings.c.customer_number):
+        number = column.collate("C")
+        branch = (
+            select(number.label("number"))
+            .where(
+                call_recordings.c.source_id == source["id"],
+                call_recordings.c.catalog_generation == source["catalog_generation"],
+                call_recordings.c.month == month,
+                text("call_recordings.availability = 'ready'"),
+                number >= prefix,
+                number < upper,
+            )
+            .distinct()
+            .order_by(number)
+            .limit(8)
+            .subquery()
+        )
+        candidates.append(select(branch.c.number))
+    combined = union_all(*candidates).subquery()
+    rows = await session.scalars(
+        select(combined.c.number).distinct().order_by(combined.c.number).limit(8)
+    )
+    return {**result, "numbers": list(rows)}
 
 
 def recording_values(source_id: UUID, generation: int, item: dict) -> dict | None:

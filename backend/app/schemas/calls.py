@@ -10,3 +10,10 @@ class SearchBody(BaseModel):
     customerNumber: str = Field(max_length=80)
     page: int | None = None
     pageSize: int | None = None
+
+
+class NumberSuggestionsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    month: str
+    prefix: str = Field(max_length=32)
