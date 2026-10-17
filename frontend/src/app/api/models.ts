@@ -36,6 +36,7 @@ export type CaseRecord = {
   productVariantId: string | null;
   pipelineConfigurationId: string;
   requestedPfAmount: string | null;
+  finalPfAmount: string | null;
   salaryAed?: string | null;
   ownerEmployeeId: string;
   coordinatorEmployeeId: string | null;

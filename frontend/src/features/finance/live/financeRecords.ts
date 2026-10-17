@@ -43,6 +43,8 @@ export type CompletedCaseRecord = {
   cc_points: number | null;
   commission_aed: string | null;
   pf_amount_aed: string | null;
+  pf_commission_per_1000: string | null;
+  pf_amount_basis: string | null;
   rule_effective_date: string;
   created_at: string;
   internal_case_id: string;
@@ -97,6 +99,7 @@ export type FinancialRuleRecord = {
   product_variant_id: string | null;
   pf_amount_min: string | null;
   pf_amount_max: string | null;
+  pf_commission_per_1000: string | null;
   cc_points: number | null;
   cc_salary_points: { salaryMin: string; salaryMax: string; points: number }[];
   commission_aed: string | null;

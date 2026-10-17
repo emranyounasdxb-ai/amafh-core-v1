@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Table,
     Text,
@@ -99,6 +100,7 @@ csv_import_row_results = Table(
     Column("current_stage", String(150)),
     Column("requested_stage", String(150)),
     Column("remark", Text),
+    Column("final_pf_amount", Numeric(18, 0)),
     UniqueConstraint("batch_id", "row_number"),
 )
 

@@ -13,6 +13,7 @@ import {
   ImportResult,
   InlineNotice,
   LoadingState,
+  MonetaryAmount,
   NoResultsState,
   OfflineState,
   PageContainer,
@@ -167,6 +168,14 @@ export function BankStageUpdatesPage({
       header: "Requested stage",
       kind: "text",
       render: (row) => <Cell value={row.requestedStage} />,
+    },
+    {
+      key: "finalPfAmount",
+      header: "Final PF amount",
+      kind: "money",
+      render: (row) => (
+        <MonetaryAmount compact={false} value={row.finalPfAmount || null} />
+      ),
     },
     {
       key: "category",
@@ -376,7 +385,7 @@ export function BankStageUpdatesPage({
               compact
               label="Bank stage CSV"
               accept=".csv,text/csv"
-              hint="Required columns: Bank Case Number, Latest Stage, Bank Remarks. Limit 5 MB and 5,000 data rows."
+              hint="Columns: Bank Case Number, Latest Stage, Bank Remarks, Final PF amount. Final PF amount must be the bank’s final approved/disbursed amount for PF completion; leave it blank for CC and other stages. Limit 5 MB and 5,000 data rows."
               files={files}
               busy={busy}
               onChange={selectFiles}

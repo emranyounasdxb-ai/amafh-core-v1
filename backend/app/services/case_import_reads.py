@@ -44,6 +44,9 @@ def _row_public(row) -> dict:
         "productLabel": row["product_label"],
         "currentStage": row["current_stage"],
         "requestedStage": row["requested_stage"],
+        "finalPfAmount": str(row["final_pf_amount"])
+        if row["final_pf_amount"] is not None
+        else None,
         "status": row["status"],
         "errorCode": row["error_code"],
         "errorDetail": row["error_detail"],

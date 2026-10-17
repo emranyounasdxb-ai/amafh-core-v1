@@ -63,6 +63,7 @@ financial_rules = Table(
     Column("cc_points", Integer),
     Column("cc_salary_points", JSONB, nullable=False, server_default=text("'[]'::jsonb")),
     Column("commission_aed", Numeric(18, 0)),
+    Column("pf_commission_per_1000", Numeric(18, 0)),
     Column("effective_date", Date, nullable=False),
     Column("active", Boolean, nullable=False, server_default="true"),
     Column(
@@ -115,6 +116,12 @@ financial_rules = Table(
         ),
     ),
     CheckConstraint(
+        "pf_commission_per_1000 IS NULL OR "
+        "(product_variant_id IS NULL AND pf_commission_per_1000 >= 0 "
+        "AND commission_aed IS NULL AND cc_points IS NULL)",
+        name="ck_financial_rule_pf_rate",
+    ),
+    CheckConstraint(
         "amafh_valid_cc_salary_points(cc_salary_points) AND "
         "(cc_salary_points = '[]'::jsonb OR "
         "(product_variant_id IS NOT NULL AND cc_points IS NULL))",
@@ -132,7 +139,8 @@ financial_rules = Table(
         "((product_variant_id IS NOT NULL AND "
         "(cc_points IS NOT NULL OR commission_aed IS NOT NULL "
         "OR cc_salary_points <> '[]'::jsonb)) OR "
-        "(product_variant_id IS NULL AND pf_amount_min > 0 AND commission_aed IS NOT NULL))",
+        "(product_variant_id IS NULL AND pf_amount_min > 0 AND cc_points IS NULL "
+        "AND (commission_aed IS NOT NULL OR pf_commission_per_1000 IS NOT NULL)))",
         name="ck_financial_rule_values",
     ),
 )

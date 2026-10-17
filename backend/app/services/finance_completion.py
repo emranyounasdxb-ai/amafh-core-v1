@@ -1,6 +1,7 @@
 """Atomic completed-Case financial evidence and exactly-once CC credits."""
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -15,16 +16,28 @@ from app.db.operations import financial_rules, points_wallet_transactions, point
 from app.errors import ApiError
 from app.policies import Actor
 from app.services.cc_salary_points import resolve_points
+from app.services.pf_commission import calculate_commission
 
 DUBAI = ZoneInfo("Asia/Dubai")
 
 
 async def prepare(session: AsyncSession, case: dict, completed_at: datetime) -> dict | None:
     """Resolve the rule before CSV writes; None means a prior credit is retained."""
-    existing = await session.scalar(
-        select(case_financial_results.c.id).where(case_financial_results.c.case_id == case["id"])
+    existing = (
+        (
+            await session.execute(
+                select(case_financial_results).where(case_financial_results.c.case_id == case["id"])
+            )
+        )
+        .mappings()
+        .one_or_none()
     )
     if existing is not None:
+        if existing["product_code"] == "PF" and case.get("_csv_final_pf_amount") is not None:
+            if case["_csv_final_pf_amount"] != existing["pf_amount_aed"]:
+                raise ApiError(
+                    422, "PF_RESULT_LOCKED", "Completed PF financial amount is immutable"
+                )
         return None
     code = await session.scalar(
         select(product_types.c.code).where(product_types.c.id == case["product_type_id"])
@@ -37,12 +50,15 @@ async def prepare(session: AsyncSession, case: dict, completed_at: datetime) -> 
         financial_rules.c.product_type_id == case["product_type_id"],
         financial_rules.c.effective_date <= completion_date,
     ]
+    amount: Decimal | None = None
     if code == "CC":
         conditions.append(financial_rules.c.product_variant_id == case["product_variant_id"])
     else:
-        amount = case["requested_pf_amount"]
-        if amount is None:
-            raise ApiError(422, "INVALID_PF_AMOUNT", "Case has no retained PF amount")
+        amount = case.get("_csv_final_pf_amount", case.get("final_pf_amount"))
+        if amount is None or amount <= 0:
+            raise ApiError(
+                422, "PF_FINAL_AMOUNT_REQUIRED", "Final PF amount is required for completion"
+            )
         conditions += [
             financial_rules.c.product_variant_id.is_(None),
             financial_rules.c.pf_amount_min <= amount,
@@ -74,14 +90,27 @@ async def prepare(session: AsyncSession, case: dict, completed_at: datetime) -> 
             )
             if successor_date is None or completion_date >= successor_date:
                 continue
+        rate = rule["pf_commission_per_1000"] if code == "PF" else None
+        if code == "PF" and rate is None:
+            raise ApiError(
+                422,
+                "PF_RATE_REQUIRED",
+                "Replace the legacy PF rule with a commission rate per AED 1,000",
+            )
+        commission = rule["commission_aed"]
+        if code == "PF":
+            assert amount is not None and rate is not None
+            commission = calculate_commission(amount, rate)
         return {
             "rule_id": rule["id"],
             "rule_effective_date": rule["effective_date"],
             "owner_id": case["owner_employee_id"],
             "product_code": code,
             "cc_points": resolve_points(rule, case["salary_aed"]) if code == "CC" else None,
-            "commission_aed": rule["commission_aed"],
-            "pf_amount_aed": case["requested_pf_amount"] if code == "PF" else None,
+            "commission_aed": commission,
+            "pf_amount_aed": amount if code == "PF" else None,
+            "pf_commission_per_1000": rate,
+            "pf_amount_basis": "final_approved_disbursed" if code == "PF" else None,
         }
     raise ApiError(422, "FINANCIAL_RULE_MISSING", "No effective Financial Rule matches this Case")
 
@@ -103,6 +132,8 @@ async def apply(
             cc_points=result["cc_points"],
             commission_aed=result["commission_aed"],
             pf_amount_aed=result["pf_amount_aed"],
+            pf_commission_per_1000=result["pf_commission_per_1000"],
+            pf_amount_basis=result["pf_amount_basis"],
             rule_effective_date=result["rule_effective_date"],
         )
     )
@@ -118,6 +149,10 @@ async def apply(
             "ruleId": str(result["rule_id"]),
             "creditedOwnerEmployeeId": str(result["owner_id"]),
             "productCode": result["product_code"],
+            "pfCommissionPer1000": str(result["pf_commission_per_1000"])
+            if result["pf_commission_per_1000"] is not None
+            else None,
+            "pfAmountBasis": result["pf_amount_basis"],
             "points": result["cc_points"],
             "commissionAed": str(result["commission_aed"])
             if result["commission_aed"] is not None

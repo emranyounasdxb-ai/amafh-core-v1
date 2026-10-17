@@ -8,6 +8,7 @@ export type BankStageApiRow = {
   productLabel?: string | null;
   currentStage?: string | null;
   requestedStage?: string | null;
+  finalPfAmount?: string | null;
   status: string;
   errorCode?: string | null;
   errorDetail?: string | null;
@@ -50,6 +51,7 @@ export type BankStageResultRow = {
   productLabel: string;
   currentStage: string;
   requestedStage: string;
+  finalPfAmount: string;
   status: string;
   errorCode: string | null;
   category: string;
@@ -71,6 +73,12 @@ const CATEGORY_BY_CODE: Record<string, string> = {
   NOT_BOOKED: "Case is not booked",
   INVALID_STAGE: "Stage not part of the assigned Pipeline",
   FINANCIAL_RULE_MISSING: "Financial rule missing",
+  PF_FINAL_AMOUNT_REQUIRED: "Final PF amount required",
+  INVALID_FINAL_PF_AMOUNT: "Invalid final PF amount",
+  PF_AMOUNT_CONTEXT_INVALID: "Final PF amount on the wrong Case or stage",
+  PF_RATE_REQUIRED: "PF commission rate required",
+  PF_COMMISSION_LIMIT: "PF commission exceeds limit",
+  PF_RESULT_LOCKED: "PF financial result is locked",
   DUPLICATE_UPLOAD: "Previously processed import",
 };
 
@@ -84,7 +92,8 @@ export function bankStageCategory(
   if (status === "Valid" || status === "Applied") return "Valid row";
   if (status === "Unchanged") return "Unchanged";
   if (status === "Skipped") return "Skipped";
-  if (errorCode && CATEGORY_BY_CODE[errorCode]) return CATEGORY_BY_CODE[errorCode];
+  if (errorCode && CATEGORY_BY_CODE[errorCode])
+    return CATEGORY_BY_CODE[errorCode];
   return "Invalid row";
 }
 
@@ -135,6 +144,7 @@ export function mapBankStageRows(
       productLabel: readableValue(row.productLabel),
       currentStage: readableValue(row.currentStage),
       requestedStage: readableValue(row.requestedStage),
+      finalPfAmount: readableValue(row.finalPfAmount),
       status: row.status,
       errorCode: row.errorCode ?? null,
       category: bankStageCategory(row.status, row.errorCode),
@@ -184,10 +194,10 @@ export function matchesValidityFilter(
 export function canConfirmImport(batch: BankStageBatchDetail | null) {
   return Boolean(
     batch &&
-      batch.validationStatus === "Validated" &&
-      batch.status === "Validated" &&
-      batch.invalidCount === 0 &&
-      batch.eligibleCount > 0,
+    batch.validationStatus === "Validated" &&
+    batch.status === "Validated" &&
+    batch.invalidCount === 0 &&
+    batch.eligibleCount > 0,
   );
 }
 

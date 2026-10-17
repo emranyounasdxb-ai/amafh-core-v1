@@ -33,6 +33,7 @@ class FinancialRuleInput(BaseModel):
     ccPoints: WholeCount | None = Field(default=None, gt=0)
     ccSalaryPoints: list[CCSalaryPoints] = Field(default_factory=list, max_length=100)
     commissionAed: WholeAmount | None = Field(default=None, ge=0)
+    pfCommissionPer1000: NonNegativeWholeAed | None = None
     effectiveDate: date
 
     @field_validator("ccSalaryPoints")
@@ -47,6 +48,8 @@ class FinancialRuleInput(BaseModel):
     @model_validator(mode="after")
     def one_product_context(self):
         if self.productVariantId is not None:
+            if self.pfCommissionPer1000 is not None:
+                raise ValueError("CC rules cannot have a PF commission rate")
             if self.pfAmountMin is not None or self.pfAmountMax is not None:
                 raise ValueError("CC rules cannot have a PF slab")
             if self.ccSalaryPoints and self.ccPoints is not None:
@@ -59,9 +62,12 @@ class FinancialRuleInput(BaseModel):
             or self.pfAmountMin > self.pfAmountMax
             or self.ccPoints is not None
             or self.ccSalaryPoints
-            or self.commissionAed is None
+            or self.commissionAed is not None
+            or self.pfCommissionPer1000 is None
         ):
-            raise ValueError("PF rules require a valid slab and financial value")
+            raise ValueError(
+                "PF rules require a valid loan range and commission AED per 1,000; no points"
+            )
         return self
 
 

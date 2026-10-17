@@ -46,7 +46,12 @@ const PRODUCTS = [
   { value: "CC", label: "CC" },
   { value: "PF", label: "PF" },
 ];
-const EMPTY = { productCode: "", branchId: "", completedFrom: "", completedTo: "" };
+const EMPTY = {
+  productCode: "",
+  branchId: "",
+  completedFrom: "",
+  completedTo: "",
+};
 
 export function CompletedCasesView({
   refresh,
@@ -139,14 +144,18 @@ export function CompletedCasesView({
       label: "PF amount",
       width: 120,
       kind: "money",
-      render: (row) => <MonetaryAmount compact={false} value={row.pf_amount_aed} />,
+      render: (row) => (
+        <MonetaryAmount compact={false} value={row.pf_amount_aed} />
+      ),
     },
     {
       key: "commission_aed",
       label: "Commission",
       width: 120,
       kind: "money",
-      render: (row) => <MonetaryAmount compact={false} value={row.commission_aed} />,
+      render: (row) => (
+        <MonetaryAmount compact={false} value={row.commission_aed} />
+      ),
     },
   ];
 
@@ -266,42 +275,118 @@ function CompletedCaseDrawer({
         <div className={styles.drawerBody}>
           <SectionCard title="Credit" compact>
             <InfoGrid>
-              <InfoField label="Case" value={<Text value={caseLabel(data?.internal_case_id)} />} />
-              <InfoField label="Product" value={<Text value={data?.product_code} />} />
+              <InfoField
+                label="Case"
+                value={<Text value={caseLabel(data?.internal_case_id)} />}
+              />
+              <InfoField
+                label="Product"
+                value={<Text value={data?.product_code} />}
+              />
               <InfoField
                 label="Credited employee"
-                value={<PersonValue {...people(data?.credited_owner_employee_id)} />}
+                value={
+                  <PersonValue {...people(data?.credited_owner_employee_id)} />
+                }
               />
               <InfoField
                 label="Current owner"
-                value={<PersonValue {...people(data?.current_owner_employee_id)} />}
+                value={
+                  <PersonValue {...people(data?.current_owner_employee_id)} />
+                }
               />
-              <InfoField label="Branch" value={<Text value={branches.label(data?.branch_id)} />} />
-              <InfoField label="Completed" value={<CompactDateTime value={data?.completed_at} />} />
-              <InfoField label="CC points" numeric value={<Points value={data?.cc_points} />} />
-              <InfoField label="PF amount" value={<MonetaryAmount compact={false} value={data?.pf_amount_aed} align="start" />} />
-              <InfoField label="Commission" value={<MonetaryAmount compact={false} value={data?.commission_aed} align="start" />} />
-              <InfoField label="Rule effective" value={<CompactDate value={data?.rule_effective_date} />} />
-              <InfoField label="Recorded" value={<CompactDateTime value={data?.created_at} />} />
+              <InfoField
+                label="Branch"
+                value={<Text value={branches.label(data?.branch_id)} />}
+              />
+              <InfoField
+                label="Completed"
+                value={<CompactDateTime value={data?.completed_at} />}
+              />
+              {data?.product_code === "CC" ? (
+                <InfoField
+                  label="CC points"
+                  numeric
+                  value={<Points value={data?.cc_points} />}
+                />
+              ) : null}
+              {data?.product_code === "PF" ? (
+                <>
+                  <InfoField
+                    label={
+                      data.pf_amount_basis === "final_approved_disbursed"
+                        ? "Final approved/disbursed PF amount"
+                        : "Legacy PF amount"
+                    }
+                    value={
+                      <MonetaryAmount
+                        compact={false}
+                        value={data.pf_amount_aed}
+                        align="start"
+                      />
+                    }
+                  />
+                  <InfoField
+                    label="Commission AED per AED 1,000 loan"
+                    value={
+                      <MonetaryAmount
+                        compact={false}
+                        value={data.pf_commission_per_1000}
+                        align="start"
+                      />
+                    }
+                  />
+                </>
+              ) : null}
+              <InfoField
+                label="Commission"
+                value={
+                  <MonetaryAmount
+                    compact={false}
+                    value={data?.commission_aed}
+                    align="start"
+                  />
+                }
+              />
+              <InfoField
+                label="Rule effective"
+                value={<CompactDate value={data?.rule_effective_date} />}
+              />
+              <InfoField
+                label="Recorded"
+                value={<CompactDateTime value={data?.created_at} />}
+              />
             </InfoGrid>
           </SectionCard>
           {showRule ? (
             <SectionCard title="Financial rule" compact>
               {rule.data ? (
                 <InfoGrid>
-                  <InfoField label="Bank" value={<Text value={catalog(rule.data.bank_id)} />} />
-                  <InfoField label="Product" value={<Text value={catalog(rule.data.product_type_id)} />} />
+                  <InfoField
+                    label="Bank"
+                    value={<Text value={catalog(rule.data.bank_id)} />}
+                  />
+                  <InfoField
+                    label="Product"
+                    value={<Text value={catalog(rule.data.product_type_id)} />}
+                  />
                   <InfoField
                     label="CC variant / PF slab"
                     value={
                       rule.data.product_variant_id ? (
                         <Text value={catalog(rule.data.product_variant_id)} />
                       ) : (
-                        <PfSlab min={rule.data.pf_amount_min} max={rule.data.pf_amount_max} />
+                        <PfSlab
+                          min={rule.data.pf_amount_min}
+                          max={rule.data.pf_amount_max}
+                        />
                       )
                     }
                   />
-                  <InfoField label="Effective" value={<CompactDate value={rule.data.effective_date} />} />
+                  <InfoField
+                    label="Effective"
+                    value={<CompactDate value={rule.data.effective_date} />}
+                  />
                 </InfoGrid>
               ) : (
                 resourceFeedback(rule, "Loading financial rule")
@@ -311,20 +396,45 @@ function CompletedCaseDrawer({
           <SectionCard title="Clawback" compact>
             {data?.clawback ? (
               <InfoGrid>
-                <InfoField label="Amount" value={<MonetaryAmount compact={false} value={data.clawback.amount_aed} align="start" />} />
-                <InfoField label="Clawback date" value={<CompactDate value={data.clawback.clawback_date} />} />
+                <InfoField
+                  label="Amount"
+                  value={
+                    <MonetaryAmount
+                      compact={false}
+                      value={data.clawback.amount_aed}
+                      align="start"
+                    />
+                  }
+                />
+                <InfoField
+                  label="Clawback date"
+                  value={<CompactDate value={data.clawback.clawback_date} />}
+                />
                 <InfoField
                   label="Case owner"
-                  value={<PersonValue {...people(data.clawback.case_owner_employee_id)} />}
+                  value={
+                    <PersonValue
+                      {...people(data.clawback.case_owner_employee_id)}
+                    />
+                  }
                 />
                 <InfoField
                   label="Recorded by"
-                  value={<PersonValue {...people(data.clawback.created_by_employee_id)} />}
+                  value={
+                    <PersonValue
+                      {...people(data.clawback.created_by_employee_id)}
+                    />
+                  }
                 />
-                <InfoField label="Reason" value={<Text value={data.clawback.reason} />} />
+                <InfoField
+                  label="Reason"
+                  value={<Text value={data.clawback.reason} />}
+                />
               </InfoGrid>
             ) : (
-              <p className={styles.support}>No clawback has been recorded for this case.</p>
+              <p className={styles.support}>
+                No clawback has been recorded for this case.
+              </p>
             )}
           </SectionCard>
         </div>

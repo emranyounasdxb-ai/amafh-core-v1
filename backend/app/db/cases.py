@@ -223,6 +223,10 @@ cases = Table(
         ForeignKey("pipeline_configurations.id", ondelete="RESTRICT"),
     ),
     Column("requested_pf_amount", Numeric(18, 0)),
+    Column("final_pf_amount", Numeric(18, 0)),
+    CheckConstraint(
+        "final_pf_amount IS NULL OR final_pf_amount > 0", name="ck_case_final_pf_amount"
+    ),
     Column("salary_aed", Numeric(18, 0)),
     CheckConstraint("salary_aed IS NULL OR salary_aed >= 0", name="ck_case_salary_nonnegative"),
     Column(

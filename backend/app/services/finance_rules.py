@@ -105,6 +105,7 @@ async def _insert(session: AsyncSession, actor: Actor, item: FinancialRuleInput,
         cc_points=item.ccPoints,
         cc_salary_points=[row.model_dump(mode="json") for row in item.ccSalaryPoints],
         commission_aed=item.commissionAed,
+        pf_commission_per_1000=item.pfCommissionPer1000,
         effective_date=item.effectiveDate,
         active=True,
     )
@@ -226,7 +227,15 @@ async def set_active(session: AsyncSession, actor: Actor, rule_id: UUID, active:
             )
             if context is None:
                 raise ApiError(404, "NOT_FOUND", "Record unavailable")
-            context_item = FinancialRuleInput(
+            # Stored legacy PF versions remain immutable and may be reactivated
+            # for replacement. They are never interpreted as per-1,000 rates.
+            factory = (
+                FinancialRuleInput.model_construct
+                if context["product_variant_id"] is None
+                and context["pf_commission_per_1000"] is None
+                else FinancialRuleInput
+            )
+            context_item = factory(
                 bankId=context["bank_id"],
                 productTypeId=context["product_type_id"],
                 productVariantId=context["product_variant_id"],
@@ -235,6 +244,7 @@ async def set_active(session: AsyncSession, actor: Actor, rule_id: UUID, active:
                 ccPoints=context["cc_points"],
                 ccSalaryPoints=context["cc_salary_points"],
                 commissionAed=context["commission_aed"],
+                pfCommissionPer1000=context["pf_commission_per_1000"],
                 effectiveDate=context["effective_date"],
             )
             await _validate_context(session, context_item)
@@ -299,7 +309,9 @@ async def list_rules(
             "id": financial_rules.c.id,
             "effectiveDate": financial_rules.c.effective_date,
             "ccPoints": financial_rules.c.cc_points,
-            "commissionAed": financial_rules.c.commission_aed,
+            "commissionAed": func.coalesce(
+                financial_rules.c.pf_commission_per_1000, financial_rules.c.commission_aed
+            ),
             "active": financial_rules.c.active,
         }.get(sort)
         if sort is not None

@@ -13,19 +13,37 @@ import { financialRulePayload } from "./salaryPoints";
 
 const ruleFields: Field[] = [
   bankField,
-  offeredProductField,
-  variantField,
+  {
+    ...offeredProductField,
+    choiceContext: { key: "financeProductCode", from: "code" },
+    clearOnChange: [
+      "productVariantId",
+      "pfAmountMin",
+      "pfAmountMax",
+      "pfCommissionPer1000",
+      "commissionAed",
+      "ccPoints",
+      "ccSalaryPoints",
+    ],
+  },
+  {
+    ...variantField,
+    required: true,
+    show: (v) => v.financeProductCode === "CC",
+  },
   {
     key: "pfAmountMin",
-    label: "PF minimum AED",
+    label: "Final PF loan minimum (AED)",
     type: "decimal",
-    show: (v) => !v.productVariantId,
+    required: true,
+    show: (v) => v.financeProductCode === "PF",
   },
   {
     key: "pfAmountMax",
-    label: "PF maximum AED",
+    label: "Final PF loan maximum (AED)",
     type: "decimal",
-    show: (v) => !v.productVariantId,
+    required: true,
+    show: (v) => v.financeProductCode === "PF",
   },
   {
     key: "ccPointsMode",
@@ -33,23 +51,37 @@ const ruleFields: Field[] = [
     required: true,
     options: ["Salary ranges", "Fixed points"],
     initial: "Salary ranges",
-    show: (v) => Boolean(v.productVariantId),
+    show: (v) => v.financeProductCode === "CC",
   },
   {
     key: "ccPoints",
     label: "CC whole points",
     type: "number",
     show: (v) =>
-      Boolean(v.productVariantId) && v.ccPointsMode === "Fixed points",
+      v.financeProductCode === "CC" && v.ccPointsMode === "Fixed points",
   },
   {
     key: "ccSalaryPoints",
     label: "Salary ranges and points",
     initial: [{ salaryMin: "", salaryMax: "", points: "" }],
     show: (v) =>
-      Boolean(v.productVariantId) && v.ccPointsMode !== "Fixed points",
+      v.financeProductCode === "CC" && v.ccPointsMode !== "Fixed points",
   },
-  { key: "commissionAed", label: "Commission AED", type: "decimal" },
+  {
+    key: "commissionAed",
+    label: "Commission AED",
+    type: "decimal",
+    show: (v) => v.financeProductCode === "CC",
+  },
+  {
+    key: "pfCommissionPer1000",
+    label: "Commission AED per AED 1,000 loan",
+    type: "decimal",
+    required: true,
+    nonNegative: true,
+    hint: "Final approved/disbursed amount ÷ 1,000 × this rate. Fractions use proportional calculation; the final commission rounds to whole AED.",
+    show: (v) => v.financeProductCode === "PF",
+  },
   effectiveField,
 ];
 

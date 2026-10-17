@@ -212,11 +212,9 @@ export function RulesView({
     {
       key: "commission_aed",
       label: "Commission",
-      width: 120,
+      width: 180,
       kind: "money",
-      render: (row) => (
-        <MonetaryAmount compact={false} value={row.commission_aed} />
-      ),
+      render: (row) => <RuleCommission rule={row} />,
     },
     {
       key: "effective_date",
@@ -338,7 +336,7 @@ export function RulesView({
         filtered={applied.length > 0}
         loadingTitle="Loading financial rules"
         emptyTitle="No financial rules"
-        emptyDescription="Financial rules define CC salary points, PF slabs, and commission."
+        emptyDescription="CC rules define salary points and commission. PF rules define commission per AED 1,000 of the final loan amount."
         onRowActivate={setSelected}
         rowLabel={ruleRowName}
       />
@@ -417,6 +415,7 @@ export function RulesView({
           })}
           record={{
             ...action.rule,
+            pfCommissionPer1000: action.rule.pf_commission_per_1000 ?? "",
             ccPointsMode: action.rule.cc_salary_points?.length
               ? "Salary ranges"
               : "Fixed points",
@@ -483,17 +482,19 @@ function RuleFacts({
           )
         }
       />
-      <InfoField
-        label="CC points"
-        numeric
-        value={
-          rule.cc_salary_points?.length ? (
-            "By customer salary"
-          ) : (
-            <Points value={rule.cc_points} />
-          )
-        }
-      />
+      {rule.product_variant_id ? (
+        <InfoField
+          label="CC points"
+          numeric
+          value={
+            rule.cc_salary_points?.length ? (
+              "By customer salary"
+            ) : (
+              <Points value={rule.cc_points} />
+            )
+          }
+        />
+      ) : null}
       {rule.cc_salary_points?.length ? (
         <InfoField
           label="Salary ranges and points"
@@ -513,14 +514,14 @@ function RuleFacts({
         />
       ) : null}
       <InfoField
-        label="Commission"
-        value={
-          <MonetaryAmount
-            compact={false}
-            value={rule.commission_aed}
-            align="start"
-          />
+        label={
+          rule.pf_commission_per_1000 != null
+            ? "Commission per AED 1,000 loan"
+            : rule.product_variant_id
+              ? "Commission"
+              : "Legacy fixed commission"
         }
+        value={<RuleCommission rule={rule} />}
       />
       <InfoField
         label="Effective"
@@ -536,6 +537,22 @@ function RuleFacts({
         value={<CompactDateTime value={rule.created_at} />}
       />
     </InfoGrid>
+  );
+}
+
+function RuleCommission({ rule }: { rule: FinancialRuleRecord }) {
+  return (
+    <span>
+      <MonetaryAmount
+        compact={false}
+        value={rule.pf_commission_per_1000 ?? rule.commission_aed}
+      />
+      {rule.pf_commission_per_1000 != null
+        ? " per AED 1,000"
+        : !rule.product_variant_id
+          ? " (legacy fixed)"
+          : ""}
+    </span>
   );
 }
 

@@ -4,9 +4,12 @@ import csv
 import hashlib
 import io
 import json
+import re
+from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
 from fastapi import UploadFile
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import DateTime, bindparam, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,16 +32,24 @@ from app.services.case_corrections import FINAL
 from app.services.idempotency import claim, complete
 from app.services.notification_events import notify
 from app.services.pipelines import _valid_stage_set
+from app.whole_numbers import WholeAmount
 
 HEADERS = ("Bank Case Number", "Latest Stage", "Bank Remarks")
-TEMPLATE = "Bank Case Number,Latest Stage,Bank Remarks\r\n"
+FINAL_PF_HEADER = "Final PF amount"
+TEMPLATE = "Bank Case Number,Latest Stage,Bank Remarks,Final PF amount\r\n"
 MAX_CSV_BYTES = 5_000_000
 MAX_DATA_ROWS = 5_000
 READ_CHUNK_BYTES = 64 * 1024
 INSERT_BATCH_ROWS = 512
 FINANCIAL_RULE_ERRORS = frozenset(
-    {"FINANCIAL_RULE_MISSING", "CC_SALARY_MISSING", "CC_SALARY_RULE_MISSING"}
+    {"FINANCIAL_RULE_MISSING", "CC_SALARY_MISSING", "CC_SALARY_RULE_MISSING", "PF_RATE_REQUIRED"}
 )
+COMPLETION_ERRORS = FINANCIAL_RULE_ERRORS | {
+    "PF_FINAL_AMOUNT_REQUIRED",
+    "PF_COMMISSION_LIMIT",
+    "PF_RESULT_LOCKED",
+}
+PF_AMOUNT_ADAPTER = TypeAdapter(WholeAmount)
 
 
 async def read_upload(file: UploadFile) -> tuple[bytes, str, bool]:
@@ -69,21 +80,26 @@ def safe_file_name(name: str | None) -> str:
     return (cleaned or "bank-stage.csv")[:255]
 
 
-def _parse(content: bytes) -> tuple[list[tuple[int, str, str, str]], list[dict]]:
+def _parse(content: bytes) -> tuple[list[tuple[int, str, str, str, Decimal | None]], list[dict]]:
     next_row = 1
     try:
         source = io.StringIO(content.decode("utf-8-sig", errors="strict"), newline="")
         reader = csv.reader(source, strict=True)
         header = next(reader, None)
-        if header is None or len(header) != 3 or set(header) != set(HEADERS):
+        if header is None or not (
+            (len(header) == 3 and set(header) == set(HEADERS))
+            or (len(header) == 4 and set(header) == {*HEADERS, FINAL_PF_HEADER})
+        ):
             return [], [
                 {
                     "rowNumber": 1,
                     "code": "INVALID_HEADER",
-                    "message": "Expected the three template columns",
+                    "message": "Use Bank Case Number, Latest Stage, Bank Remarks; "
+                    "Final PF amount is the optional fourth column",
                 }
             ]
         positions = [header.index(name) for name in HEADERS]
+        pf_position = header.index(FINAL_PF_HEADER) if FINAL_PF_HEADER in header else None
         rows = []
         errors = []
         seen = set()
@@ -98,16 +114,39 @@ def _parse(content: bytes) -> tuple[list[tuple[int, str, str, str]], list[dict]]
                     }
                 )
                 break
-            if len(raw) != 3:
+            # A missing final optional trailing cell is equivalent to an empty
+            # cell, never to a missing/reordered required column.
+            if len(raw) == 3 and len(header) == 4 and header[-1] == FINAL_PF_HEADER:
+                raw.append("")
+            if len(raw) != len(header):
                 errors.append(
                     {
                         "rowNumber": line_number,
                         "code": "MALFORMED_ROW",
-                        "message": "Expected three values",
+                        "message": "Row values must match the template columns",
                     }
                 )
                 continue
             number, stage, remark = (raw[position].strip() for position in positions)
+            final_amount = None
+            pf_text = raw[pf_position].strip() if pf_position is not None else ""
+            if pf_text:
+                try:
+                    if len(pf_text) > 40 or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", pf_text):
+                        raise ValueError
+                    final_amount = PF_AMOUNT_ADAPTER.validate_python(pf_text)
+                    if final_amount <= 0:
+                        raise ValueError
+                except ValueError, ValidationError, InvalidOperation:
+                    errors.append(
+                        {
+                            "rowNumber": line_number,
+                            "code": "INVALID_FINAL_PF_AMOUNT",
+                            "message": "Final PF amount must be positive AED, "
+                            "maximum 18 whole digits",
+                        }
+                    )
+                    continue
             number = identifier(number)
             if not number or not stage or not remark:
                 errors.append(
@@ -128,7 +167,7 @@ def _parse(content: bytes) -> tuple[list[tuple[int, str, str, str]], list[dict]]
                 )
                 continue
             seen.add(number)
-            rows.append((line_number, number, stage, remark))
+            rows.append((line_number, number, stage, remark, final_amount))
         if not rows and not errors:
             errors.append(
                 {
@@ -148,7 +187,7 @@ def _parse(content: bytes) -> tuple[list[tuple[int, str, str, str]], list[dict]]
         ]
 
 
-def _context(row_number, number, stage_name, remark, case=None, products=None):
+def _context(row_number, number, stage_name, remark, case=None, products=None, final_amount=None):
     product = None
     if case is not None and products:
         product = products.get(case["product_type_id"])
@@ -161,6 +200,7 @@ def _context(row_number, number, stage_name, remark, case=None, products=None):
         "currentStage": case["current_stage"] if case is not None else None,
         "requestedStage": stage_name,
         "remark": remark,
+        "finalPfAmount": final_amount,
     }
 
 
@@ -177,6 +217,10 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
     resolved = []
     contexts = {}
     products = await _product_names(session)
+    product_codes = {
+        row.id: row.code
+        for row in await session.execute(select(product_types.c.id, product_types.c.code))
+    }
     numbers = sorted({row[1] for row in rows})
     normalized_number = func.upper(
         func.regexp_replace(func.btrim(cases.c.bank_case_number), "[[:space:]]+", " ", "g")
@@ -196,7 +240,7 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
                 key: value for key, value in row.items() if key != "_csv_number"
             }
     pipeline_sets = {}
-    for row_number, number, stage_name, remark in rows:
+    for row_number, number, stage_name, remark, final_amount in rows:
         case = by_number[number]
         contexts[row_number] = _context(row_number, number, stage_name, remark)
         if case is None:
@@ -232,7 +276,9 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
                 }
             )
             continue
-        contexts[row_number] = _context(row_number, number, stage_name, remark, case, products)
+        contexts[row_number] = _context(
+            row_number, number, stage_name, remark, case, products, final_amount
+        )
         if case["owner_transfer_previous_status"] is not None:
             errors.append(
                 {
@@ -274,7 +320,30 @@ async def _validate_rows(session: AsyncSession, actor: Actor, rows):
                 }
             )
             continue
-        resolved.append((row_number, case, stage, remark))
+        is_pf_completion = (
+            product_codes.get(case["product_type_id"]) == "PF"
+            and stage["final_status"] == "Completed"
+        )
+        if is_pf_completion and final_amount is None:
+            errors.append(
+                {
+                    "rowNumber": row_number,
+                    "code": "PF_FINAL_AMOUNT_REQUIRED",
+                    "message": "Final PF amount is required for PF completion",
+                }
+            )
+            continue
+        if final_amount is not None and not is_pf_completion:
+            errors.append(
+                {
+                    "rowNumber": row_number,
+                    "code": "PF_AMOUNT_CONTEXT_INVALID",
+                    "message": "Final PF amount is allowed only for a completed PF Case",
+                }
+            )
+            continue
+        resolved_case = {**case, "_csv_final_pf_amount": final_amount}
+        resolved.append((row_number, resolved_case, stage, remark))
     return resolved, errors, contexts
 
 
@@ -304,6 +373,7 @@ async def _record_results(session, batch_id, rows, errors, valid, contexts, *, o
                 current_stage=context.get("currentStage"),
                 requested_stage=context.get("requestedStage"),
                 remark=context.get("remark"),
+                final_pf_amount=context.get("finalPfAmount"),
             )
         )
     if values:
@@ -422,7 +492,7 @@ async def _evaluate(session, actor, content, digest, too_large):
                 try:
                     await finance_completion.prepare(session, case, now)
                 except ApiError as exc:
-                    if exc.code not in FINANCIAL_RULE_ERRORS:
+                    if exc.code not in COMPLETION_ERRORS:
                         raise
                     errors.append(
                         {
@@ -431,7 +501,7 @@ async def _evaluate(session, actor, content, digest, too_large):
                             "message": exc.message,
                         }
                     )
-    for row_number, number, stage_name, remark in rows:
+    for row_number, number, stage_name, remark, _final_amount in rows:
         contexts.setdefault(row_number, _context(row_number, number, stage_name, remark))
     return rows, errors, resolved, contexts
 
@@ -448,6 +518,14 @@ async def _apply_resolved(session, actor, batch_id, resolved, now):
             prepared[case["id"]] = await finance_completion.prepare(session, case, now)
     for _, case, stage, remark in resolved:
         next_status = stage["final_status"] or "Booked"
+        extra_values = {}
+        financial = prepared.get(case["id"])
+        if (
+            next_status == "Completed"
+            and financial is not None
+            and financial["product_code"] == "PF"
+        ):
+            extra_values["final_pf_amount"] = case["_csv_final_pf_amount"]
         await session.execute(
             update(cases)
             .where(cases.c.id == case["id"])
@@ -456,6 +534,7 @@ async def _apply_resolved(session, actor, batch_id, resolved, now):
                 current_status=next_status,
                 finalized_at=now if stage["is_final"] else None,
                 updated_at=now,
+                **extra_values,
             )
         )
         await session.execute(
@@ -737,6 +816,7 @@ async def apply_validated_batch(
                 identifier(row["bank_case_number"] or ""),
                 row["requested_stage"] or "",
                 row["remark"] or "",
+                row["final_pf_amount"],
             )
             for row in stored
         ]
@@ -748,7 +828,7 @@ async def apply_validated_batch(
                     try:
                         await finance_completion.prepare(session, case, now)
                     except ApiError as exc:
-                        if exc.code not in FINANCIAL_RULE_ERRORS:
+                        if exc.code not in COMPLETION_ERRORS:
                             raise
                         errors.append(
                             {

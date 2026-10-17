@@ -137,7 +137,11 @@ export function CaseDetailPage({
   useEffect(() => {
     if (!item || !session || !canApproveCases(session)) return;
     const controller = new AbortController();
-    choices<EmployeeSummary>(api, "/employee-labels?status=Active", controller.signal)
+    choices<EmployeeSummary>(
+      api,
+      "/employee-labels?status=Active",
+      controller.signal,
+    )
       .then((rows) => {
         setOwners(
           rows.filter((person) =>
@@ -593,7 +597,9 @@ export function CaseDetailPage({
               }
             />
             <InfoField
-              label="Variant / PF amount"
+              label={
+                item.requestedPfAmount ? "Requested PF amount" : "CC variant"
+              }
               value={
                 item.requestedPfAmount ? (
                   <MonetaryAmount
@@ -611,6 +617,18 @@ export function CaseDetailPage({
                 )
               }
             />
+            {item.requestedPfAmount ? (
+              <InfoField
+                label="Final approved/disbursed PF amount"
+                value={
+                  <MonetaryAmount
+                    value={item.finalPfAmount}
+                    compact={false}
+                    align="start"
+                  />
+                }
+              />
+            ) : null}
           </InfoGrid>
         </SectionCard>
 

@@ -44,9 +44,21 @@ case_financial_results = Table(
     Column("cc_points", Integer),
     Column("commission_aed", Numeric(18, 0)),
     Column("pf_amount_aed", Numeric(18, 0)),
+    Column("pf_commission_per_1000", Numeric(18, 0)),
+    Column("pf_amount_basis", String(32)),
     Column("rule_effective_date", Date, nullable=False),
     created_at(),
     CheckConstraint("product_code IN ('CC','PF')"),
     CheckConstraint("cc_points IS NULL OR cc_points > 0"),
+    CheckConstraint(
+        "(pf_amount_basis IS NULL AND pf_commission_per_1000 IS NULL) OR "
+        "(pf_amount_basis IS NOT NULL AND pf_amount_basis = 'final_approved_disbursed' "
+        "AND product_code = 'PF' "
+        "AND cc_points IS NULL AND pf_amount_aed IS NOT NULL AND pf_amount_aed > 0 "
+        "AND pf_commission_per_1000 IS NOT NULL AND pf_commission_per_1000 >= 0 "
+        "AND commission_aed IS NOT NULL "
+        "AND commission_aed = round(pf_amount_aed * pf_commission_per_1000 / 1000))",
+        name="ck_financial_result_pf_rate",
+    ),
     Index("ix_case_financial_results_owner_time", "credited_owner_employee_id", "completed_at"),
 )
