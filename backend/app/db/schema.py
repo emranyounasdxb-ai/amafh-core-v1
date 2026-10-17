@@ -3,6 +3,7 @@
 from . import (  # noqa: F401
     assets,
     attendance,
+    calls,
     cases,
     finance,
     hr_records,

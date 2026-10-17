@@ -1,0 +1,16 @@
+.calls-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calls-player {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.calls-player audio {
+  width: 100%;
+  max-width: 100%;
+}

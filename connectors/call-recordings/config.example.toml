@@ -1,0 +1,14 @@
+# Local and future production template. Replace placeholders. Do not put a
+# token in this file. The token file and state directory must stay outside the
+# recording archive. bind_host must be loopback for local work, or the private
+# tunnel address after a separately authorized setup. 0.0.0.0 is refused.
+# 10.203.250.2, 200.234.44.46, and UDP 51820 are not active configuration.
+
+source_root = "D:/PABXCallRecording/PBX_Recordings_C074AD2AF231"
+state_directory = "C:/ProgramData/AMAFH/call-recordings"
+token_file = "C:/ProgramData/AMAFH/call-recordings/connector.token"
+bind_host = "127.0.0.1"
+bind_port = 8765
+settle_seconds = 2
+reconcile_seconds = 300
+journal_keep = 50000

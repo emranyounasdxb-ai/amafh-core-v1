@@ -24,6 +24,7 @@ import { ReportsPage } from "../../features/reports/ReportsPage";
 import { PerformancePage } from "../../features/performance/live/PerformancePage";
 import { SettingsPage } from "../../features/settings/live/SettingsPage";
 import { EmailPage } from "../../features/email/EmailPage";
+import { CallsPage } from "../../features/calls/CallsPage";
 import type { AppRoute } from "./routes";
 import {
   HrCertificatesPage,
@@ -299,6 +300,8 @@ export function LiveRoutes({
       return <FinancePage />;
     case "reports":
       return <ReportsPage />;
+    case "calls":
+      return <CallsPage />;
     case "email-inbox":
     case "email-drafts":
     case "email-sent":

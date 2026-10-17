@@ -41,7 +41,8 @@ export type PageId =
   | "email-sent"
   | "email-deleted"
   | "email-spam"
-  | "email-archive";
+  | "email-archive"
+  | "calls";
 
 export const lockedDesignations: readonly Designation[] = [
   "Owner",
@@ -97,6 +98,12 @@ const FINANCE_LEDGERS: readonly Designation[] = [
   "Owner",
   "Managing Director",
   "Finance",
+];
+const CALLS_ROLES: readonly Designation[] = [
+  "Owner",
+  "Managing Director",
+  "Sales Manager",
+  "Coordinator",
 ];
 
 // HR & PRO entries open Employee Detail sections, so they also need the Employees module.
@@ -163,6 +170,8 @@ export function canOpenPage(session: AccessSession, page: PageId) {
       return has(session, "report.read");
     case "settings":
       return SETTINGS_MODULE.includes(session.designation);
+    case "calls":
+      return CALLS_ROLES.includes(session.designation);
   }
 }
 export function canImportBankStages(session: AccessSession) {

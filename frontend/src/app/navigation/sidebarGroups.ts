@@ -23,6 +23,7 @@ export const sidebarGroups: ProductionNavGroup[] = [
       { id: "my-cases", label: "Own Cases", icon: "cases" },
       { id: "my-wallet", label: "My Wallet", icon: "finance" },
       { id: "email-inbox", label: "Email", icon: "mail" },
+      { id: "calls", label: "Calls", icon: "phone" },
     ],
   },
   {
@@ -112,6 +113,7 @@ export const pageTitles: Record<PageId, string> = {
   "email-deleted": "Deleted",
   "email-spam": "Spam/Junk",
   "email-archive": "Archive",
+  calls: "Calls",
 };
 
 export function sidebarActiveId(

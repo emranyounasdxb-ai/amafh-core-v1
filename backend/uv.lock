@@ -29,6 +29,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
+    { name = "httpx" },
     { name = "nh3" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
@@ -45,7 +46,6 @@ dependencies = [
 
 [package.optional-dependencies]
 test = [
-    { name = "httpx" },
     { name = "mypy" },
     { name = "pymupdf" },
     { name = "pytest" },
@@ -63,7 +63,7 @@ requires-dist = [
     { name = "fastapi", specifier = "==0.139.2" },
     { name = "google-api-python-client", specifier = "==2.200.0" },
     { name = "google-auth", specifier = "==2.58.1" },
-    { name = "httpx", marker = "extra == 'test'", specifier = "==0.28.1" },
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "mypy", marker = "extra == 'test'", specifier = "==2.3.1" },
     { name = "nh3", specifier = "==0.3.7" },
     { name = "pillow", specifier = "==12.3.0" },

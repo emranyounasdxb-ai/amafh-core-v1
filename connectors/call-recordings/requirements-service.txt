@@ -1,0 +1,5 @@
+# Optional Windows Service extra. Console mode does not install this.
+# From connectors/call-recordings, on the machine that will register the service:
+#   python -m pip install ".[service]"
+# This file was not hash-locked here: pywin32 was not downloaded or installed.
+pywin32==311

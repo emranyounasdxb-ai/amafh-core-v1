@@ -36,6 +36,19 @@ class Settings(BaseSettings):
     mail_sync_batch: int = 50
     mail_sync_lease_seconds: int = 60
     mail_sync_attempts: int = 5
+    calls_enabled: bool = False
+    calls_connector_url: str = ""
+    calls_connector_token: str = ""
+    calls_source_name: str = "Call recordings"
+    calls_sync_interval_seconds: float = 10
+    calls_sync_batch: int = 200
+    calls_sync_lease_seconds: int = 60
+    calls_stream_slots: int = 16
+    calls_stream_per_user: int = 3
+    calls_stream_chunk_bytes: int = 65536
+    calls_auth_recheck_seconds: int = 15
+    calls_connect_timeout_seconds: float = 5
+    calls_stream_idle_seconds: float = 30
 
     @field_validator("database_url")
     @classmethod
@@ -96,6 +109,24 @@ class Settings(BaseSettings):
             raise ValueError("mail_provider_message_bytes must be positive when set")
         if self.mailbox_key_file is not None and not self.mailbox_key_file.is_absolute():
             raise ValueError("AMAFH_MAILBOX_KEY_FILE must be an absolute path")
+        self.calls_connector_url = _calls_connector_url(self.calls_connector_url)
+        if any(character in self.calls_connector_token for character in "\r\n\0"):
+            raise ValueError("AMAFH_CALLS_CONNECTOR_TOKEN is unusable")
+        if self.calls_auth_recheck_seconds < 1 or self.calls_auth_recheck_seconds > 15:
+            raise ValueError("calls_auth_recheck_seconds must be from 1 to 15")
+        for name in (
+            "calls_sync_batch",
+            "calls_sync_lease_seconds",
+            "calls_stream_slots",
+            "calls_stream_per_user",
+            "calls_stream_chunk_bytes",
+        ):
+            if getattr(self, name) < 1:
+                raise ValueError(f"{name} must be positive")
+        if self.calls_sync_interval_seconds <= 0 or self.calls_connect_timeout_seconds <= 0:
+            raise ValueError("Calls timeouts must be positive")
+        if self.calls_stream_idle_seconds <= 0:
+            raise ValueError("calls_stream_idle_seconds must be positive")
         return self
 
     def effective_message_bytes(self) -> int:
@@ -103,6 +134,44 @@ class Settings(BaseSettings):
         if provider is None:
             return self.mail_message_bytes
         return min(self.mail_message_bytes, provider)
+
+
+def _calls_connector_url(value: str) -> str:
+    text = value.strip().rstrip("/")
+    if not text:
+        return ""
+    from urllib.parse import urlsplit
+
+    parsed = urlsplit(text)
+    host = parsed.hostname
+    if (
+        parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in {"", "/"}
+        or host in {None, "0.0.0.0", "::"}
+        or parsed.scheme not in {"http", "https"}
+    ):
+        raise ValueError("AMAFH_CALLS_CONNECTOR_URL must be a bare connector origin")
+    private = host in {"127.0.0.1", "localhost"} or _private_host(host)
+    if parsed.scheme == "http" and not private:
+        raise ValueError("Calls connector HTTP is only allowed for loopback or a private host")
+    return text
+
+
+def _private_host(host: str) -> bool:
+    parts = host.split(".")
+    if len(parts) != 4 or not all(part.isdigit() for part in parts):
+        return False
+    numbers = [int(part) for part in parts]
+    if any(number > 255 for number in numbers):
+        return False
+    if numbers[0] == 10:
+        return True
+    if numbers[0] == 192 and numbers[1] == 168:
+        return True
+    return numbers[0] == 172 and 16 <= numbers[1] <= 31
 
 
 @lru_cache

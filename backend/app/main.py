@@ -2,13 +2,16 @@
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.api.assets import router as assets_router
 from app.api.attendance import router as attendance_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.branding import router as branding_router
+from app.api.calls import router as calls_router
 from app.api.cases import router as cases_router
 from app.api.catalog import router as catalog_router
 from app.api.customers import router as customers_router
@@ -38,12 +41,16 @@ from app.upload_limits import UploadBodyLimit
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    from app.calls.sync import start_worker as start_calls_worker
+    from app.calls.sync import stop_worker as stop_calls_worker
     from app.mail.sync import start_worker, stop_worker
 
     await start_worker()
     try:
+        await start_calls_worker()
         yield
     finally:
+        await stop_calls_worker()
         await stop_worker()
 
 
@@ -59,11 +66,62 @@ def create_app() -> FastAPI:
     )
 
 
+class SameOriginMutations:
+    """Reject cross-origin mutations and mark responses private without buffering bodies."""
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        method = scope.get("method", "GET")
+        path = scope.get("path", "")
+        if path.startswith("/api/v1/") and method not in {"GET", "HEAD", "OPTIONS"}:
+            origin = _header(scope, b"origin")
+            if origin != str(settings().public_origin).rstrip("/"):
+                response = JSONResponse(
+                    {
+                        "code": "ORIGIN_INVALID",
+                        "message": "Invalid request origin",
+                        "fieldErrors": {},
+                    },
+                    status_code=403,
+                    headers={"Referrer-Policy": "no-referrer", "Cache-Control": "no-store"},
+                )
+                await response(scope, receive, send)
+                return
+
+        async def send_headers(message):
+            if message["type"] == "http.response.start":
+                headers = [
+                    (key, value)
+                    for key, value in message.get("headers", [])
+                    if key.lower() not in {b"referrer-policy", b"cache-control"}
+                ]
+                headers.append((b"referrer-policy", b"no-referrer"))
+                headers.append((b"cache-control", b"no-store"))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_headers)
+
+
+def _header(scope: Scope, name: bytes) -> str | None:
+    for key, value in scope.get("headers", []):
+        if key.lower() == name:
+            return value.decode("latin-1")
+    return None
+
+
 app = create_app()
 app.add_middleware(AuthThrottle)
 app.add_middleware(UploadBodyLimit)
+app.add_middleware(SameOriginMutations)
 install_error_handlers(app)
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(calls_router, prefix="/api/v1")
 app.include_router(catalog_router, prefix="/api/v1")
 app.include_router(cases_router, prefix="/api/v1")
 app.include_router(customers_router, prefix="/api/v1")
@@ -89,23 +147,6 @@ app.include_router(team_lifecycle_router, prefix="/api/v1")
 app.include_router(targets_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")
 app.include_router(table_exports_router, prefix="/api/v1")
-
-
-@app.middleware("http")
-async def same_origin_mutations(request: Request, call_next):
-    if request.url.path.startswith("/api/v1/") and request.method not in {"GET", "HEAD", "OPTIONS"}:
-        origin = request.headers.get("origin")
-        if origin != str(settings().public_origin).rstrip("/"):
-            from fastapi.responses import JSONResponse
-
-            return JSONResponse(
-                {"code": "ORIGIN_INVALID", "message": "Invalid request origin", "fieldErrors": {}},
-                status_code=403,
-            )
-    response = await call_next(request)
-    response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Cache-Control"] = "no-store"
-    return response
 
 
 @app.get("/api/v1/health")

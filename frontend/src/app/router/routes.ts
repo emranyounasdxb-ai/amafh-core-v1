@@ -36,6 +36,7 @@ const paths: Record<
   "email-deleted": "/email/deleted",
   "email-spam": "/email/spam",
   "email-archive": "/email/archive",
+  calls: "/calls",
 };
 
 const recordPages: readonly PageId[] = [
