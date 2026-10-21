@@ -49,7 +49,8 @@ def _view(row) -> dict:
         "employeeCode": row["company_employee_code"],
         "avatarFileId": str(row["avatar_file_id"]) if row["avatar_file_id"] else None,
         "designation": row["designation"],
-        "branch": row["branch"],
+        # Management scope covers every branch, regardless of home-office assignment.
+        "branch": None if row["designation"] in {"Owner", "Managing Director"} else row["branch"],
         "accountStatus": row["access_status"],
         "employeeStatus": row["employee_status"],
         "granted": granted,
