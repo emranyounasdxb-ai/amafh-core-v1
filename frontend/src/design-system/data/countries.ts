@@ -240,8 +240,7 @@ export function countryOptions(records = countryRecords) {
 export function nationalityOptions(records = countryRecords) {
   return records.map((item) => ({
     value: item.code,
-    label: item.nationality,
-    description: `${item.name} · ${item.code}`,
+    label: item.name,
     keywords: [item.nationality, item.name, item.code],
   }));
 }

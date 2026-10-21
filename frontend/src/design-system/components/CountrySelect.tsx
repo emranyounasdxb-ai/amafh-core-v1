@@ -116,7 +116,7 @@ export function NationalitySelect({
       readOnly={readOnly}
       invalid={invalid}
       options={withFlag(nationalityOptions().filter((option) => !excludedCodes.includes(option.value)))}
-      placeholder="Search nationality or ISO code"
+      placeholder="Search country"
     />
   );
 }
