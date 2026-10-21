@@ -16,7 +16,8 @@ export type SettingsSectionId =
   | "uae-holidays"
   | "audit"
   | "branding"
-  | "hr-documents";
+  | "hr-documents"
+  | "calls-access";
 
 export type SettingsSection = {
   id: SettingsSectionId;
@@ -149,6 +150,15 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     description: "Immutable audit events and exports",
     roles: ADMIN,
     requires: "audit.read",
+  },
+  {
+    id: "calls-access",
+    group: "Governance and branding",
+    title: "Call recordings access",
+    description: "Allow or block Calls for individual eligible users",
+    roles: ["Owner"],
+    requires: "permissions.write",
+    manage: "permissions.write",
   },
   {
     id: "branding",

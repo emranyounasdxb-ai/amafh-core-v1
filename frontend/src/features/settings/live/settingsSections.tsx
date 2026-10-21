@@ -1,4 +1,5 @@
 import { CatalogSettings } from "./CatalogSettings";
+import { CallsAccessSettings } from "./CallsAccessSettings";
 import { HolidaySettings, OfficeTimingSettings } from "./CalendarSettings";
 import { BrandingSettings } from "./GovernanceSettings";
 import { HrDocumentSettings } from "./HrDocumentSettings";
@@ -14,6 +15,8 @@ import { TargetSettings } from "./TargetSettings";
 
 export function SettingsSectionContent({ id }: { id: SettingsSectionId }) {
   switch (id) {
+    case "calls-access":
+      return <CallsAccessSettings />;
     case "business-units":
       return <BusinessUnitSettings />;
     case "branches":

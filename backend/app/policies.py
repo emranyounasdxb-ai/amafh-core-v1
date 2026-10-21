@@ -238,6 +238,7 @@ class Actor:
     session_id: UUID
     csrf_hash: str
     grants: frozenset[str] = frozenset()
+    calls_access: bool = False
 
 
 def require(actor: Actor, permission: str) -> None:

@@ -3,13 +3,14 @@
 import contextlib
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Request
+from fastapi import APIRouter, Cookie, Query, Request
 from fastapi.responses import Response, StreamingResponse
 
 from app.api.dependencies import ActorDep, CsrfActor, Db
 from app.audit import record
 from app.calls import client as connector_client
 from app.calls import stream as stream_mod
+from app.calls.access import list_access, set_access
 from app.calls.catalog import months as list_months
 from app.calls.catalog import number_suggestions as suggest_numbers
 from app.calls.catalog import search as search_catalog
@@ -34,10 +35,33 @@ from app.calls.stream import (
 )
 from app.db.session import session_factory
 from app.errors import ApiError
-from app.schemas.calls import NumberSuggestionsBody, SearchBody
+from app.schemas.calls import CallsAccessUpdate, NumberSuggestionsBody, SearchBody
 from app.services import auth
 
 router = APIRouter(prefix="/calls", tags=["calls"])
+
+
+@router.get("/access")
+async def calls_access_list(
+    actor: ActorDep,
+    db: Db,
+    query: str = Query(default="", max_length=100),
+    page: int = Query(default=1, ge=1),
+    pageSize: int = Query(default=25, ge=1, le=50),
+):
+    return await list_access(db, actor, query=query, page=page, page_size=pageSize)
+
+
+@router.patch("/access/{account_id}")
+async def calls_access_update(
+    account_id: UUID,
+    payload: CallsAccessUpdate,
+    actor: CsrfActor,
+    db: Db,
+):
+    return await set_access(
+        db, actor, account_id, granted=payload.granted, revision=payload.revision
+    )
 
 
 @router.get("/months")

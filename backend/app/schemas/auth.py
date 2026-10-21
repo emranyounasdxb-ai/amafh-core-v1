@@ -35,4 +35,5 @@ class CurrentUser(BaseModel):
     departmentId: str | None
     teamId: str | None
     permissions: list[str]
+    callsAccess: bool
     csrfToken: str | None = None

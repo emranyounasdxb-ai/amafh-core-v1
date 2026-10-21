@@ -10,6 +10,7 @@ export type AuthenticatedSession = {
   departmentId: string | null;
   teamId: string | null;
   permissions: string[];
+  callsAccess: boolean;
 };
 
 export interface SessionGateway {

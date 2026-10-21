@@ -4,6 +4,7 @@ from fastapi import APIRouter, Response
 from sqlalchemy import select
 
 from app.api.dependencies import ActorDep, CsrfActor, Db
+from app.calls.policy import calls_access
 from app.db.organization import employees, team_memberships, teams
 from app.repositories import permissions as permission_rows
 from app.schemas.auth import CurrentUser, LinkRequest, LoginRequest, PasswordChange
@@ -42,6 +43,7 @@ def public_user(row: dict, team_id, grants: frozenset[str], csrf: str | None = N
         departmentId=str(row["department_id"]) if row["department_id"] else None,
         teamId=str(team_id) if team_id else None,
         permissions=sorted(grants),
+        callsAccess=calls_access(row["designation"], row["calls_access_granted"] is True),
         csrfToken=csrf,
     )
 
@@ -77,6 +79,7 @@ async def me(actor: ActorDep, db: Db):
         "departmentId": str(actor.department_id) if actor.department_id else None,
         "teamId": str(team_id) if team_id else None,
         "permissions": sorted(actor.grants),
+        "callsAccess": actor.calls_access,
     }
 
 

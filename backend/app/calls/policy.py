@@ -1,4 +1,4 @@
-"""Fixed Calls access. Permission overrides cannot widen this boundary."""
+"""Fixed Calls role eligibility plus the Owner-managed individual grant."""
 
 import re
 
@@ -13,8 +13,13 @@ MAX_PAGE_SIZE = 50
 
 
 def require_calls(actor: Actor) -> None:
-    if actor.designation not in CALLS_ROLES:
+    if not calls_access(actor.designation, actor.calls_access):
         raise ApiError(403, "FORBIDDEN", "Access denied")
+
+
+def calls_access(designation: str, granted: bool) -> bool:
+    """Owner access stays protected; an individual grant cannot widen role eligibility."""
+    return designation == "Owner" or (designation in CALLS_ROLES and granted)
 
 
 def clean_month(value: object) -> str:

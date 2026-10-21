@@ -8,6 +8,7 @@ from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
+from app.calls.policy import calls_access
 from app.config import settings
 from app.db.base import utcnow
 from app.db.organization import (
@@ -233,6 +234,7 @@ async def resolve(session: AsyncSession, raw_session: str | None) -> Actor:
         session_row["id"],
         session_row["csrf_hash"],
         grants,
+        calls_access(row["designation"], row["calls_access_granted"] is True),
     )
 
 

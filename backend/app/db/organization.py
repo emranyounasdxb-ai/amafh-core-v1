@@ -339,10 +339,14 @@ user_accounts = Table(
     Column("password_hash", Text),
     Column("failed_attempts", Integer, nullable=False, server_default="0"),
     Column("locked_at", DateTime(timezone=True)),
+    Column("calls_access_granted", Boolean, nullable=False, server_default="true"),
+    Column("calls_access_revision", Integer, nullable=False, server_default="0"),
+    Column("calls_access_updated_at", DateTime(timezone=True)),
     created_at(),
     updated_at(),
     CheckConstraint("access_status IN ('Not Provisioned','Active','Disabled')"),
     CheckConstraint("failed_attempts >= 0"),
+    CheckConstraint("calls_access_revision >= 0", name="ck_user_calls_access_revision"),
     CheckConstraint(
         "login_email IS NULL OR (login_email = lower(btrim(login_email)) "
         "AND login_email ~ '^[^@[:space:]]+@[^@[:space:]]+$')",

@@ -60,6 +60,7 @@ export const lockedDesignations: readonly Designation[] = [
 export type AccessSession = {
   designation: Designation;
   permissions: readonly string[];
+  callsAccess?: boolean;
 };
 
 function has(session: AccessSession, permission: string) {
@@ -171,7 +172,7 @@ export function canOpenPage(session: AccessSession, page: PageId) {
     case "settings":
       return SETTINGS_MODULE.includes(session.designation);
     case "calls":
-      return CALLS_ROLES.includes(session.designation);
+      return CALLS_ROLES.includes(session.designation) && session.callsAccess === true;
   }
 }
 export function canImportBankStages(session: AccessSession) {

@@ -31,6 +31,7 @@ function sameIdentity(a: AuthenticatedSession, b: AuthenticatedSession) {
     a.branchId === b.branchId &&
     a.departmentId === b.departmentId &&
     a.teamId === b.teamId &&
+    a.callsAccess === b.callsAccess &&
     a.permissions.join(" ") === b.permissions.join(" ")
   );
 }
