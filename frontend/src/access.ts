@@ -7,7 +7,8 @@ export type Designation =
   | "Sales Executive"
   | "Admin Staff"
   | "HR"
-  | "Finance";
+  | "Finance"
+  | "Compliance";
 export type PreviewRole = Designation;
 export type PageId =
   | "dashboard"
@@ -54,6 +55,7 @@ export const lockedDesignations: readonly Designation[] = [
   "Admin Staff",
   "HR",
   "Finance",
+  "Compliance",
 ];
 
 /** The signed-in user's User Type and the effective permissions returned by the server. */
@@ -105,6 +107,7 @@ const CALLS_ROLES: readonly Designation[] = [
   "Managing Director",
   "Sales Manager",
   "Coordinator",
+  "Compliance",
 ];
 
 // HR & PRO entries open Employee Detail sections, so they also need the Employees module.

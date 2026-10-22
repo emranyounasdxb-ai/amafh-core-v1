@@ -5,7 +5,9 @@ import re
 from app.errors import ApiError
 from app.policies import Actor
 
-CALLS_ROLES = frozenset({"Owner", "Managing Director", "Sales Manager", "Coordinator"})
+CALLS_ROLES = frozenset(
+    {"Owner", "Managing Director", "Sales Manager", "Coordinator", "Compliance"}
+)
 _PHONE = re.compile(r"\A[0-9]{1,32}\Z")
 _MONTH = re.compile(r"\A[0-9]{4}-(0[1-9]|1[0-2])\Z")
 DEFAULT_PAGE_SIZE = 25

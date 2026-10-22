@@ -49,6 +49,7 @@ PERMISSION_MATRIX: dict[str, frozenset[str]] = {
     "Admin Staff": frozenset(),
     HR: frozenset({"employee.write", "employee.read", "access.write", "password.setup"}),
     FINANCE: frozenset({"employee.read"}),
+    "Compliance": frozenset(),
 }
 
 # Locked V1 permissions are seeded now even when the corresponding service is in a later phase.
@@ -119,6 +120,7 @@ _ADDITIONAL_PERMISSIONS = {
         "hr_letter.write",
     },
     FINANCE: {"case.read", "finance.write", "finance.read", "report.read", "package.read"},
+    "Compliance": set(),
 }
 PERMISSION_MATRIX = {
     role: grants | _ADDITIONAL_PERMISSIONS[role] for role, grants in PERMISSION_MATRIX.items()
@@ -212,6 +214,7 @@ EMPLOYEE_SCOPE = {
     "Sales Executive": "own",
     "Coordinator": "own",
     "Admin Staff": "branch",
+    "Compliance": "own",
 }
 
 CASE_SCOPE = {
@@ -224,6 +227,7 @@ CASE_SCOPE = {
     "Team Leader": "team",
     "Sales Executive": "own",
     "Admin Staff": "none",
+    "Compliance": "none",
 }
 
 

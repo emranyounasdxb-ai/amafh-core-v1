@@ -105,7 +105,9 @@ function leaderNode(leader: OrganizationNode, context: OrganizationContext) {
 
 function managerNode(manager: OrganizationNode, context: OrganizationContext) {
   const staff = manager.children.filter((node) =>
-    ["Coordinator", "Admin Staff"].includes(node.employee.designation),
+    ["Coordinator", "Admin Staff", "Compliance"].includes(
+      node.employee.designation,
+    ),
   );
   const leaders = manager.children.filter(
     (node) => node.employee.designation === "Team Leader",
@@ -141,6 +143,11 @@ export function organizationHierarchy(
       );
       const managers = orderedSalesManagers(director.children, context);
       const children: HierarchyNodeData[] = [];
+      children.push(
+        ...director.children
+          .filter((node) => node.employee.designation === "Compliance")
+          .map((node) => person("person", node)),
+      );
       if (finance.length)
         children.push({
           id: `finance:${director.employee.id}`,

@@ -25,6 +25,7 @@ LOCKED_DESIGNATIONS = (
     "Admin Staff",
     "HR",
     "Finance",
+    "Compliance",
 )
 
 

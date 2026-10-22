@@ -81,7 +81,8 @@ designations = Table(
     created_at(),
     CheckConstraint(
         "name IN ('Owner','Managing Director','Sales Manager','Coordinator',"
-        "'Team Leader','Sales Executive','Admin Staff','HR','Finance') AND locked"
+        "'Team Leader','Sales Executive','Admin Staff','HR','Finance','Compliance') AND locked",
+        name="ck_designation_user_types_locked_names",
     ),
 )
 permissions = Table(

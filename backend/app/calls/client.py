@@ -112,6 +112,7 @@ async def open_content(
     if method not in {"GET", "HEAD"}:
         raise ConnectorFailure("unavailable")
     client = _client()
+    cleanup_client: httpx.AsyncClient | None = client
     response = None
     request_headers = {"X-AMAFH-File-Version": version, **headers}
     try:
@@ -125,16 +126,16 @@ async def open_content(
         if 300 <= response.status_code < 400:
             raise ConnectorFailure("unavailable")
         delivered = (client, response)
-        client = None
+        cleanup_client = None
         response = None
         return delivered
     finally:
         if response is not None:
             with contextlib.suppress(Exception):
                 await response.aclose()
-        if client is not None:
+        if cleanup_client is not None:
             with contextlib.suppress(Exception):
-                await client.aclose()
+                await cleanup_client.aclose()
 
 
 async def iter_bytes(response: httpx.Response) -> AsyncIterator[bytes]:

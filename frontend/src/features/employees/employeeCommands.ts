@@ -26,6 +26,7 @@ const enrollableDesignations = [
   "Admin Staff",
   "HR",
   "Finance",
+  "Compliance",
 ];
 
 function designationChoices(current?: string | null, isOwner = true): Field {

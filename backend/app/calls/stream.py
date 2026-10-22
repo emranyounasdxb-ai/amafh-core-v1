@@ -11,7 +11,8 @@ import asyncio
 import contextlib
 import sys
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
+from types import FrameType
 from urllib.parse import quote
 from uuid import UUID
 
@@ -167,7 +168,7 @@ def _pulling_streaming_response() -> bool:
     through the application and middleware. A direct ``anext`` caller does not
     have that frame and is not given a response owner.
     """
-    frame = sys._getframe()
+    frame: FrameType | None = sys._getframe()
     while frame is not None:
         code = frame.f_code
         if code.co_name == "stream_response" and code.co_filename.replace("\\", "/").endswith(
@@ -212,7 +213,7 @@ class _OwnedByteStream:
     that task ends while the body is suspended, the owner closes it.
     """
 
-    def __init__(self, body: AsyncIterator[bytes]):
+    def __init__(self, body: AsyncGenerator[bytes]):
         self._body = body
         self._driver: asyncio.Task | None = None
         self._supervisor: asyncio.Task | None = None
@@ -279,7 +280,7 @@ async def _byte_chunks(
     client: httpx.AsyncClient,
     user_id: UUID,
     raw_session: str | None,
-) -> AsyncIterator[bytes]:
+) -> AsyncGenerator[bytes]:
     stop = asyncio.Event()
     finish_lock = asyncio.Lock()
     cleanup: asyncio.Task | None = None

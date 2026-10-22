@@ -24,6 +24,7 @@ const displayedRoles = new Set<Designation>([
   "Team Leader",
   "Sales Executive",
   "Finance",
+  "Compliance",
 ]);
 
 const roleOrder: Partial<Record<Designation, number>> = {
@@ -34,6 +35,7 @@ const roleOrder: Partial<Record<Designation, number>> = {
   "Team Leader": 4,
   "Sales Executive": 5,
   Finance: 6,
+  Compliance: 7,
 };
 
 function compare(left: OrganizationNode, right: OrganizationNode) {

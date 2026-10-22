@@ -119,10 +119,10 @@ export function CallsAccessSettings() {
   return (
     <Stack gap={16}>
       <InlineNotice tone="info" title="Individual access">
-        Calls is available only to Owner, Managing Director, Sales Manager and
-        Coordinator. Existing access is preserved until blocked here. Owner
-        access is protected. Allowing Calls does not activate a disabled account
-        or change other permissions.
+        Calls is available only to Owner, Managing Director, Sales Manager,
+        Coordinator and Compliance. Existing access is preserved until blocked
+        here. Owner access is protected. Allowing Calls does not activate a
+        disabled account or change other permissions.
       </InlineNotice>
       {notice ? (
         <InlineNotice
@@ -175,7 +175,7 @@ export function CallsAccessSettings() {
             empty={
               <EmptyState
                 title="No eligible accounts"
-                description="Only provisioned accounts in the four eligible User Types appear here."
+                description="Only provisioned accounts in the eligible Calls User Types appear here."
               />
             }
             columns={[

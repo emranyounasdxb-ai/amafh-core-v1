@@ -228,6 +228,12 @@ function roleKpis(
         : []),
     ];
   }
+  if (role === "Compliance") {
+    return [
+      { id: "tasks", label: "Open tasks", value: count(data.openTaskCount) },
+      { id: "notifications", label: "Unread notifications", value: count(data.unreadNotificationCount) },
+    ];
+  }
   const people = data.employees ?? {};
   return [
     { id: "total", label: "Total employees", value: count(people.totalEmployees) },
