@@ -96,6 +96,7 @@ const CASE_CREATORS: readonly Designation[] = [
   "Sales Manager",
   "Coordinator",
   "Admin Staff",
+  "Compliance",
 ];
 const FINANCE_LEDGERS: readonly Designation[] = [
   "Owner",

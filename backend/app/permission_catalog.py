@@ -148,7 +148,7 @@ def fixed_reason(designation: str, key: str) -> str | None:
     if key == "case.create" and designation not in CASE_CREATORS:
         return (
             "Case creation is limited to Sales Executive, Team Leader, Sales Manager, "
-            "Coordinator and Admin Staff."
+            "Coordinator, Admin Staff and Compliance."
         )
     if designation == OWNER and key in PERMISSION_MATRIX[OWNER]:
         return "The Owner's permissions are fixed. The Owner holds full system authority."
@@ -174,7 +174,8 @@ RESTRICTIONS = (
     {
         "title": "Business-role boundaries",
         "description": "An action can be granted only within the User Type's approved business "
-        "role. Only Sales Executive, Team Leader, Sales Manager, Coordinator and Admin Staff "
+        "role. Only Sales Executive, Team Leader, Sales Manager, Coordinator, Admin Staff "
+        "and Compliance "
         "may create Cases, each for themselves; only a Team Leader may also create Cases for "
         "their Team's Sales Executives. Owner, Managing Director, HR and Finance cannot create "
         "Cases. Creating a Case never widens viewing scope or other Case actions, and every "

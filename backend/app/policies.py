@@ -120,7 +120,7 @@ _ADDITIONAL_PERMISSIONS = {
         "hr_letter.write",
     },
     FINANCE: {"case.read", "finance.write", "finance.read", "report.read", "package.read"},
-    "Compliance": set(),
+    "Compliance": {"case.create"},
 }
 PERMISSION_MATRIX = {
     role: grants | _ADDITIONAL_PERMISSIONS[role] for role, grants in PERMISSION_MATRIX.items()
