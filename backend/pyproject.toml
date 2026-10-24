@@ -21,7 +21,7 @@ dependencies = [
   "reportlab==5.0.1",
   "arabic-reshaper==3.0.1",
   "python-bidi==0.6.11",
-  "pillow==12.3.0",
+  "pillow==13.0.0",
   "pypdf==6.19.0",
   "cryptography==50.0.1",
   "google-api-python-client==2.200.0",
