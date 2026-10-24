@@ -40,6 +40,7 @@ export type CaseRecord = {
   salaryAed?: string | null;
   ownerEmployeeId: string;
   coordinatorEmployeeId: string | null;
+  coordinatorName?: string | null;
   createdByEmployeeId: string;
   branchId: string;
   departmentId: string;

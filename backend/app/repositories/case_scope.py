@@ -7,6 +7,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.db.cases import cases
 from app.db.organization import designations, employees, team_memberships, teams
 from app.policies import Actor
+from app.repositories.reporting_scope import assigned_sales_reports
 
 
 def visible_case(actor: Actor) -> ColumnElement[bool]:
@@ -14,8 +15,21 @@ def visible_case(actor: Actor) -> ColumnElement[bool]:
     if role in {"Owner", "Managing Director", "Finance"}:
         return true()
     if role == "Sales Manager":
-        return and_(
-            cases.c.branch_id == actor.branch_id, cases.c.department_id == actor.department_id
+        report = employees.alias()
+        assigned = exists(
+            select(report.c.id)
+            .where(
+                report.c.id == cases.c.owner_employee_id,
+                report.c.department_id == cases.c.department_id,
+                assigned_sales_reports(actor, report),
+            )
+            .correlate_except(report)
+        )
+        return or_(
+            and_(
+                cases.c.branch_id == actor.branch_id, cases.c.department_id == actor.department_id
+            ),
+            and_(cases.c.branch_id == actor.branch_id, assigned),
         )
     if role == "Coordinator":
         return or_(

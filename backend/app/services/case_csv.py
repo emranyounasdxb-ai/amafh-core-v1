@@ -22,11 +22,11 @@ from app.db.cases import (
     product_types,
 )
 from app.db.operations import csv_import_batches, csv_import_row_results, notifications
-from app.db.organization import designations, employees
 from app.db.query_sets import text_set, uuid_set
 from app.errors import ApiError
 from app.normalization import identifier
 from app.policies import Actor, require
+from app.repositories.reporting_scope import active_sales_managers
 from app.services import case_import_reads, case_processing_scope, finance_completion
 from app.services.case_corrections import FINAL
 from app.services.idempotency import claim, complete
@@ -392,15 +392,8 @@ async def _notify_final(session: AsyncSession, case: dict, status: str) -> None:
     managers = (
         (
             await session.execute(
-                select(employees.c.id)
-                .select_from(
-                    employees.join(designations, employees.c.designation_id == designations.c.id)
-                )
-                .where(
-                    employees.c.branch_id == case["branch_id"],
-                    employees.c.department_id == case["department_id"],
-                    employees.c.status == "Active",
-                    designations.c.name == "Sales Manager",
+                active_sales_managers(
+                    case["branch_id"], case["department_id"], case["owner_employee_id"]
                 )
             )
         )

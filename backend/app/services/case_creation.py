@@ -17,11 +17,12 @@ from app.db.cases import (
     product_variants,
 )
 from app.db.operations import notifications
-from app.db.organization import branches, departments, designations, employees, user_accounts
+from app.db.organization import branches, departments, designations, employees
 from app.errors import ApiError
 from app.identifiers import DUBAI, new_case_id
 from app.policies import Actor, require
 from app.repositories.case_scope import can_own_for_creator
+from app.repositories.reporting_scope import active_sales_managers as _active_sales_managers
 from app.schemas.cases import CaseCreate
 from app.services.customer_identity import match_or_create
 from app.services.idempotency import claim, complete
@@ -175,31 +176,13 @@ async def _owner_assignment(session: AsyncSession, actor: Actor, owner_id):
         )
     ):
         raise ApiError(403, "OWNER_OUT_OF_SCOPE", "Case Owner is unavailable")
-    await _require_sales_manager(session, row["branch_id"], row["department_id"])
+    await _require_sales_manager(session, row["branch_id"], row["department_id"], owner_id)
     return row
 
 
-def _active_sales_managers(branch_id, department_id):
-    return (
-        select(employees.c.id)
-        .select_from(
-            employees.join(designations, employees.c.designation_id == designations.c.id).join(
-                user_accounts, user_accounts.c.employee_id == employees.c.id
-            )
-        )
-        .where(
-            designations.c.name == "Sales Manager",
-            employees.c.status == "Active",
-            employees.c.branch_id == branch_id,
-            employees.c.department_id == department_id,
-            user_accounts.c.access_status == "Active",
-        )
-    )
-
-
-async def _require_sales_manager(session: AsyncSession, branch_id, department_id) -> None:
-    """Every new Case is approved by a Sales Manager of the owner's Branch and Department."""
-    if await session.scalar(_active_sales_managers(branch_id, department_id).limit(1)):
+async def _require_sales_manager(session: AsyncSession, branch_id, department_id, owner_id) -> None:
+    """Require a department approver or an explicitly assigned CC/PF manager."""
+    if await session.scalar(_active_sales_managers(branch_id, department_id, owner_id).limit(1)):
         return
     branch = await session.scalar(select(branches.c.name).where(branches.c.id == branch_id))
     department = await session.scalar(
@@ -208,14 +191,19 @@ async def _require_sales_manager(session: AsyncSession, branch_id, department_id
     raise ApiError(
         422,
         "SALES_MANAGER_UNAVAILABLE",
-        f"No active Sales Manager is assigned to {branch} / {department}, so the Case cannot "
-        "enter approval. Ask HR to assign a Sales Manager before creating a Case.",
+        f"No active Sales Manager is assigned to {branch} / {department} or to this employee's "
+        "reporting chain, so the Case cannot enter approval. Ask HR to assign a Sales Manager "
+        "before creating a Case.",
     )
 
 
-async def _notify_sales_managers(session: AsyncSession, case_id, branch_id, department_id) -> None:
+async def _notify_sales_managers(
+    session: AsyncSession, case_id, branch_id, department_id, owner_id
+) -> None:
     recipients = (
-        (await session.execute(_active_sales_managers(branch_id, department_id))).scalars().all()
+        (await session.execute(_active_sales_managers(branch_id, department_id, owner_id)))
+        .scalars()
+        .all()
     )
     for recipient in recipients:
         await session.execute(
@@ -292,7 +280,9 @@ async def create_case(
                 context={"customerReused": reused},
             )
         )
-        await _notify_sales_managers(session, case_id, owner["branch_id"], owner["department_id"])
+        await _notify_sales_managers(
+            session, case_id, owner["branch_id"], owner["department_id"], owner_id
+        )
         await audit.record(
             session,
             actor=actor.employee_id,

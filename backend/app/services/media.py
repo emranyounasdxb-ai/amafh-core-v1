@@ -12,6 +12,7 @@ from app.db.operations import stored_files
 from app.db.organization import employees, team_memberships, teams
 from app.errors import ApiError
 from app.policies import Actor, employee_visible, require
+from app.repositories.employee_scope import employee_query
 from app.services import catalog
 from app.services.media_storage import MAX_UPLOAD_BYTES, path_for, validated_image, write_image
 
@@ -37,13 +38,17 @@ async def _employee(
         raise ApiError(403, "FORBIDDEN", "Access denied")
     if write and actor.employee_id != employee_id:
         require(actor, "employee.write")
-    query = select(employees).where(employees.c.id == employee_id)
+    query = (
+        employee_query(actor)
+        if not write and actor.designation == "Sales Manager"
+        else select(employees)
+    ).where(employees.c.id == employee_id)
     if write:
         query = query.with_for_update()
     row = (await session.execute(query)).mappings().one_or_none()
     if row is None:
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
-    if not write:
+    if not write and actor.designation != "Sales Manager":
         member_ids: set[UUID] = set()
         if actor.designation == "Team Leader":
             member_ids = set(

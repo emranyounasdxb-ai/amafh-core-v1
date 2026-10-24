@@ -151,6 +151,17 @@ async def get_history(case_id: UUID, db: Db, actor: ActorDep):
     return await case_read.get_history(db, actor, case_id)
 
 
+@router.get("/cases/{case_id}/approval-coordinators")
+async def approval_coordinators(
+    case_id: UUID,
+    db: Db,
+    actor: ActorDep,
+    page: int = Query(1, ge=1),
+    pageSize: int = Query(25, ge=1, le=100),
+):
+    return await case_read.approval_coordinators(db, actor, case_id, page=page, page_size=pageSize)
+
+
 @router.post("/cases/{case_id}/approval")
 async def approve_case(
     case_id: UUID,

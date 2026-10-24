@@ -20,7 +20,7 @@ from app.db.cases import (
     product_types,
     product_variants,
 )
-from app.db.organization import branches
+from app.db.organization import branches, designations, employees
 from app.errors import ApiError
 from app.policies import Actor, require
 from app.repositories.case_scope import case_access, own_case, visible_case
@@ -231,14 +231,82 @@ async def list_cases(
 
 
 async def get_case(session: AsyncSession, actor: Actor, case_id: UUID) -> dict:
+    coordinator_name = (
+        select(employees.c.full_name)
+        .where(employees.c.id == cases.c.coordinator_employee_id)
+        .scalar_subquery()
+    )
     row = (
-        (await session.execute(select(cases).where(cases.c.id == case_id, case_access(actor))))
+        (
+            await session.execute(
+                select(cases, coordinator_name.label("coordinator_name")).where(
+                    cases.c.id == case_id, case_access(actor)
+                )
+            )
+        )
         .mappings()
         .one_or_none()
     )
     if row is None:
         raise ApiError(404, "NOT_FOUND", "Record unavailable")
-    return _case(row)
+    return {**_case(row), "coordinatorName": row["coordinator_name"]}
+
+
+async def approval_coordinators(
+    session: AsyncSession, actor: Actor, case_id: UUID, *, page: int, page_size: int
+) -> dict:
+    """Minimal Coordinator choices for one authorized Case, without opening profiles."""
+    require(actor, "case.approve")
+    record = await get_case(session, actor, case_id)
+    visible = employee_query(actor).with_only_columns(employees.c.id).subquery()
+    eligible = (
+        select(
+            employees.c.id,
+            employees.c.full_name,
+            employees.c.company_employee_code,
+            employees.c.status,
+            employees.c.branch_id,
+            employees.c.department_id,
+            case(
+                (employees.c.id.in_(select(visible.c.id)), employees.c.avatar_file_id), else_=None
+            ).label("avatar_file_id"),
+            designations.c.name.label("designation"),
+        )
+        .join(designations, designations.c.id == employees.c.designation_id)
+        .where(
+            employees.c.status == "Active",
+            designations.c.name == "Coordinator",
+            employees.c.branch_id == UUID(record["branchId"]),
+            employees.c.department_id == UUID(record["departmentId"]),
+        )
+    )
+    total = await session.scalar(select(func.count()).select_from(eligible.subquery())) or 0
+    rows = (
+        await session.execute(
+            eligible.order_by(employees.c.full_name, employees.c.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).mappings()
+    return {
+        "items": [
+            {
+                "id": str(row["id"]),
+                "fullName": row["full_name"],
+                "employeeCode": row["company_employee_code"],
+                "companyEmployeeCode": row["company_employee_code"],
+                "designation": row["designation"],
+                "status": row["status"],
+                "branchId": str(row["branch_id"]),
+                "departmentId": str(row["department_id"]),
+                "avatarFileId": str(row["avatar_file_id"]) if row["avatar_file_id"] else None,
+            }
+            for row in rows
+        ],
+        "total": total,
+        "page": page,
+        "pageSize": page_size,
+    }
 
 
 async def get_history(session: AsyncSession, actor: Actor, case_id: UUID) -> dict:

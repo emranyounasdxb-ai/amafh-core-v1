@@ -18,7 +18,7 @@ from app.db.organization import designations, employees
 from app.errors import ApiError
 from app.normalization import identifier
 from app.policies import Actor, require
-from app.services import case_processing_scope
+from app.services import case_approval_scope, case_processing_scope
 from app.services.idempotency import claim, complete
 from app.services.notification_events import notify
 from app.services.pipelines import _valid_stage_set
@@ -40,6 +40,7 @@ async def approve(
 ) -> dict:
     require(actor, "case.approve")
     try:
+        await case_approval_scope.lock_manager(session, actor)
         record_id, replay = await claim(
             session,
             actor,
@@ -48,15 +49,15 @@ async def approve(
             {"caseId": str(case_id), "coordinatorId": str(coordinator_id)},
         )
         if replay is not None:
+            await case_approval_scope.require_case(
+                session, actor, await _locked_case(session, case_id)
+            )
             await session.rollback()
             return replay
         row = await _locked_case(session, case_id)
+        await case_approval_scope.require_case(session, actor, row)
         if row["administratively_voided_at"] is not None:
             raise ApiError(409, "CASE_VOIDED", "Case is administratively voided")
-        if actor.designation == "Sales Manager" and (
-            actor.branch_id != row["branch_id"] or actor.department_id != row["department_id"]
-        ):
-            raise ApiError(404, "NOT_FOUND", "Record unavailable")
         if row["current_status"] != "Pending for Approval":
             raise ApiError(409, "CASE_NOT_PENDING", "Case is not pending approval")
         coordinator = (

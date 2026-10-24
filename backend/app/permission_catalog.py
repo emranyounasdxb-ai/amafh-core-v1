@@ -82,6 +82,9 @@ SCOPE_LABELS = {
     "all": "Company-wide",
     "branch": "Assigned Branch",
     "department": "Assigned Branch and Department",
+    "department_and_reports": (
+        "Assigned Branch and Department, plus assigned CC/PF employees and their Cases"
+    ),
     "team": "Own and direct Team",
     "own": "Own records",
     "assigned": "Assigned, then booked in Branch and Department",
@@ -128,6 +131,8 @@ def data_scope(designation: str, key: str) -> str:
     """The record scope the existing server rules apply to a granted action."""
     if key == "case.create":
         return "team" if designation == "Team Leader" else "own"
+    if designation == "Sales Manager" and key in {"employee.read", "case.read", "case.approve"}:
+        return "department_and_reports"
     if key == "case.csv" and designation == "Coordinator":
         return "department"
     if key.startswith("case."):

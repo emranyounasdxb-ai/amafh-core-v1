@@ -8,7 +8,9 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
+from app.db.cases import product_types
 from app.db.organization import (
+    departments,
     designations,
     employees,
     team_leader_history,
@@ -17,7 +19,27 @@ from app.db.organization import (
 )
 from app.errors import ApiError
 from app.policies import Actor
+from app.services.department_products import TARGET_PRODUCT_CODES
 from app.services.notification_events import notify
+
+
+async def _sales_departments(session: AsyncSession, department_ids: set[UUID | None]) -> set[UUID]:
+    """Resolve configured CC/PF departments without guessing from display names."""
+    ids = {value for value in department_ids if value is not None}
+    if len(ids) < 2:
+        return set()
+    return set(
+        await session.scalars(
+            select(departments.c.id)
+            .join(product_types, departments.c.product_type_id == product_types.c.id)
+            .where(
+                departments.c.id.in_(ids),
+                departments.c.active.is_(True),
+                product_types.c.active.is_(True),
+                product_types.c.code.in_(TARGET_PRODUCT_CODES),
+            )
+        )
+    )
 
 
 def _eligible_manager(
@@ -27,19 +49,23 @@ def _eligible_manager(
     employee_role: str,
     employee_branch: UUID | None,
     employee_department: UUID | None,
+    *,
+    sales_departments: set[UUID] | frozenset[UUID] = frozenset(),
 ) -> bool:
     if manager_role in {"Owner", "Managing Director"}:
         return True
+    same_branch = manager_branch is not None and manager_branch == employee_branch
     same_scope = (
-        manager_branch is not None
-        and manager_department is not None
-        and manager_branch == employee_branch
-        and manager_department == employee_department
+        same_branch and manager_department is not None and manager_department == employee_department
     )
-    return same_scope and (
-        manager_role == "Sales Manager"
-        or (manager_role == "Team Leader" and employee_role == "Sales Executive")
-    )
+    if manager_role == "Sales Manager" and same_branch:
+        # A CC/PF Sales Manager may supervise the other sales product in their
+        # Branch. A reporting link never opens an entire second Department or
+        # changes Team-write eligibility.
+        return same_scope or (
+            manager_department in sales_departments and employee_department in sales_departments
+        )
+    return same_scope and (manager_role == "Team Leader" and employee_role == "Sales Executive")
 
 
 async def validate_manager(
@@ -74,6 +100,11 @@ async def validate_manager(
     )
     if not manager or manager["status"] != "Active":
         raise ApiError(422, "INVALID_MANAGER", "Reporting Manager must be active")
+    sales_departments = (
+        await _sales_departments(session, {manager["department_id"], department_id})
+        if manager["role"] == "Sales Manager"
+        else set()
+    )
     if not _eligible_manager(
         manager["role"],
         manager["branch_id"],
@@ -81,6 +112,7 @@ async def validate_manager(
         role or "",
         branch_id,
         department_id,
+        sales_departments=sales_departments,
     ):
         raise ApiError(422, "INVALID_MANAGER", "Reporting Manager is outside the approved scope")
 
@@ -94,17 +126,30 @@ async def guard_direct_reports(
     status: str,
 ) -> None:
     reports = (
-        await session.execute(
-            select(
-                employees.c.branch_id, employees.c.department_id, designations.c.name.label("role")
-            )
-            .join(designations, employees.c.designation_id == designations.c.id)
-            .where(
-                employees.c.reporting_manager_id == manager_id,
-                employees.c.status != "Offboarded",
+        (
+            await session.execute(
+                select(
+                    employees.c.branch_id,
+                    employees.c.department_id,
+                    designations.c.name.label("role"),
+                )
+                .join(designations, employees.c.designation_id == designations.c.id)
+                .where(
+                    employees.c.reporting_manager_id == manager_id,
+                    employees.c.status != "Offboarded",
+                )
             )
         )
-    ).mappings()
+        .mappings()
+        .all()
+    )
+    sales_departments = (
+        await _sales_departments(
+            session, {department_id, *(report["department_id"] for report in reports)}
+        )
+        if role == "Sales Manager" and reports
+        else set()
+    )
     for report in reports:
         if status != "Active" or not _eligible_manager(
             role,
@@ -113,6 +158,7 @@ async def guard_direct_reports(
             report["role"],
             report["branch_id"],
             report["department_id"],
+            sales_departments=sales_departments,
         ):
             raise ApiError(409, "MANAGER_IN_USE", "Reassign direct reports before this change")
 

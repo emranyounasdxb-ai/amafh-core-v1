@@ -81,6 +81,7 @@ const PERFORMANCE_MODULE: readonly Designation[] = [
 const EMPLOYEE_MODULE: readonly Designation[] = [
   "Owner",
   "Managing Director",
+  "Sales Manager",
   "HR",
   "Finance",
 ];

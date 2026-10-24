@@ -1,9 +1,10 @@
 """Shared current Employee read scope for details and notification navigation."""
 
-from sqlalchemy import false, select
+from sqlalchemy import and_, false, or_, select
 
 from app.db.organization import designations, employees, team_memberships, teams
 from app.policies import EMPLOYEE_SCOPE, Actor
+from app.repositories.reporting_scope import assigned_sales_reports
 
 
 def employee_query(actor: Actor):
@@ -15,8 +16,13 @@ def employee_query(actor: Actor):
         query = query.where(employees.c.branch_id == actor.branch_id)
     elif scope == "department":
         query = query.where(
-            employees.c.branch_id == actor.branch_id,
-            employees.c.department_id == actor.department_id,
+            or_(
+                and_(
+                    employees.c.branch_id == actor.branch_id,
+                    employees.c.department_id == actor.department_id,
+                ),
+                assigned_sales_reports(actor),
+            )
         )
     elif scope == "team":
         team_ids = select(teams.c.id).where(

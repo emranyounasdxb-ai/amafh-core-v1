@@ -16,6 +16,7 @@ from app.errors import ApiError
 from app.policies import Actor, employee_visible
 from app.repositories import permissions as permission_rows
 from app.repositories.case_scope import visible_case
+from app.repositories.employee_scope import employee_query
 from app.services.customer_read import _authorized_customer
 from app.services.finance_reads import (
     _clawback_scope,
@@ -234,6 +235,15 @@ async def may_link(session: AsyncSession, actor: Actor, kind: str, record_id: UU
     if kind == "employee":
         if "employee.read" not in actor.grants:
             return False
+        if actor.designation == "Sales Manager":
+            return (
+                await session.scalar(
+                    employee_query(actor)
+                    .with_only_columns(employees.c.id)
+                    .where(employees.c.id == record_id)
+                )
+                is not None
+            )
         row = (
             (await session.execute(select(employees).where(employees.c.id == record_id)))
             .mappings()

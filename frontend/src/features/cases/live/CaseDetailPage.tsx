@@ -137,12 +137,15 @@ export function CaseDetailPage({
   useEffect(() => {
     if (!item || !session || !canApproveCases(session)) return;
     const controller = new AbortController();
-    choices<EmployeeSummary>(
-      api,
-      "/employee-labels?status=Active",
-      controller.signal,
-    )
-      .then((rows) => {
+    Promise.all([
+      session.designation === "Owner"
+        ? choices<EmployeeSummary>(api, "/employee-labels?status=Active", controller.signal)
+        : Promise.resolve<EmployeeSummary[]>([]),
+      choices<EmployeeSummary>(
+        api, `/cases/${encodeURIComponent(id)}/approval-coordinators`, controller.signal,
+      ),
+    ])
+      .then(([rows, coordinatorRows]) => {
         setOwners(
           rows.filter((person) =>
             [
@@ -154,7 +157,7 @@ export function CaseDetailPage({
           ),
         );
         setCoordinators(
-          rows.filter(
+          coordinatorRows.filter(
             (person) =>
               person.designation === "Coordinator" &&
               person.branchId === item.branchId &&
@@ -171,7 +174,7 @@ export function CaseDetailPage({
           );
       });
     return () => controller.abort();
-  }, [api, item, session]);
+  }, [api, id, item, session]);
 
   const command = async (name: string, body: DataRecord) => {
     const payload = JSON.stringify(body);
@@ -299,7 +302,11 @@ export function CaseDetailPage({
     ? item.requestedPfAmount
     : label(item.productVariantId);
   const ownerName = label(item.ownerEmployeeId);
-  const coordinatorName = label(item.coordinatorEmployeeId);
+  const coordinatorProfileLabel = label(item.coordinatorEmployeeId);
+  const coordinatorName = item.coordinatorName ?? coordinatorProfileLabel;
+  const coordinatorProfileVisible = !isPlaceholderLabel(
+    displayOrFallback(coordinatorProfileLabel, ""),
+  );
   const createdByName = label(item.createdByEmployeeId);
   const branchName = label(item.branchId);
   const departmentName = label(item.departmentId);
@@ -367,7 +374,7 @@ export function CaseDetailPage({
             meta: "Coordinator",
             onOpen:
               openEmployee &&
-              !isPlaceholderLabel(displayOrFallback(coordinatorName, ""))
+              coordinatorProfileVisible
                 ? () => openEmployee(item.coordinatorEmployeeId!)
                 : undefined,
           } satisfies RelatedRecordItem,
@@ -655,7 +662,7 @@ export function CaseDetailPage({
                   value={coordinatorName}
                   fallback="Not assigned"
                   onOpen={
-                    openEmployee && item.coordinatorEmployeeId
+                    openEmployee && item.coordinatorEmployeeId && coordinatorProfileVisible
                       ? () => openEmployee(item.coordinatorEmployeeId!)
                       : undefined
                   }

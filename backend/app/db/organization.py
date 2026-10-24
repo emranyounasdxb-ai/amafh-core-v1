@@ -204,6 +204,7 @@ employees = Table(
         name="fk_employee_department_branch",
     ),
     Index("ix_employees_branch_department", "branch_id", "department_id"),
+    Index("ix_employees_reporting_manager", "reporting_manager_id", "branch_id", "department_id"),
 )
 assignment_history = Table(
     "employee_assignment_history",

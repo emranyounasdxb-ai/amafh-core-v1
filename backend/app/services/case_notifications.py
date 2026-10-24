@@ -16,27 +16,17 @@ from app.db.cases import (
     pipeline_stages,
 )
 from app.db.operations import notifications
-from app.db.organization import designations, employees, user_accounts
+from app.db.organization import employees, user_accounts
+from app.repositories.reporting_scope import active_sales_managers
 from app.services.performance_delay import count_delayed
 from app.services.performance_math import DUBAI
 
 
-async def _managers(session: AsyncSession, branch_id: UUID, department_id: UUID) -> set[UUID]:
+async def _managers(
+    session: AsyncSession, branch_id: UUID, department_id: UUID, owner_id: UUID
+) -> set[UUID]:
     return set(
-        (
-            await session.scalars(
-                select(employees.c.id)
-                .join(designations, designations.c.id == employees.c.designation_id)
-                .join(user_accounts, user_accounts.c.employee_id == employees.c.id)
-                .where(
-                    designations.c.name == "Sales Manager",
-                    employees.c.branch_id == branch_id,
-                    employees.c.department_id == department_id,
-                    employees.c.status == "Active",
-                    user_accounts.c.access_status == "Active",
-                )
-            )
-        ).all()
+        (await session.scalars(active_sales_managers(branch_id, department_id, owner_id))).all()
     )
 
 
@@ -79,7 +69,9 @@ async def _cycle(session: AsyncSession, case: dict, now: datetime):
             .one_or_none()
         )
         start = event["occurred_at"] if event else case["created_at"]
-        recipients = await _managers(session, case["branch_id"], case["department_id"])
+        recipients = await _managers(
+            session, case["branch_id"], case["department_id"], case["owner_employee_id"]
+        )
         kind = "pending_approval"
     elif case["current_status"] == "Booked" and case["current_stage"] is not None:
         event = (
@@ -117,7 +109,9 @@ async def _cycle(session: AsyncSession, case: dict, now: datetime):
         recipients = await _active_recipients(
             session, {case["owner_employee_id"], case["coordinator_employee_id"]} - {None}
         )
-        recipients |= await _managers(session, case["branch_id"], case["department_id"])
+        recipients |= await _managers(
+            session, case["branch_id"], case["department_id"], case["owner_employee_id"]
+        )
         kind = "stage_delayed"
     else:
         return None
