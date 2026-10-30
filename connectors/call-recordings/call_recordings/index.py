@@ -44,15 +44,18 @@ class CatalogIndex:
         self._migrate(connection)
         self._connection = connection
         with self._lock:
-            # Version 1 accepted only ten-digit destination numbers and could
-            # checkpoint past unsettled files. Revisit metadata in place once;
-            # keep IDs, the epoch, journal and existing playable catalog intact.
-            if self._value("number_format_revision") != "2":
+            # Revisit previously rejected leading-plus names once. Keep the
+            # recording IDs, epoch, journal and playable rows intact. Revision
+            # 2 already had a valid completed scan; retain that observation.
+            previous_revision = self._value("number_format_revision")
+            if previous_revision != "3":
                 self._execute("BEGIN IMMEDIATE")
                 try:
-                    self._execute("DELETE FROM meta WHERE key IN ('reconcile_checkpoint', 'last_indexed_at')")
+                    self._execute("DELETE FROM meta WHERE key = 'reconcile_checkpoint'")
+                    if previous_revision != "2":
+                        self._execute("DELETE FROM meta WHERE key = 'last_indexed_at'")
                     self._upsert_meta("phase", "indexing")
-                    self._upsert_meta("number_format_revision", "2")
+                    self._upsert_meta("number_format_revision", "3")
                     self._execute("COMMIT")
                 except Exception:
                     self._execute("ROLLBACK")

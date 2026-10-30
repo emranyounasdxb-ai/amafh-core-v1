@@ -17,6 +17,26 @@ The process listens only on the configured address. `0.0.0.0` is refused. Readin
 
 SQLite uses rollback-journal mode. Do not enable WAL on SQLite 3.50.4, and do not put the database on a network share.
 
+## Leading-plus filenames (1.0.2)
+
+Either participant may have one leading `+`, including the destination after
+`##`. The connector removes that sign from the searchable participant fields
+only. It keeps every digit, including leading zeros. For example,
+`auto-1-+971581234567-214.wav` is searchable by `971581234567` or `214`.
+It is not made equivalent to `00971581234567` or a local number. Search inputs
+remain digits only. Original filenames, recording IDs and source bytes stay
+unchanged; marked and unmarked recordings remain separate files.
+
+The existing catalog protocol and backend database schema remain compatible.
+On the first 1.0.2 startup, number-format revision 3 re-arms metadata
+reconciliation so previously unsupported names are revisited. Ready rows,
+the epoch and change journal are retained. A later restart resumes its saved
+checkpoint. The regular bounded scanner and WAV completeness checks still
+apply: accepting a name does not make an empty or invalid file ready.
+
+The frontend uses the preserved filename's explicit `+` to identify these
+external calls even though the searchable fields contain digits only.
+
 ## Windows service source
 
 `call_recordings.service.CallRecordingWindowsService` is the importable Service Control Manager class. It is published on the module when `windows_service_class()` runs, and again at import when pywin32 is installed. `windows/install-service.ps1 -Python <python> -Config <toml>` passes that config path. The service command stores it as the `ConfigFile` custom option, and `SvcDoRun` reads that option. `uninstall` is sent to pywin32 as `remove`. Stop and removal failures return a non-zero exit code.

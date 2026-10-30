@@ -3,13 +3,17 @@
 The generated numeric field is opaque, not a timestamp. Both following fields
 are exact dialled numbers (including internal extensions). Their order does not
 establish call direction or employee identity. Legacy attribute names remain for
-wire compatibility. Leading zeros and the original filename are preserved.
+wire compatibility. An optional leading + is accepted on either participant;
+the searchable fields contain its digits only. Leading zeros and the original
+filename are preserved. No country-code or local-number conversion is applied.
 """
 
 import re
 from dataclasses import dataclass
 
-_FILENAME = re.compile(r"\Aauto-([0-9]+)-([0-9]{1,32})-(##)?([0-9]{1,32})\.([A-Za-z0-9]+)\Z")
+_FILENAME = re.compile(
+    r"\Aauto-([0-9]+)-([+]?[0-9]{1,32})-(##)?([+]?[0-9]{1,32})\.([A-Za-z0-9]+)\Z"
+)
 _MONTH = re.compile(r"\A([0-9]{4})-(0[1-9]|1[0-2])\Z")
 CONFIRMED_EXTENSION = "wav"
 
@@ -34,9 +38,9 @@ def parse_filename(name: str) -> ParsedName | None:
     opaque, extension_number, marker, customer_number, file_extension = match.groups()
     return ParsedName(
         opaque=opaque,
-        extension_number=extension_number,
+        extension_number=extension_number.removeprefix("+"),
         marked=marker == "##",
-        customer_number=customer_number,
+        customer_number=customer_number.removeprefix("+"),
         file_extension=file_extension,
         supported=file_extension.lower() == CONFIRMED_EXTENSION,
     )

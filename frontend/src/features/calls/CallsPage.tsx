@@ -589,18 +589,25 @@ export function CallsPage() {
                       minWidth: 130,
                       render: (row) => (
                         <span
-                          className={`calls-type calls-type--${callType(row.extension, row.customerNumber).toLowerCase()}`}
+                          className={`calls-type calls-type--${callType(row.extension, row.customerNumber, row.filename).toLowerCase()}`}
                         >
                           <DsIcon
                             name={
-                              callType(row.extension, row.customerNumber) ===
-                              "Internal"
+                              callType(
+                                row.extension,
+                                row.customerNumber,
+                                row.filename,
+                              ) === "Internal"
                                 ? "organization"
                                 : "externalCall"
                             }
                             size={14}
                           />
-                          {callType(row.extension, row.customerNumber)}
+                          {callType(
+                            row.extension,
+                            row.customerNumber,
+                            row.filename,
+                          )}
                         </span>
                       ),
                     },
@@ -749,13 +756,14 @@ export function CallsPage() {
                   <CompactMonthYear value={visibleRecording.month} />
                 </p>
                 <span
-                  className={`calls-type calls-type--${callType(visibleRecording.extension, visibleRecording.customerNumber).toLowerCase()}`}
+                  className={`calls-type calls-type--${callType(visibleRecording.extension, visibleRecording.customerNumber, visibleRecording.filename).toLowerCase()}`}
                 >
                   <DsIcon
                     name={
                       callType(
                         visibleRecording.extension,
                         visibleRecording.customerNumber,
+                        visibleRecording.filename,
                       ) === "Internal"
                         ? "organization"
                         : "externalCall"
@@ -765,6 +773,7 @@ export function CallsPage() {
                   {callType(
                     visibleRecording.extension,
                     visibleRecording.customerNumber,
+                    visibleRecording.filename,
                   )}{" "}
                   call
                 </span>
